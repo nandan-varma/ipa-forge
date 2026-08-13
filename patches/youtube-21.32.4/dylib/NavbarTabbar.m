@@ -126,6 +126,16 @@ static void fixNavbar(void) {
             }
         });
     (void)orig_navTitleLayout;
+
+    // Sticky navigation bar (G18).
+    static IMP orig_stickyNav;
+    orig_stickyNav = ytfHookInstance(NSClassFromString(@"YTHeaderView"),
+        @selector(stickyNavHeaderEnabled),
+        ^BOOL(id self) {
+            return IS_ENABLED(KStickyNavbar) ? YES
+                : ((BOOL(*)(id, SEL))orig_stickyNav)(self, @selector(stickyNavHeaderEnabled));
+        });
+    (void)orig_stickyNav;
 }
 
 // --- G9: tab bar ------------------------------------------------------------

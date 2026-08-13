@@ -259,6 +259,7 @@ static void buildYTFreedomSection(id manager) {
             YTFSwitchItem(@"Hide search button", nil, KHideSearch),
             YTFSwitchItem(@"Hide voice search button", nil, KHideVoiceSearch),
             YTFSwitchItem(@"Hide cast button", nil, KHideCastButtonNav),
+            YTFSwitchItem(@"Sticky navigation bar", nil, KStickyNavbar),
         ]);
         return YES;
     });
@@ -274,6 +275,7 @@ static void buildYTFreedomSection(id manager) {
             YTFSwitchItem(@"Hide feed posts", nil, KHideFeedPost),
             YTFSwitchItem(@"Hide Shorts shelf", nil, KHideShortsShelf),
             YTFSwitchItem(@"Hide search history", nil, KHideSearchHis),
+            YTFSwitchItem(@"Hide related videos", @"Hide related videos on watch page", KNoRelatedVideos),
             YTFSwitchItem(@"Hide subscribe button", nil, KHideSubButton),
             YTFSwitchItem(@"Hide shop button", nil, KHideShoppingButton),
             YTFSwitchItem(@"Hide memberships button", nil, KHideMemberButton),
@@ -313,6 +315,8 @@ static void buildYTFreedomSection(id manager) {
             YTFSwitchItem(@"Portrait fullscreen", nil, KPortFull),
             YTFSwitchItem(@"Old quality picker", nil, KOldQualityPicker),
             YTFSwitchItem(@"Extra speeds (0.25x-10x)", nil, KExtraSpeed),
+            YTFSwitchItem(@"Red progress bar", @"Resting bar color becomes red", KRedProgressBar),
+            YTFSwitchItem(@"Copy timestamped link on pause", @"Copies watch URL with current time", KCopyTimestampedLink),
             YTFSwitchItem(@"Disable hints", nil, KDisableHints),
             YTFSwitchItem(@"Force miniplayer", nil, KForceMiniPlayer),
             YTFSwitchItem(@"Always show seekbar", nil, KAlwaysShowSeekbar),
@@ -392,6 +396,23 @@ static void buildYTFreedomSection(id manager) {
     });
     ((id<YTFreedomSettingsItemHooks>)misc).settingIcon = YTFIcon(1101);
     [items addObject:misc];
+
+    // Menu
+    id menu = YTFItem(@"Menu items", nil, ^BOOL(id cell, NSUInteger arg) {
+        YTFPushPicker(manager, settingsVC, @"Menu items", @[
+            YTFHeaderItem(@"Menu items"),
+            YTFSwitchItem(@"Remove Download", nil, KRemoveDownloadMenu),
+            YTFSwitchItem(@"Remove Watch later", nil, KRemoveWatchLaterMenu),
+            YTFSwitchItem(@"Remove Save to playlist", nil, KRemoveSaveToPlaylistMenu),
+            YTFSwitchItem(@"Remove Share", nil, KRemoveShareMenu),
+            YTFSwitchItem(@"Remove Not interested", nil, KRemoveNotInterestedMenu),
+            YTFSwitchItem(@"Remove Don't recommend channel", nil, KRemoveDontRecommendMenu),
+            YTFSwitchItem(@"Remove Report", nil, KRemoveReportMenu),
+        ]);
+        return YES;
+    });
+    ((id<YTFreedomSettingsItemHooks>)menu).settingIcon = YTFIcon(120);
+    [items addObject:menu];
 
     // Preferences
     id prefs = YTFItem(@"Preferences", nil, ^BOOL(id cell, NSUInteger arg) {

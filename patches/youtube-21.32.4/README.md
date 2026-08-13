@@ -9,8 +9,8 @@ with `forge patch --dry-run`.
 | File | Effect | Status |
 | --- | --- | --- |
 | `youtube-21.32.4.yaml` | Safe cosmetic: display name + signed-out 90s preview video swap | dry-run OK |
-| `youtube-adblock.yaml` | **Player ad removal + sideload sign-in fix** via `libYTHook.dylib`, **plus extension stripping** (required for AltStore install) | dry-run OK |
-| `youtube-21.32.4-full.yaml` | Everything above **plus extension stripping** (required for AltStore install) | dry-run OK |
+| `youtube-mod.yaml` | **Full mod**: adblock + sign-in fix + settings + all feature toggles via `libYTHook.dylib`, **plus extension stripping** (required for AltStore install) | dry-run OK |
+| `youtube-21.32.4-full.yaml` | Cosmetic + everything from `youtube-mod.yaml` | dry-run OK |
 
 ## Why extensions are stripped (and what you lose)
 
@@ -28,38 +28,43 @@ extensions (push is unavailable on free sideload accounts anyway). Core playback
 ads removal, downloads, and all patched features are unaffected — the main
 Info.plist references none of them.
 
-## Player + feed ad removal (`youtube-adblock.yaml`)
+## Feature overview (`youtube-mod.yaml`)
 
-The adblock rewrite follows YouMod's `Ads.x` (built for exactly 21.32.4)
-and covers every layer of the modern ads pipeline (all hook classes and
-selectors verified present in the 21.32.4 binary with `yt_inventory.py`):
+The dylib (see `SOURCES.md` for attribution) implements, all behind the in-app
+**Settings → YTFreedom** section:
 
-- **Data level** — `YTPlayerResponse` gets new `playerAdsArray`/
-  `adSlotsArray` methods returning empty arrays (the ads pipeline queries
-them on the response wrapper); `YTIClientMdxGlobalConfig` gets
-  `enableSkippableAd -> YES`.
-- **Playback level** — `YTLocalPlaybackController createAdsPlaybackCoordinator
-  -> nil` (no ad playback coordinator); `MDXSessionImpl adPlaying:` no-op;
-  the first-iteration backstops stay: `YTAdBreakResponseReceivedOpportunity-
-  AdapterV2 didReceiveAdBreakResponse:fromAdBreakSlot:` drops the response,
-  `YTAdBreakRendererAdapter createAds` returns empty.
-- **Request level** — `YTAdsInnerTubeContextDecorator` and
-  `YTAccountScopedAdsInnerTubeContextDecorator decorateContext:` call
-  through with nil (InnerTube requests carry no ad decoration);
-  `YTAdShieldUtils spamSignalsDictionary*` return empty dicts.
-- **Feed level** — `YTInnerTubeCollectionViewController` filters sections
-  (`_sectionRenderers` + `addSectionsFromArray:`) by `YTIElementRenderer`
-  ad detection (ad-logging compatibility data or known ad-layout strings:
-  brand_promo, product_carousel, text_search_ad, ...); `_ASDisplayView`
-  removes `eml.expandable_metadata.vpp` and hides `eml.ad_layout.*`
-  in-player overlays; the player's product-in-video overlay is dropped;
-  Shorts ad reels are filtered out of `YTReelDataSource`
-  (`isAdVideo`).
+- **Ads**: player pre/mid/post-roll, feed cards, Shorts ads (AdBlock.m)
+- **Sideload sign-in**: OAuth safety-page fix + SSO keychain persistence (SignInFix.m)
+- **Player**: bar toggles, overlay/UI, playback behavior, old quality picker, extra speeds,
+  edge gestures, background playback, Shorts PiP (PlayerFeatures.m, PlayerGestures.m)
+- **Navbar / Tab bar**: logo, buttons, sticky navbar, tabs, default tab (NavbarTabbar.m)
+- **Feed / Shorts**: subbar, shelves, search history, buttons, quality, seekbar (FeedShorts.m)
+- **Misc**: upgrade dialogs, snackbar, startup animations, menu-item removal, silent vote,
+  promo blockers (MiscFeatures.m)
+- **Appearance**: OLED theme + keyboard (Appearance.m)
+- **Preferences**: import/export/reset, cache management (SettingsUI.m)
 
-Note: the earlier claim that "every classic hook point is gone from this
-binary" was wrong — `YTAdsInnerTubeContextDecorator`/`YTAdShieldUtils` are
-present. What *is* gone (verified): `YTIPlayerResponse isMonetized:`,
-`YTDataUtils spamSignalsDictionary`, `YTISectionListViewController`,
+Progress and per-goal verification live in `ROADMAP.md`.
+
+### Ad removal detail (AdBlock.m)
+
+Covers every layer of the modern ads pipeline:
+
+- **Data** — `YTPlayerResponse` gets new `playerAdsArray`/`adSlotsArray`
+  (empty arrays, queried by the pipeline); `enableSkippableAd -> YES`.
+- **Playback** — `YTLocalPlaybackController createAdsPlaybackCoordinator -> nil`;
+  `MDXSessionImpl adPlaying:` no-op; adapter backstops
+  (`YTAdBreakResponseReceivedOpportunityAdapterV2` / `YTAdBreakRendererAdapter`).
+- **Request** — `YTAdsInnerTubeContextDecorator` and
+  `YTAccountScopedAdsInnerTubeContextDecorator decorateContext:` call through
+  with nil; `YTAdShieldUtils spamSignalsDictionary*` empty.
+- **Feed** — `YTInnerTubeCollectionViewController` filters sections by
+  `YTIElementRenderer` ad detection; `_ASDisplayView` removes
+  `eml.expandable_metadata.vpp` / hides `eml.ad_layout.*`; product-in-video
+  overlay dropped; Shorts ad reels filtered via `isAdVideo`.
+
+Verified absent in 21.32.4 (superseded/renamed): `YTIPlayerResponse
+isMonetized:`, `YTDataUtils spamSignalsDictionary`, `YTISectionListViewController`,
 `YTWatchBreakController`, `YTInstreamAdsCoordinator`, `YTAdsPlayerModule`,
 `YTReelInfinitePlaybackDataSource`.
 

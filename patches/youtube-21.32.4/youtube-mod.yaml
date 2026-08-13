@@ -1,20 +1,19 @@
-# YouTube 21.32.4 — player ad removal via from-scratch hook dylib.
+# YouTube 21.32.4 — player ad removal + full feature mod via from-scratch hook dylib.
 #
-# Installable Adblock IPA: this set also strips Extensions/ and PlugIns/,
-# which AltStore requires (the parent bundle id gets a Team-ID suffix at
-# install, breaking stock extension ids -- see the comment on the remove
-# ops below).
+# libYTHook.dylib is built from dylib/*.m (see dylib/build.sh) and swizzles,
+# at load time via a plain ObjC-runtime constructor:
+#   - ad removal (player/feed/Shorts) — see AdBlock.m
+#   - sideload sign-in fix — see SignInFix.m
+#   - in-app YTFreedom settings section — see SettingsUI.m
+#   - player/gestures/navbar/tabbar/feed/shorts/misc/appearance toggles —
+#     see PlayerFeatures.m, PlayerGestures.m, NavbarTabbar.m, FeedShorts.m,
+#     MiscFeatures.m, Appearance.m
+# Every hook class and selector was verified present in the 21.32.4 binary
+# (yt_inventory.py + strings) before being ported.
 #
-# libYTHook.dylib is built from dylib/libYTHook.m (see dylib/build.sh) and
-# swizzles, at load time via a plain ObjC-runtime constructor:
-#   - YTAdBreakResponseReceivedOpportunityAdapterV2
-#       didReceiveAdBreakResponse:fromAdBreakSlot:  -> response dropped
-#   - YTAdBreakRendererAdapter createAds            -> returns empty array
-# Hook targets were verified present in the 21.32.4 binary by static
-# analysis (class/method walk of __objc_classlist/__objc_methlist).
-#
-# No ads are scheduled; the ad-break timeline still resolves (empty), so
-# content playback is not left waiting on a missing callback.
+# Installable output: this set also strips Extensions/ and PlugIns/, which
+# AltStore requires (the parent bundle id gets a Team-ID suffix at install,
+# breaking stock extension ids — see the comment on the remove ops below).
 #
 # Build:   dylib/build.sh
 # Dry run: forge patch --ipa <youtube-21.32.4.ipa> --patches this-file --dry-run

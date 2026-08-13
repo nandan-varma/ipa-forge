@@ -16,6 +16,7 @@
 - (BOOL)shouldShowServiceItemRenderer:(id)renderer;
 - (id)icon;
 - (int)iconType;
+- (void)setOncePerTimeWindow:(BOOL)flag;
 @end
 
 // --- G7: background playback + Shorts PiP -----------------------------------
@@ -222,7 +223,105 @@ static void fixMisc(void) {
     }
 }
 
+// --- Promo/premium-nag blockers (NoYTPremium lineage, from YouMod Ads.x) ---
+
+static void fixPromos(void) {
+    // Kill event handlers that surface premium promos.
+    NSArray *handlerClasses = @[
+        @"YTCommerceEventGroupHandler",
+        @"YTInterstitialPromoEventGroupHandler",
+        @"YTPromosheetEventGroupHandler",
+    ];
+    for (NSString *name in handlerClasses) {
+        Class cls = NSClassFromString(name);
+        Method m = class_getInstanceMethod(cls, sel_registerName("addEventHandlers"));
+        if (m) {
+            class_replaceMethod(cls, sel_registerName("addEventHandlers"),
+                imp_implementationWithBlock(^void(id self) {}), method_getTypeEncoding(m));
+        }
+    }
+
+    // Never show throttled promos.
+    NSArray *throttleClasses = @[@"YTPromoThrottleController", @"YTPromoThrottleControllerImpl"];
+    for (NSString *name in throttleClasses) {
+        Class cls = NSClassFromString(name);
+        NSArray *sels = @[@"canShowThrottledPromo",
+                          @"canShowThrottledPromoWithFrequencyCap:",
+                          @"canShowThrottledPromoWithFrequencyCaps:"];
+        for (NSString *selName in sels) {
+            SEL sel = NSSelectorFromString(selName);
+            Method m = class_getInstanceMethod(cls, sel);
+            if (m) {
+                class_replaceMethod(cls, sel,
+                    imp_implementationWithBlock(^BOOL(id self) { return NO; }),
+                    method_getTypeEncoding(m));
+            }
+        }
+    }
+
+    // Never throttle the fullscreen interstitial out of existence weirdly —
+    // instead make it throttle to once-per-time-window so it shows at most
+    // once, per NoYTPremium.
+    static IMP orig_shouldThrottleInterstitial;
+    orig_shouldThrottleInterstitial = ytfHookInstance(
+        NSClassFromString(@"YTIShowFullscreenInterstitialCommand"),
+        @selector(shouldThrottleInterstitial),
+        ^BOOL(id self) {
+            id modalRules = [self valueForKey:@"modalClientThrottlingRules"];
+            id<YTFreedomMiscHooks> rulesHooks = modalRules;
+            if ([rulesHooks respondsToSelector:@selector(setOncePerTimeWindow:)])
+                [rulesHooks setOncePerTimeWindow:YES];
+            return ((BOOL(*)(id, SEL))orig_shouldThrottleInterstitial)(
+                self, @selector(shouldThrottleInterstitial));
+        });
+    (void)orig_shouldThrottleInterstitial;
+
+    // "Try new features" premium-early-access section.
+    Class itemManager = NSClassFromString(@"YTSettingsSectionItemManager");
+    Method mEarly = class_getInstanceMethod(itemManager,
+        sel_registerName("updatePremiumEarlyAccessSectionWithEntry:"));
+    if (mEarly) {
+        class_replaceMethod(itemManager, sel_registerName("updatePremiumEarlyAccessSectionWithEntry:"),
+            imp_implementationWithBlock(^void(id self, id entry) {}), method_getTypeEncoding(mEarly));
+    }
+
+    // Surveys.
+    Class survey = NSClassFromString(@"YTSurveyController");
+    Method mSurvey = class_getInstanceMethod(survey,
+        sel_registerName("showSurveyWithRenderer:surveyParentResponder:"));
+    if (mSurvey) {
+        class_replaceMethod(survey, sel_registerName("showSurveyWithRenderer:surveyParentResponder:"),
+            imp_implementationWithBlock(^void(id self, id renderer, id responder) {}),
+            method_getTypeEncoding(mSurvey));
+    }
+}
+
+// --- G18: remove menu items (YTLite YTDefaultSheetController) ---------------
+
+static void fixMenuRemoval(void) {
+    static IMP orig_addAction;
+    orig_addAction = ytfHookInstance(NSClassFromString(@"YTDefaultSheetController"),
+        @selector(addAction:),
+        ^void(id self, id action) {
+            NSString *identifier = [action valueForKey:@"_accessibilityIdentifier"];
+            NSDictionary *toRemove = @{
+                @"7":  @(IS_ENABLED(KRemoveDownloadMenu)),
+                @"1":  @(IS_ENABLED(KRemoveWatchLaterMenu)),
+                @"3":  @(IS_ENABLED(KRemoveSaveToPlaylistMenu)),
+                @"5":  @(IS_ENABLED(KRemoveShareMenu)),
+                @"12": @(IS_ENABLED(KRemoveNotInterestedMenu)),
+                @"31": @(IS_ENABLED(KRemoveDontRecommendMenu)),
+                @"58": @(IS_ENABLED(KRemoveReportMenu)),
+            };
+            if (![toRemove[identifier] boolValue])
+                ((void(*)(id, SEL, id))orig_addAction)(self, @selector(addAction:), action);
+        });
+    (void)orig_addAction;
+}
+
 void YTFreedomMiscInit(void) {
     fixBackgroundPlayback();
     fixMisc();
+    fixPromos();
+    fixMenuRemoval();
 }

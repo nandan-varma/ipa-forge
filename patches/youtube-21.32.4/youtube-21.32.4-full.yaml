@@ -1,7 +1,7 @@
 # YouTube 21.32.4 — complete patch set: cosmetic + player ad removal.
 #
 # Combines the safe resource/plist patches with the from-scratch ad-removal
-# hook dylib (see youtube-adblock.yaml and dylib/ for details).
+# hook dylib (see youtube-mod.yaml and dylib/ for details).
 #
 # Build the dylib first if assets/libYTHook.dylib is missing:
 #   dylib/build.sh

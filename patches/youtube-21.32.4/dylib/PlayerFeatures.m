@@ -28,6 +28,16 @@
 - (void)setShouldDisplayTimeRemaining:(BOOL)value;
 - (id)initWithServiceRegistryScope:(id)scope parentResponder:(id)responder;
 - (id)addRestrictedFormats:(id)formats;
+- (void)setPaused:(BOOL)paused;
+- (double)mediaTime;
+- (NSString *)videoID;
+- (void)setVisibleSections:(NSInteger)sections;
+- (id)quietProgressBarColor;
+- (void)setRelatedVideosVisible:(BOOL)visible;
+- (void)setFrame:(CGRect)frame;
+- (UILabel *)titleLabel;
+- (BOOL)stickyNavHeaderEnabled;
+- (void)setStickyNavHeaderEnabled:(BOOL)enabled;
 @end
 
 // Forward declaration for the option-builder used by the varispeed hooks.
@@ -662,6 +672,96 @@ void ytfConfigurePlayerOverlayInsertion(void) {
     (void)orig_setPaidContentMuted;
 }
 
+// --- G18: YTLite extras -----------------------------------------------------
+
+static void fixYTLiteExtras(void) {
+    // Red progress bar (quiet/resting color).
+    static IMP orig_quietProgressBarColor;
+    orig_quietProgressBarColor = ytfHookInstance(
+        NSClassFromString(@"YTInlinePlayerBarContainerView"),
+        @selector(quietProgressBarColor),
+        ^id(id self) {
+            return IS_ENABLED(KRedProgressBar) ? [UIColor redColor]
+                : ((id(*)(id, SEL))orig_quietProgressBarColor)(self, @selector(quietProgressBarColor));
+        });
+    (void)orig_quietProgressBarColor;
+
+    // Copy timestamped link when pausing.
+    static IMP orig_didPressPause;
+    orig_didPressPause = ytfHookInstance(
+        NSClassFromString(@"YTMainAppVideoPlayerOverlayViewController"),
+        @selector(didPressPause:),
+        ^void(id self, id arg) {
+            ((void(*)(id, SEL, id))orig_didPressPause)(self, @selector(didPressPause:), arg);
+            if (IS_ENABLED(KCopyTimestampedLink)) {
+                id<YTFreedomMenuHooks> hooks = self;
+                NSInteger mediaTime = [hooks respondsToSelector:@selector(mediaTime)]
+                    ? (NSInteger)[hooks mediaTime] : 0;
+                NSString *videoID = [hooks respondsToSelector:@selector(videoID)]
+                    ? [hooks videoID] : nil;
+                if (videoID.length > 0) {
+                    NSString *link = [NSString stringWithFormat:@"https://www.youtube.com/watch?v=%@&t=%lds",
+                                      videoID, (long)mediaTime];
+                    [UIPasteboard generalPasteboard].string = link;
+                }
+            }
+        });
+    (void)orig_didPressPause;
+
+    // Hide related videos on watch-next results.
+    static IMP orig_setVisibleSections;
+    orig_setVisibleSections = ytfHookInstance(
+        NSClassFromString(@"YTWatchNextResultsViewController"),
+        @selector(setVisibleSections:),
+        ^void(id self, NSInteger sections) {
+            ((void(*)(id, SEL, NSInteger))orig_setVisibleSections)(
+                self, @selector(setVisibleSections:), IS_ENABLED(KNoRelatedVideos) ? 1 : sections);
+        });
+    (void)orig_setVisibleSections;
+
+    // Related videos on the endscreen.
+    static IMP orig_setRelatedVideosVisible;
+    orig_setRelatedVideosVisible = ytfHookInstance(
+        NSClassFromString(@"YTFullscreenEngagementOverlayController"),
+        @selector(setRelatedVideosVisible:),
+        ^void(id self, BOOL visible) {
+            ((void(*)(id, SEL, BOOL))orig_setRelatedVideosVisible)(
+                self, @selector(setRelatedVideosVisible:), IS_ENABLED(KHideSuggestedVideo) ? NO : visible);
+        });
+    (void)orig_setRelatedVideosVisible;
+
+    // Fit button labels (play-all / shorts) for localizations.
+    static IMP orig_qtmTitleLabel;
+    orig_qtmTitleLabel = ytfHookInstance(NSClassFromString(@"YTQTMButton"),
+        @selector(titleLabel),
+        ^id(id self) {
+            UILabel *label = ((id(*)(id, SEL))orig_qtmTitleLabel)(self, @selector(titleLabel));
+            if ([[(UIView *)self accessibilityIdentifier] isEqualToString:@"id.playlist.playall.button"])
+                label.adjustsFontSizeToFitWidth = YES;
+            return label;
+        });
+    (void)orig_qtmTitleLabel;
+    static IMP orig_reelTitleLabel;
+    orig_reelTitleLabel = ytfHookInstance(NSClassFromString(@"YTReelPlayerButton"),
+        @selector(titleLabel),
+        ^id(id self) {
+            UILabel *label = ((id(*)(id, SEL))orig_reelTitleLabel)(self, @selector(titleLabel));
+            label.adjustsFontSizeToFitWidth = YES;
+            return label;
+        });
+    (void)orig_reelTitleLabel;
+
+    // Playlist mini-bar minimum height (small screens).
+    static IMP orig_playlistMiniBarFrame;
+    orig_playlistMiniBarFrame = ytfHookInstance(NSClassFromString(@"YTPlaylistMiniBarView"),
+        @selector(setFrame:),
+        ^void(id self, CGRect frame) {
+            if (frame.size.height < 54.0) frame.size.height = 54.0;
+            ((void(*)(id, SEL, CGRect))orig_playlistMiniBarFrame)(self, @selector(setFrame:), frame);
+        });
+    (void)orig_playlistMiniBarFrame;
+}
+
 void YTFreedomPlayerInit(void) {
     fixPlayerBar();
     fixOverlayUI();
@@ -671,5 +771,6 @@ void YTFreedomPlayerInit(void) {
         fixOldQualityPicker();
     if (IS_ENABLED(KExtraSpeed))
         fixSpeedMenu();
+    fixYTLiteExtras();
     ytfConfigurePlayerOverlayInsertion();
 }

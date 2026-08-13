@@ -254,9 +254,34 @@ Status legend: ✅ done · 🔄 in progress · ⬜ planned · ⛔ verified absen
 
 ## Explicitly out of scope / deferred
 
-- **SponsorBlock** (uYouPlus): needs its own API integration + segment UI — defer until G17
-  done; decide then.
-- **Server-side anything** (YouMod's CI flow): not needed — Download.x is self-contained.
+- **G15 Native share — blocked on API drift (documented).** The hook entry point
+  `ELMPBShowActionSheetCommand executeWithCommandContext:handler:` and the
+  `serializedShareEntity` field exist in 21.32.4, but the protobuf extension-root
+  lookup the reference uses (`YTIInnertubeCommandExtensionRoot innertubeCommand`,
+  `YTIUpdateShareSheetCommand updateShareSheetCommand`) and the unknown-field
+  traversal API (`GPBUnknownFieldSet getField:`/`lengthDelimitedList`) are absent
+  from the 21.32.4 protobuf runtime. Completing it needs either (a) re-deriving the
+  extension field numbers via protobuf analysis of the binary, or (b) a simpler
+  direct approach — extract the watch URL from `YTWatchController`/`YTPlayerViewController`
+  and present `UIActivityViewController` from the share button. Revisit after G17.
+- **G16 Return YouTube Dislikes — partial research done.** The classic RYD hook classes
+  (`YTLikeButtonViewController`, `YTLikeButtonViewModel`) are gone; 21.32.4 uses ELM
+  like buttons (`ELMPBVideoActionLikeButtonModel`). YouMod ships a compiled
+  `YouTubeDislikesReturn.dylib` for 21.32.4 whose class map is: API
+  `returnyoutubedislikeapi.com/votes?videoId=%@`, display targets via
+  `setLikeCountText:`/`setDislikeCountText:` on the like/dislike view models,
+  watched via `YTWatchViewController`/`YTReelWatchLikesController`. Next step:
+  disassemble that dylib's apply function (objc_msgSend target + model access path)
+  to recover the exact application point, then port.
+- **G17 Downloads (final milestone).** YouMod's `Download.x` (2386 lines) is
+  self-contained (NSURLSession on `streamingData` URLs + AVFoundation merge + Photos
+  export, no server). Sub-plan: (1) download button on the player via
+  `YTPlayerViewController viewDidAppear:`/`viewWillDisappear:` + `_ASDisplayView`;
+  (2) format picker (video/audio, DRC toggle); (3) `SSOAuthorization accessToken`
+  for authenticated streams; (4) download core + progress + background session;
+  (5) manager screen + Files/Photos export. Verify `SSOAuthorization(Impl)
+  accessToken` + `GNPSSOAuthorizationService` selectors first.
+- **SponsorBlock** (uYouPlus): defer until G17 done; decide then.
 - **Watch-mini-bar / segmentable player bar** (⛔ classes absent in 21.32.4).
 - **OGLPhenotypeFlagServiceImpl / YTReelInfinitePlaybackDataSource** (⛔ absent).
 - **App extensions** (widgets/share/intents/notifications): deliberately stripped for
@@ -279,15 +304,15 @@ Status legend: ✅ done · 🔄 in progress · ⬜ planned · ⛔ verified absen
 | G1–G3 Player bar / overlay / behavior | ✅ implemented — on-device pass pending |
 | G4 Old quality picker | ✅ implemented — on-device pass pending |
 | G5 Extra speed (0.25×–10×) | ✅ implemented — on-device pass pending |
-| G6 Player gestures | ⬜ next (pan-gesture + HUD infra) |
+| G6 Player gestures | ✅ implemented (edge swipes: brightness/volume/speed + HUD) — on-device pass pending |
 | G7 Background playback | ✅ implemented — on-device pass pending |
 | G8–G9 Navbar/Tabbar | ✅ implemented — on-device pass pending |
 | G10–G11 Feed/Shorts | ✅ implemented (ads part done earlier) — on-device pass pending |
-| G12 Misc | ✅ implemented — on-device pass pending |
+| G12 Misc | ✅ implemented (+ NoYTPremium promo blockers, menu-item removal) — on-device pass pending |
 | G13 Appearance (OLED) | ✅ implemented — on-device pass pending |
 | G14 Preferences manager | ✅ implemented (import/export/reset/cache) — on-device pass pending |
-| G15 Native share | ⬜ |
-| G16 RYD dislikes | ⬜ |
-| G17 Downloads | ⬜ |
-| G18 YTLite extras | ⬜ |
-| G19 Adblock polish | 🔄 (verified working) |
+| G15 Native share | ⛔ blocked on API drift — see below |
+| G16 RYD dislikes | 🔄 partial research — see below |
+| G17 Downloads | ⬜ final milestone — sub-plan below |
+| G18 YTLite extras | ✅ portable subset done (red progress bar, related-videos hide, timestamped link on pause, menu-item removal, sticky navbar, label fitting, playlist minibar) — on-device pass pending |
+| G19 Adblock polish | ✅ (promo blockers folded into G12) |

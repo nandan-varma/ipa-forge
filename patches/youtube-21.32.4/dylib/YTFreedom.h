@@ -14,7 +14,7 @@
 
 #define YT_BUNDLE_ID @"com.google.ios.youtube"
 #define YT_NAME @"YouTube"
-#define YTFREEDOM_VERSION @"0.3.0"
+#define YTFREEDOM_VERSION @"0.4.0"
 
 // ---------------------------------------------------------------------------
 // Settings keys (NSUserDefaults, prefix YTFreedom)
@@ -115,6 +115,19 @@
 #define KDownloadSaveToPhotos    @"YTFreedomDownloadSaveToPhotos"
 #define KDownloadPreferDRCAudio  @"YTFreedomDownloadPreferDRCAudio"
 #define KAutoClearCache          @"YTFreedomAutoClearCache"
+
+// G18 YTLite extras / G6 gestures keys
+#define KRedProgressBar           @"YTFreedomRedProgressBar"
+#define KNoRelatedVideos          @"YTFreedomNoRelatedVideos"
+#define KStickyNavbar             @"YTFreedomStickyNavbar"
+#define KCopyTimestampedLink      @"YTFreedomCopyTimestampedLink"
+#define KRemoveDownloadMenu       @"YTFreedomRemoveDownloadMenu"
+#define KRemoveWatchLaterMenu     @"YTFreedomRemoveWatchLaterMenu"
+#define KRemoveSaveToPlaylistMenu @"YTFreedomRemoveSaveToPlaylistMenu"
+#define KRemoveShareMenu          @"YTFreedomRemoveShareMenu"
+#define KRemoveNotInterestedMenu  @"YTFreedomRemoveNotInterestedMenu"
+#define KRemoveDontRecommendMenu  @"YTFreedomRemoveDontRecommendMenu"
+#define KRemoveReportMenu         @"YTFreedomRemoveReportMenu"
 
 #define IS_ENABLED(key)   [[NSUserDefaults standardUserDefaults] boolForKey:(key)]
 #define INTFORVAL(key)    (int)[[NSUserDefaults standardUserDefaults] integerForKey:(key)]
@@ -220,6 +233,7 @@ void YTFreedomSignInFixInit(void);
 void YTFreedomAdBlockInit(void);
 void YTFreedomSettingsUIInit(void);
 void YTFreedomPlayerInit(void);
+void YTFreedomPlayerGesturesInit(void);
 void YTFreedomNavbarTabbarInit(void);
 void YTFreedomFeedShortsInit(void);
 void YTFreedomMiscInit(void);

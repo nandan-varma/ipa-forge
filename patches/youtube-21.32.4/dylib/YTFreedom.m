@@ -30,6 +30,7 @@ static void YTFreedomInit(void) {
     YTFreedomAdBlockInit();
     YTFreedomSettingsUIInit();
     YTFreedomPlayerInit();
+    YTFreedomPlayerGesturesInit();
     YTFreedomNavbarTabbarInit();
     YTFreedomFeedShortsInit();
     YTFreedomMiscInit();
