@@ -9,7 +9,7 @@ with `forge patch --dry-run`.
 | File | Effect | Status |
 | --- | --- | --- |
 | `youtube-21.32.4.yaml` | Safe cosmetic: display name + signed-out 90s preview video swap | dry-run OK |
-| `youtube-adblock.yaml` | **Player ad removal** via `dylib_inject` of `libYTHook.dylib` | dry-run OK |
+| `youtube-adblock.yaml` | **Player ad removal + sideload sign-in fix** via `libYTHook.dylib`, **plus extension stripping** (required for AltStore install) | dry-run OK |
 | `youtube-21.32.4-full.yaml` | Everything above **plus extension stripping** (required for AltStore install) | dry-run OK |
 
 ## Why extensions are stripped (and what you lose)
@@ -19,8 +19,9 @@ AltStore appends your Team ID to the main bundle id at install
 embedded app extension's id to start with the parent id, but the stock extensions
 keep `com.google.ios.youtube.<Name>` — so install fails with
 `IXErrorDomain Code=2 Failed to set app extension placeholders`. The free-account
-App-ID cap (~3) is also blown by 6 extension ids. The full set removes
-`Extensions/` and `PlugIns/` (dayanch96's own releases strip them too).
+App-ID cap (~3) is also blown by 6 extension ids. Both the adblock set and the
+full set remove `Extensions/` and `PlugIns/` (dayanch96's own releases strip
+them too).
 
 Lost: home-screen widget, Share-to-YouTube, Siri intents, and push-notification
 extensions (push is unavailable on free sideload accounts anyway). Core playback,
@@ -43,6 +44,37 @@ The from-scratch dylib targets two classes that *are* present:
 
 Both are conservative: the ad-break timeline still resolves (empty), so
 content playback is not left waiting on a missing callback.
+
+## Sideload sign-in fix (same dylib)
+
+AltStore installs the app under a changed bundle id
+(`com.google.ios.youtube` → `com.google.ios.youtube.<teamID>`), which breaks
+Google's SSO/GAIA flow in two ways — both fixed by `libYTHook.dylib`:
+
+1. **"You can't sign in to this app because Google can't confirm that it's
+   safe."** The SSO RPC layer appends device-fingerprint query params
+   (`system_version`, `app_version`, `kdlc`, `kss`, `lib_ver`,
+   `device_model`) to the sign-in URL; Google's risk engine uses them to
+   detect the modified build and refuses. `SSORPCService
+   URLFromURL:withAdditionalFragmentParameters:` is hooked to strip them
+   (AhmedBafkir gist / therealFoxster's YTSideloadSignInFix).
+2. **SSO token persistence.** Google's keychain classes ask for access
+   groups that no longer exist under the re-signed bundle; every entry
+   point (`SSOKeychainHelper`/`SSOKeychainCore`/`SSOKeychain`
+   `accessGroup`/`sharedAccessGroup`, `SSOFolsomKeychainUtils
+   sharedAccessGroup`, `GULKeychainStorage`, `GNPEncryptionConfiguration`,
+   `FIRInstallationsStore`, `CHMConfiguration`) is routed to the real
+   group (derived from `bundleSeedID`), and app-group container lookups
+   redirect to `Documents/AppGroup`.
+
+Supporting identity spoofing so Google frameworks see the stock app
+(IAmYouTube set: `YTVersionUtils`, `GCKBUtils`, `GPCDeviceInfo`, `OGLBundle`,
+`GVROverlayView`, `SSOClientLogin`, `SSOConfiguration`, `YTHotConfig`;
+`NSBundle` main-bundle spoof; `GULAppEnvironmentUtil isFromAppStore`;
+`APMAEU isFAS`). Hook set is the union of YouMod's `Sideloading.x` (adapted
+from YTLite + uYouEnhanced) and YTSideloadSignInFix; every class and
+selector was verified present in the 21.32.4 binary with `yt_inventory.py`
+(only `OGLPhenotypeFlagServiceImpl` is absent and is skipped).
 
 ### Build the dylib
 

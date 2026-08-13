@@ -10,6 +10,7 @@ xcrun --sdk iphoneos clang \
     -isysroot "$SDK" \
     -fobjc-arc \
     -dynamiclib \
+    -framework Security \
     -install_name "@rpath/libYTHook.dylib" \
     -o "$HERE/../assets/libYTHook.dylib" \
     "$HERE/libYTHook.m"
