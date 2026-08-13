@@ -1,0 +1,122 @@
+"""End-to-end pipeline orchestration: the 17 stages described in the
+architecture doc, from raw .ipa in to AltStore-Classic-ready .ipa out.
+"""
+from __future__ import annotations
+
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from ipa_forge.bundle.ipa import extract_ipa, load_bundle, repack_ipa
+from ipa_forge.manifest import Manifest, ProfileManifestEntry, sha256_of
+from ipa_forge.patch.base import PatchContext
+from ipa_forge.patch.engine import apply_all, dry_run_all
+from ipa_forge.patch.loader import build_operations, load_patch_definition
+from ipa_forge.patch.resolver import resolve_definitions
+from ipa_forge.signing.backend import SigningBackendError
+from ipa_forge.signing.pipeline import embed_provisioning_profile, sign_bundle, sign_target_path
+from ipa_forge.signing.profile import ProfileError, parse_provisioning_profile, validate_profile
+from ipa_forge.signing.provider import LocalIdentityProvider, SigningProvider, VerifyResult, resolve_identity
+from ipa_forge.validators.archive_validator import validate_final_archive
+from ipa_forge.validators.bundle_validator import validate_bundle
+
+
+class PipelineError(Exception):
+    pass
+
+
+@dataclass
+class PipelineResult:
+    manifest: Manifest
+    output_path: Path | None
+    verify_results: list[VerifyResult] = field(default_factory=list)
+
+
+def run_pipeline(
+    ipa_path: Path,
+    patch_definition_path: Path,
+    identity_query: str,
+    profile_path: Path,
+    output_path: Path,
+    *,
+    provider: SigningProvider | None = None,
+    dry_run: bool = False,
+) -> PipelineResult:
+    provider = provider or LocalIdentityProvider()
+
+    with tempfile.TemporaryDirectory(prefix="ipa_forge_") as tmp:
+        work_dir = Path(tmp)
+
+        # Stages 1-3: validate + extract, inventory, parse Info.plist
+        app_path = extract_ipa(ipa_path, work_dir / "extracted")
+        bundle = load_bundle(app_path)
+        validate_bundle(bundle)
+
+        # Stage 4: resolve applicable patch definitions (bundle_id + version match)
+        definition = load_patch_definition(patch_definition_path)
+        matched = resolve_definitions(bundle, [definition])
+        ops = [op for d in matched for op in build_operations(d)]
+        ctx = PatchContext(bundle=bundle, patch_source_dir=patch_definition_path.parent)
+
+        # Stage 5: dry-run gate -- hard fail before anything mutates
+        dry_results = dry_run_all(ops, ctx)
+        failed_dry = [r for r in dry_results if r.status != "dry_run_ok"]
+        if failed_dry:
+            raise PipelineError(
+                "patch dry-run validation failed: " + "; ".join(f"{r.op_id}: {r.message}" for r in failed_dry)
+            )
+
+        if dry_run:
+            manifest = Manifest.from_patch_results(ipa_path, bundle.bundle_id, bundle.version, bundle.build, dry_results)
+            return PipelineResult(manifest=manifest, output_path=None)
+
+        # Stages 6-8: apply resources -> binary patches -> dylib injection (fixed order)
+        results = apply_all(ops, ctx)
+        failed_apply = [r for r in results if r.status == "failed"]
+        if failed_apply:
+            raise PipelineError(
+                "patch application failed: " + "; ".join(f"{r.op_id}: {r.message}" for r in failed_apply)
+            )
+
+        # Stage 9: re-validate bundle consistency post-mutation
+        validate_bundle(bundle)
+
+        # Stage 10: emit manifest, before signing
+        manifest = Manifest.from_patch_results(ipa_path, bundle.bundle_id, bundle.version, bundle.build, results)
+
+        try:
+            # Stage 11: load + validate provisioning profile
+            profile = parse_provisioning_profile(profile_path)
+            validate_profile(profile, bundle.bundle_id)
+            manifest.profile = ProfileManifestEntry(
+                uuid=profile.uuid, team_id=profile.team_identifier, expiration=str(profile.expiration_date)
+            )
+
+            # Stage 13: embed profile (stage 12, entitlement reconciliation, happens per-target inside sign_bundle)
+            embed_provisioning_profile(bundle, profile_path)
+
+            # Stage 14: recursive bottom-up codesign
+            identity = resolve_identity(provider, identity_query)
+            sign_bundle(bundle, provider, identity, profile)
+
+            # Stage 15: verify every signed bundle/dylib, then a final deep+strict pass on the app bundle
+            sign_paths = {sign_target_path(t) for t in bundle.executables}
+            sign_paths.discard(bundle.root)
+            verify_results = [provider.verify(p) for p in sign_paths]
+            verify_results.append(provider.verify(bundle.root, deep=True))
+            failed_verify = [v for v in verify_results if not v.ok]
+            if failed_verify:
+                raise PipelineError(
+                    "codesign verification failed: " + "; ".join(f"{v.target}: {v.message}" for v in failed_verify)
+                )
+        except (ProfileError, SigningBackendError) as e:
+            raise PipelineError(str(e)) from e
+
+        # Stage 16: repackage
+        repack_ipa(bundle.extraction_root, output_path)
+
+        # Stage 17: final validation -- re-extract the produced IPA from scratch
+        validate_final_archive(output_path, work_dir / "final_check")
+
+        manifest.output_sha256 = sha256_of(output_path)
+        return PipelineResult(manifest=manifest, output_path=output_path, verify_results=verify_results)

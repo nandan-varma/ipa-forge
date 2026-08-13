@@ -71,6 +71,26 @@ class LocalIdentityProvider(SigningProvider):
         return codesign_dump_entitlements(target)
 
 
+def resolve_identity(provider: SigningProvider, query: str) -> str:
+    """Resolve a codesigning identity SHA-1 hash or unique name substring to
+    its canonical SHA-1 hash, failing loudly (with the candidate list) on
+    zero or multiple matches rather than guessing."""
+    identities = provider.list_identities()
+
+    for identity in identities:
+        if identity.sha1.lower() == query.lower():
+            return identity.sha1
+
+    matches = [i for i in identities if query.lower() in i.name.lower()]
+    if len(matches) == 1:
+        return matches[0].sha1
+
+    available = "\n".join(f"  {i.sha1}  {i.name}" for i in identities) or "  (none found)"
+    if not matches:
+        raise SigningBackendError(f"no codesigning identity matches '{query}'. Available:\n{available}")
+    raise SigningBackendError(f"'{query}' matches multiple codesigning identities, be more specific:\n{available}")
+
+
 class AltStoreCredentialProvider(SigningProvider):
     """Reserved for future AltStore-account-based signing (Apple ID pairing via
     AltServer, rather than a local Keychain identity). Not implemented in v1:

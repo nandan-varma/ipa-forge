@@ -18,6 +18,9 @@ class PatchContext:
     """Directory that a patch definition's `source:`/`dylib:` fields resolve relative to."""
 
 
+FileCategory = Literal["added", "modified", "removed"]
+
+
 @dataclass
 class PatchResult:
     op_id: str
@@ -25,6 +28,8 @@ class PatchResult:
     message: str = ""
     files_touched: list[Path] = field(default_factory=list)
     macho_modified: bool = False
+    category: FileCategory | None = None
+    """How files_touched changed, for the manifest's added/modified/removed breakdown."""
 
 
 @runtime_checkable

@@ -51,7 +51,7 @@ class ResourceReplaceOp:
             return dry
         dest, src = self._resolve(ctx)
         dest.write_bytes(src.read_bytes())
-        return PatchResult(op_id=self.op_id, status="applied", message=f"replaced {dest}", files_touched=[dest])
+        return PatchResult(op_id=self.op_id, status="applied", message=f"replaced {dest}", files_touched=[dest], category="modified")
 
 
 @dataclass
@@ -87,7 +87,7 @@ class ResourceAddOp:
         dest, src = self._resolve(ctx)
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(src.read_bytes())
-        return PatchResult(op_id=self.op_id, status="applied", message=f"added {dest}", files_touched=[dest])
+        return PatchResult(op_id=self.op_id, status="applied", message=f"added {dest}", files_touched=[dest], category="added")
 
 
 @dataclass
@@ -113,4 +113,4 @@ class ResourceRemoveOp:
             return dry
         dest = self._resolve(ctx)
         dest.unlink()
-        return PatchResult(op_id=self.op_id, status="applied", message=f"removed {dest}", files_touched=[dest])
+        return PatchResult(op_id=self.op_id, status="applied", message=f"removed {dest}", files_touched=[dest], category="removed")

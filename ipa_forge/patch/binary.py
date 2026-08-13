@@ -125,4 +125,5 @@ class BinaryReplaceOp:
             message=f"replaced {len(offsets)} match(es) at {offsets}",
             files_touched=[target_path],
             macho_modified=True,
+            category="modified",
         )

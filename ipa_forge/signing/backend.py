@@ -97,10 +97,13 @@ def codesign_dump_entitlements(target: Path) -> dict[str, Any]:
         capture_output=True,
         check=False,
     )
+    stderr = result.stderr.decode(errors="replace")
     if result.returncode != 0:
-        raise SigningBackendError(
-            f"failed to dump entitlements for {target}: {result.stderr.decode(errors='replace')}"
-        )
+        if "code object is not signed at all" in stderr:
+            # Expected for a freshly extracted IPA before our own signing pass
+            # has run -- not an error, just "no entitlements yet".
+            return {}
+        raise SigningBackendError(f"failed to dump entitlements for {target}: {stderr}")
     if not result.stdout.strip():
         return {}
     return plistlib.loads(result.stdout)

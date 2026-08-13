@@ -7,9 +7,10 @@ from pathlib import Path
 import pytest
 
 from ipa_forge.bundle.models import AppBundle, MachOTarget
+from ipa_forge.bundle.plist import write_plist
 from ipa_forge.signing.profile import ProvisioningProfile
 from ipa_forge.signing.provider import LocalIdentityProvider
-from ipa_forge.signing.pipeline import sign_bundle
+from ipa_forge.signing.pipeline import sign_bundle, sign_target_path
 
 pytestmark = pytest.mark.macos
 
@@ -65,9 +66,14 @@ def test_sign_bundle_recursive_bottom_up(tmp_path: Path, compiled_macho_binary: 
     main_exec = app_root / "TestApp"
     main_exec.write_bytes(compiled_macho_binary.read_bytes())
     main_exec.chmod(0o755)
+    write_plist(app_root / "Info.plist", {"CFBundleIdentifier": "com.example.testapp", "CFBundleExecutable": "TestApp"})
     fw_exec = app_root / "Frameworks" / "Foo.framework" / "Foo"
     fw_exec.write_bytes(compiled_macho_binary.read_bytes())
     fw_exec.chmod(0o755)
+    write_plist(
+        app_root / "Frameworks" / "Foo.framework" / "Info.plist",
+        {"CFBundleIdentifier": "com.example.testapp.Foo", "CFBundleExecutable": "Foo", "CFBundlePackageType": "FMWK"},
+    )
 
     bundle = AppBundle(
         root=app_root,
@@ -86,7 +92,7 @@ def test_sign_bundle_recursive_bottom_up(tmp_path: Path, compiled_macho_binary: 
     assert len(results) == 2
 
     for target in bundle.executables:
-        verify_result = provider.verify(target.path)
+        verify_result = provider.verify(sign_target_path(target))
         assert verify_result.ok, verify_result.message
 
     assert bundle.entitlements["application-identifier"] == "TESTTEAM1.com.example.testapp"
