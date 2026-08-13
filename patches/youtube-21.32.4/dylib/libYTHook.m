@@ -3,19 +3,31 @@
 // Two feature groups, all plain ObjC-runtime swizzling loaded via an
 // __attribute__((constructor)):
 //
-// 1) Player ad removal ("YTFreedom")
-//    Targets were located by static analysis of the 21.32.4 binary
-//    (objc_classlist/methlist walk; see the yt_inventory tooling):
-//      - YTAdBreakResponseReceivedOpportunityAdapterV2
-//          didReceiveAdBreakResponse:fromAdBreakSlot:
-//          (modern "ads control flow v2" entry point where an ad-break
-//           response is turned into scheduled ad slots)
-//      - YTAdBreakRendererAdapter createAds
-//          (classic renderer path that materializes the ad list for a break)
-//    Both swizzles are conservative: the response flow still runs, the break
-//    still resolves, it just contains no ads.
+// 1) Player + feed ad removal
+//    The stock "classic" hook points of older tweaks (YTIPlayerResponse
+//    isMonetized:, YTDataUtils spamSignalsDictionary:, YTISectionList-
+//    ViewController loadWithModel:) are absent from 21.32.4; the rewrite
+//    follows YouMod's Ads.x (built for exactly 21.32.4) and covers every
+//    layer of the modern ads pipeline:
+//      - data:    YTPlayerResponse +playerAdsArray/+adSlotsArray added as
+//                 empty-array methods; YTIClientMdxGlobalConfig
+//                 +enableSkippableAd
+//      - playback: YTLocalPlaybackController createAdsPlaybackCoordinator
+//                 -> nil; MDXSessionImpl adPlaying: no-op; existing
+//                 YTAdBreakResponseReceivedOpportunityAdapterV2 +
+//                 YTAdBreakRendererAdapter hooks kept as backstop
+//      - request: YTAdsInnerTubeContextDecorator /
+//                 YTAccountScopedAdsInnerTubeContextDecorator
+//                 decorateContext: with nil; YTAdShieldUtils
+//                 spamSignalsDictionary* -> empty
+//      - feed:    YTInnerTubeCollectionViewController section filtering by
+//                 YTIElementRenderer ad detection; _ASDisplayView hiding
+//                 of in-player ad overlays; player product-in-video overlay
+//                 dropped; Shorts ad reels filtered
+//    Every class and selector below was verified present in the 21.32.4
+//    binary with yt_inventory.py.
 //
-// 2) Sideload sign-in fix ("YTFreedom SignIn")
+// 2) Sideload sign-in fix
 //    AltStore installs the app under a changed bundle id
 //    (com.google.ios.youtube.<teamID>), which breaks Google's SSO/GAIA flow:
 //      - the OAuth page refuses with "You can't sign in to this app because
@@ -31,12 +43,12 @@
 //        (IAmYouTube set: YTVersionUtils/GCKBUtils/GPCDeviceInfo/OGLBundle/
 //        GVROverlayView/SSOClientLogin/SSOConfiguration + NSBundle spoof +
 //        GULAppEnvironmentUtil isFromAppStore + APMAEU isFAS + YTHotConfig)
-//    The hook set is the union of YouMod's Sideloading.x (itself adapted
-//    from YTLite + uYouEnhanced) and YTSideloadSignInFix. All hook classes
-//    and selectors were verified present in the 21.32.4 binary.
+//    Hook set is the union of YouMod's Sideloading.x (itself adapted
+//    from YTLite + uYouEnhanced) and YTSideloadSignInFix.
 
 #import <Foundation/Foundation.h>
 #import <Security/Security.h>
+#import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <os/log.h>
 
@@ -89,17 +101,302 @@ static IMP hookClass(Class cls, SEL sel, id block) {
     return orig;
 }
 
-// --- ad removal (existing) -------------------------------------------------
-
-static void swizzleVoid(id self, id arg1, id arg2) {
-    // do nothing: drop the ad-break response. Break resolves empty.
-    os_log(ytlog(), "YTFreedom: dropped ad-break response (%@, slot=%@)",
-           arg1, arg2);
+// Add a method that does not exist yet (logos' %new). encoding is the
+// ObjC type encoding of the method, e.g. "@@:" for id(id,SEL) or "B@:"
+// for BOOL(id,SEL).
+static void addInstanceMethod(Class cls, SEL sel, id block, const char *encoding) {
+    if (!cls) return;
+    if (!class_getInstanceMethod(cls, sel)) {
+        class_addMethod(cls, sel, imp_implementationWithBlock(block), encoding);
+        os_log(ytlog(), "YTFreedom: added -[%s %s]", class_getName(cls), sel_getName(sel));
+    }
 }
 
-static id swizzleCreateAds(id self) {
-    os_log(ytlog(), "YTFreedom: createAds -> empty");
-    return @[];
+// Selectors that exist on YouTube's classes but aren't declared in any
+// SDK header. Declared here so clang allows dynamic dispatch on `id`
+// receivers; presence is always guarded with respondsToSelector: first.
+@protocol YTFreedomAdHooks <NSObject>
+@optional
+- (BOOL)hasCompatibilityOptions;
+- (id)compatibilityOptions;
+- (BOOL)hasAdLoggingData;
+- (NSString *)overlayIdentifier;
+- (BOOL)isAdVideo;
+@end
+
+// --- ad removal ------------------------------------------------------------
+
+// Feed-section ad detection (YouMod Ads.x): an element renderer is an ad
+// when it carries ad-logging compatibility data, or its description
+// matches a known ad layout string.
+static NSArray<NSString *> *ytAdStrings(void) {
+    return @[
+        @"brand_promo",
+        @"carousel_footered_layout",
+        @"carousel_headered_layout",
+        @"eml.expandable_metadata",
+        @"feed_ad_metadata",
+        @"full_width_portrait_image_layout",
+        @"full_width_square_image_layout",
+        @"landscape_image_wide_button_layout",
+        @"post_shelf",
+        @"product_carousel",
+        @"product_engagement_panel",
+        @"product_item",
+        @"shopping_carousel",
+        @"shopping_item_card_list",
+        @"statement_banner",
+        @"square_image_layout",
+        @"text_image_button_layout",
+        @"text_search_ad",
+        @"video_display_full_layout",
+        @"video_display_full_buttoned_layout",
+    ];
+}
+
+static BOOL isAdElementRenderer(id elementRenderer) {
+    if (!elementRenderer) return NO;
+    id<YTFreedomAdHooks> renderer = elementRenderer;
+    if ([renderer respondsToSelector:@selector(hasCompatibilityOptions)]
+        && [renderer hasCompatibilityOptions]) {
+        id<YTFreedomAdHooks> compat = [renderer compatibilityOptions];
+        if (compat && [compat respondsToSelector:@selector(hasAdLoggingData)]
+            && [compat hasAdLoggingData]) {
+            return YES;
+        }
+    }
+    NSString *description = [elementRenderer description];
+    for (NSString *adStr in ytAdStrings()) {
+        if ([description containsString:adStr]) return YES;
+    }
+    return NO;
+}
+
+// Drop ad sections/cards from a collection view's section-renderer array.
+// Mirrors YouMod's filteredArray: shelf items, section contents, and
+// section headers are each checked for embedded ad renderers.
+static NSArray *filteredAdSections(NSArray *array) {
+    if (![array isKindOfClass:[NSArray class]]) return array;
+    static Class shelfCls, itemSectionCls;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        shelfCls = NSClassFromString(@"YTIShelfRenderer");
+        itemSectionCls = NSClassFromString(@"YTIItemSectionRenderer");
+    });
+
+    NSMutableArray *newArray = [array mutableCopy];
+    NSIndexSet *removeIndexes = [newArray indexesOfObjectsPassingTest:
+        ^BOOL(id sectionRenderer, NSUInteger idx, BOOL *stop) {
+            // Shelf: filter horizontal-list items.
+            if ([sectionRenderer isKindOfClass:shelfCls]) {
+                id content = [sectionRenderer valueForKey:@"content"];
+                id horizontalList = [content valueForKey:@"horizontalListRenderer"];
+                NSMutableArray *itemsArray = [horizontalList valueForKey:@"itemsArray"];
+                if ([itemsArray isKindOfClass:[NSMutableArray class]]) {
+                    NSIndexSet *removeItems = [itemsArray indexesOfObjectsPassingTest:
+                        ^BOOL(id item, NSUInteger i2, BOOL *s2) {
+                            return isAdElementRenderer([item valueForKey:@"elementRenderer"]);
+                        }];
+                    if (removeItems.count > 0) [itemsArray removeObjectsAtIndexes:removeItems];
+                }
+            }
+            if (![sectionRenderer isKindOfClass:itemSectionCls])
+                return NO;
+            NSMutableArray *contentsArray = [sectionRenderer valueForKey:@"contentsArray"];
+            if (![contentsArray isKindOfClass:[NSMutableArray class]])
+                return NO;
+            if (contentsArray.count > 1) {
+                NSIndexSet *removeContents = [contentsArray indexesOfObjectsPassingTest:
+                    ^BOOL(id item, NSUInteger i2, BOOL *s2) {
+                        return isAdElementRenderer([item valueForKey:@"elementRenderer"]);
+                    }];
+                if (removeContents.count > 0) [contentsArray removeObjectsAtIndexes:removeContents];
+            }
+            id firstObject = [contentsArray firstObject];
+            return isAdElementRenderer([firstObject valueForKey:@"elementRenderer"]);
+        }];
+    if (removeIndexes.count > 0) [newArray removeObjectsAtIndexes:removeIndexes];
+    return newArray;
+}
+
+static BOOL sectionRenderersIvarExists(Class cls) {
+    static void *key = &key;
+    NSNumber *cached = objc_getAssociatedObject(cls, key);
+    if (cached) return cached.boolValue;
+    BOOL found = NO;
+    unsigned int count = 0;
+    Ivar *ivars = class_copyIvarList(cls, &count);
+    for (unsigned int i = 0; i < count; i++) {
+        if (!strcmp(ivar_getName(ivars[i]), "_sectionRenderers")) { found = YES; break; }
+    }
+    free(ivars);
+    objc_setAssociatedObject(cls, key, @(found), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    return found;
+}
+
+static void fixPlayerResponseAds(void) {
+    // %new on YTPlayerResponse: the ads pipeline queries these arrays on
+    // the response wrapper; empty arrays mean "no placements, no slots".
+    Class playerResponse = NSClassFromString(@"YTPlayerResponse");
+    addInstanceMethod(playerResponse, sel_registerName("playerAdsArray"),
+                      ^id(id self) { return [NSMutableArray array]; }, "@@:");
+    addInstanceMethod(playerResponse, sel_registerName("adSlotsArray"),
+                      ^id(id self) { return [NSMutableArray array]; }, "@@:");
+
+    // %new on YTIClientMdxGlobalConfig.
+    addInstanceMethod(NSClassFromString(@"YTIClientMdxGlobalConfig"),
+                      sel_registerName("enableSkippableAd"),
+                      ^BOOL(id self) { return YES; }, "B@:");
+
+    // No ads playback coordinator -> nothing to play ads with.
+    static IMP orig_createAdsPlaybackCoordinator;
+    orig_createAdsPlaybackCoordinator = hookInstance(
+        NSClassFromString(@"YTLocalPlaybackController"),
+        @selector(createAdsPlaybackCoordinator),
+        ^id(id self) { return nil; });
+    (void)orig_createAdsPlaybackCoordinator;
+
+    // Ad "spam signals" (ad targeting/risk context) -> empty.
+    static IMP orig_spamSignals, orig_spamSignalsNoIDFA;
+    orig_spamSignals = hookClass(NSClassFromString(@"YTAdShieldUtils"),
+        @selector(spamSignalsDictionary),
+        ^id(id cls) { return @{}; });
+    orig_spamSignalsNoIDFA = hookClass(NSClassFromString(@"YTAdShieldUtils"),
+        @selector(spamSignalsDictionaryWithoutIDFA),
+        ^id(id cls) { return @{}; });
+    (void)orig_spamSignals;
+    (void)orig_spamSignalsNoIDFA;
+
+    // InnerTube request context never gets ad decoration (nil is a safe
+    // message target in ObjC, matching YouMod's %orig(nil)).
+    static IMP orig_decorateContext;
+    orig_decorateContext = hookInstance(
+        NSClassFromString(@"YTAdsInnerTubeContextDecorator"),
+        @selector(decorateContext:),
+        ^void(id self, id context) {
+            ((void(*)(id, SEL, id))orig_decorateContext)(self, @selector(decorateContext:), nil);
+        });
+    (void)orig_decorateContext;
+
+    static IMP orig_decorateContextScoped;
+    orig_decorateContextScoped = hookInstance(
+        NSClassFromString(@"YTAccountScopedAdsInnerTubeContextDecorator"),
+        @selector(decorateContext:),
+        ^void(id self, id context) {
+            ((void(*)(id, SEL, id))orig_decorateContextScoped)(self, @selector(decorateContext:), nil);
+        });
+    (void)orig_decorateContextScoped;
+
+    // Casting: ad playback progress callbacks -> no-op.
+    static IMP orig_adPlaying;
+    orig_adPlaying = hookInstance(NSClassFromString(@"MDXSessionImpl"),
+        @selector(adPlaying:),
+        ^void(id self, id ad) {});
+    (void)orig_adPlaying;
+
+    // In-player shopping overlay (product-in-video) never inserted.
+    static IMP orig_didInsertOverlay;
+    orig_didInsertOverlay = hookInstance(
+        NSClassFromString(@"YTMainAppVideoPlayerOverlayViewController"),
+        @selector(playerOverlayProvider:didInsertPlayerOverlay:),
+        ^void(id self, id provider, id overlay) {
+            id<YTFreedomAdHooks> overlayHooks = overlay;
+            NSString *identifier = [overlayHooks respondsToSelector:@selector(overlayIdentifier)]
+                ? [overlayHooks overlayIdentifier] : nil;
+            if ([identifier isEqualToString:@"player_overlay_product_in_video"])
+                return;
+            ((void(*)(id, SEL, id, id))orig_didInsertOverlay)(
+                self, @selector(playerOverlayProvider:didInsertPlayerOverlay:), provider, overlay);
+        });
+    (void)orig_didInsertOverlay;
+
+    // Ad break response + renderer backstops (from the first iteration).
+    hookInstance(NSClassFromString(@"YTAdBreakResponseReceivedOpportunityAdapterV2"),
+                 sel_registerName("didReceiveAdBreakResponse:fromAdBreakSlot:"),
+                 ^void(id self, id response, id slot) {
+                     os_log(ytlog(), "YTFreedom: dropped ad-break response (%@, slot=%@)",
+                            response, slot);
+                 });
+    hookInstance(NSClassFromString(@"YTAdBreakRendererAdapter"),
+                 sel_registerName("createAds"),
+                 ^id(id self) {
+                     os_log(ytlog(), "YTFreedom: createAds -> empty");
+                     return @[];
+                 });
+}
+
+static void fixFeedAds(void) {
+    Class collectionVC = NSClassFromString(@"YTInnerTubeCollectionViewController");
+
+    static IMP orig_displaySections;
+    orig_displaySections = hookInstance(collectionVC,
+        @selector(displaySectionsWithReloadingSectionControllerByRenderer:),
+        ^void(id self, id renderer) {
+            if (sectionRenderersIvarExists([self class])) {
+                NSMutableArray *sections = [self valueForKey:@"_sectionRenderers"];
+                if ([sections isKindOfClass:[NSArray class]])
+                    [self setValue:filteredAdSections(sections) forKey:@"_sectionRenderers"];
+            }
+            ((void(*)(id, SEL, id))orig_displaySections)(
+                self, @selector(displaySectionsWithReloadingSectionControllerByRenderer:), renderer);
+        });
+    (void)orig_displaySections;
+
+    static IMP orig_addSections;
+    orig_addSections = hookInstance(collectionVC,
+        @selector(addSectionsFromArray:),
+        ^void(id self, NSArray *array) {
+            ((void(*)(id, SEL, id))orig_addSections)(
+                self, @selector(addSectionsFromArray:), filteredAdSections(array));
+        });
+    (void)orig_addSections;
+
+    // In-player ad overlay elements: remove the "expandable metadata"
+    // (ad-info bar) and hide ad-layout containers.
+    static IMP orig_didMoveToWindow;
+    orig_didMoveToWindow = hookInstance(NSClassFromString(@"_ASDisplayView"),
+        @selector(didMoveToWindow),
+        ^void(id self) {
+            ((void(*)(id, SEL))orig_didMoveToWindow)(self, @selector(didMoveToWindow));
+            NSString *aid = [(UIView *)self accessibilityIdentifier];
+            if ([aid isEqualToString:@"eml.expandable_metadata.vpp"]) {
+                [self removeFromSuperview];
+            } else if ([aid hasPrefix:@"eml.ad_layout."]) {
+                [(UIView *)self setHidden:YES];
+            }
+        });
+    (void)orig_didMoveToWindow;
+}
+
+static void fixReelAds(void) {
+    // YTReelModel isAdVideo marks ad reels in Shorts.
+    static BOOL (^isAdReel)(id) = ^BOOL(id model) {
+        if (!model || ![model respondsToSelector:@selector(isAdVideo)]) return NO;
+        return [(id<YTFreedomAdHooks>)model isAdVideo] == YES;
+    };
+
+    static IMP orig_setReels;
+    orig_setReels = hookInstance(NSClassFromString(@"YTReelDataSource"),
+        @selector(setReels:),
+        ^void(id self, id reels) {
+            if ([reels respondsToSelector:@selector(indexesOfObjectsPassingTest:)]) {
+                NSIndexSet *remove = [reels indexesOfObjectsPassingTest:
+                    ^BOOL(id obj, NSUInteger idx, BOOL *stop) { return isAdReel(obj); }];
+                if (remove.count > 0) [reels removeObjectsAtIndexes:remove];
+            }
+            ((void(*)(id, SEL, id))orig_setReels)(self, @selector(setReels:), reels);
+        });
+    (void)orig_setReels;
+
+    static IMP orig_insertContentModel;
+    orig_insertContentModel = hookInstance(NSClassFromString(@"YTReelDataSource"),
+        @selector(insertContentModel:atIndex:),
+        ^void(id self, id model, NSInteger index) {
+            if (isAdReel(model)) return;
+            ((void(*)(id, SEL, id, NSInteger))orig_insertContentModel)(
+                self, @selector(insertContentModel:atIndex:), model, index);
+        });
+    (void)orig_insertContentModel;
 }
 
 // --- sign-in fix -----------------------------------------------------------
@@ -441,16 +738,9 @@ static void fixAppGroupContainer(void) {
 __attribute__((constructor))
 static void ytfreedom_init(void) {
     // --- ad removal ---
-    hookInstance(NSClassFromString(@"YTAdBreakResponseReceivedOpportunityAdapterV2"),
-                 sel_registerName("didReceiveAdBreakResponse:fromAdBreakSlot:"),
-                 ^(id self, id response, id slot) {
-                     swizzleVoid(self, response, slot);
-                 });
-    hookInstance(NSClassFromString(@"YTAdBreakRendererAdapter"),
-                 sel_registerName("createAds"),
-                 ^(id self) {
-                     return swizzleCreateAds(self);
-                 });
+    fixPlayerResponseAds();
+    fixFeedAds();
+    fixReelAds();
 
     // --- sign-in fix ---
     fixSSORPCService();

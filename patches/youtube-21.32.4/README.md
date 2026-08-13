@@ -28,22 +28,40 @@ extensions (push is unavailable on free sideload accounts anyway). Core playback
 ads removal, downloads, and all patched features are unaffected — the main
 Info.plist references none of them.
 
-## Player ad removal (`youtube-adblock.yaml`)
+## Player + feed ad removal (`youtube-adblock.yaml`)
 
-YouTube 21.32.4 re-architected its ad pipeline around the "ads control flow"
-classes; every classic hook point used by public tweaks (`YTIPlayerResponse
-isMonetized:`, `YTDataUtils spamSignalsDictionary:`, `YTAdsInnerTubeContextDecorator
-decorateContext`, ...) is gone from this binary (verified by static analysis).
-The from-scratch dylib targets two classes that *are* present:
+The adblock rewrite follows YouMod's `Ads.x` (built for exactly 21.32.4)
+and covers every layer of the modern ads pipeline (all hook classes and
+selectors verified present in the 21.32.4 binary with `yt_inventory.py`):
 
-- `YTAdBreakResponseReceivedOpportunityAdapterV2
-  didReceiveAdBreakResponse:fromAdBreakSlot:` — modern entry point where an
-  ad-break response is turned into scheduled slots. Hook drops the response.
-- `YTAdBreakRendererAdapter createAds` — classic renderer path. Hook returns
-  an empty array.
+- **Data level** — `YTPlayerResponse` gets new `playerAdsArray`/
+  `adSlotsArray` methods returning empty arrays (the ads pipeline queries
+them on the response wrapper); `YTIClientMdxGlobalConfig` gets
+  `enableSkippableAd -> YES`.
+- **Playback level** — `YTLocalPlaybackController createAdsPlaybackCoordinator
+  -> nil` (no ad playback coordinator); `MDXSessionImpl adPlaying:` no-op;
+  the first-iteration backstops stay: `YTAdBreakResponseReceivedOpportunity-
+  AdapterV2 didReceiveAdBreakResponse:fromAdBreakSlot:` drops the response,
+  `YTAdBreakRendererAdapter createAds` returns empty.
+- **Request level** — `YTAdsInnerTubeContextDecorator` and
+  `YTAccountScopedAdsInnerTubeContextDecorator decorateContext:` call
+  through with nil (InnerTube requests carry no ad decoration);
+  `YTAdShieldUtils spamSignalsDictionary*` return empty dicts.
+- **Feed level** — `YTInnerTubeCollectionViewController` filters sections
+  (`_sectionRenderers` + `addSectionsFromArray:`) by `YTIElementRenderer`
+  ad detection (ad-logging compatibility data or known ad-layout strings:
+  brand_promo, product_carousel, text_search_ad, ...); `_ASDisplayView`
+  removes `eml.expandable_metadata.vpp` and hides `eml.ad_layout.*`
+  in-player overlays; the player's product-in-video overlay is dropped;
+  Shorts ad reels are filtered out of `YTReelDataSource`
+  (`isAdVideo`).
 
-Both are conservative: the ad-break timeline still resolves (empty), so
-content playback is not left waiting on a missing callback.
+Note: the earlier claim that "every classic hook point is gone from this
+binary" was wrong — `YTAdsInnerTubeContextDecorator`/`YTAdShieldUtils` are
+present. What *is* gone (verified): `YTIPlayerResponse isMonetized:`,
+`YTDataUtils spamSignalsDictionary`, `YTISectionListViewController`,
+`YTWatchBreakController`, `YTInstreamAdsCoordinator`, `YTAdsPlayerModule`,
+`YTReelInfinitePlaybackDataSource`.
 
 ## Sideload sign-in fix (same dylib)
 
@@ -89,8 +107,9 @@ no substrate/ellekit dependency; loads via a plain `LC_LOAD_DYLIB`.)
 
 ```bash
 # requires the decrypted IPA extracted at /tmp/verify/Payload/YouTube.app/YouTube
-python3 patches/youtube-21.32.4/tools/yt_inventory.py inventory "ControlFlow|InstreamAd"
-python3 patches/youtube-21.32.4/tools/yt_inventory.py class YTAdBreakResponseReceivedOpportunityAdapterV2
+python3 patches/youtube-21.32.4/tools/yt_inventory.py class YTLocalPlaybackController
+python3 patches/youtube-21.32.4/tools/yt_inventory.py class YTAdsInnerTubeContextDecorator
+python3 patches/youtube-21.32.4/tools/yt_inventory.py class YTInnerTubeCollectionViewController
 ```
 
 The tool walks `__objc_classlist`/`__objc_methlist` of the arm64 slice,
