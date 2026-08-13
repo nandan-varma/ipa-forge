@@ -23,6 +23,21 @@ patches:
     path: "90s-video.mp4"
     source: "assets/90s-video.mp4"
 
+  # AltStore appends the Team ID to the main bundle id
+  # (com.google.ios.youtube.<teamID>); iOS then rejects the embedded
+  # extensions because their ids (com.google.ios.youtube.<Name>) no longer
+  # match the parent prefix. Same reason the free-account App-ID cap (~3)
+  # is blown by 6 extension ids. Stripping the extensions fixes the
+  # "Failed to set app extension placeholders" install error (dayanch96's
+  # own releases strip them too).
+  - id: "remove-app-extensions"
+    type: resource_remove
+    path: "Extensions"
+
+  - id: "remove-app-plugins"
+    type: resource_remove
+    path: "PlugIns"
+
   - id: "stage-hook-dylib"
     type: resource_add
     path: "Frameworks/libYTHook.dylib"

@@ -156,7 +156,7 @@ Semantics:
 
 | Field | Required | Meaning |
 |---|---|---|
-| `path` | yes | Bundle-relative file to remove. Directories are rejected |
+| `path` | yes | Bundle-relative file or directory to remove. Directories are removed recursively |
 
 - Fails in dry run if the destination doesn't exist or is a directory.
 

@@ -11,6 +11,7 @@ ever serves untrusted/multi-user uploads.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import shutil
 from pathlib import Path
 
 from ipa_forge.patch.base import PatchContext, PatchResult
@@ -113,12 +114,6 @@ class ResourceRemoveOp:
             return PatchResult(op_id=self.op_id, status="failed", message=str(e))
         if not dest.exists():
             return PatchResult(op_id=self.op_id, status="failed", message=f"destination '{dest}' does not exist")
-        if not dest.is_file():
-            return PatchResult(
-                op_id=self.op_id,
-                status="failed",
-                message=f"destination '{dest}' is not a file (only files can be removed)",
-            )
         return PatchResult(op_id=self.op_id, status="dry_run_ok")
 
     def apply(self, ctx: PatchContext) -> PatchResult:
@@ -127,7 +122,10 @@ class ResourceRemoveOp:
             return dry
         dest = self._resolve(ctx)
         try:
-            dest.unlink()
+            if dest.is_dir():
+                shutil.rmtree(dest)
+            else:
+                dest.unlink()
         except OSError as e:
             return PatchResult(op_id=self.op_id, status="failed", message=f"failed to remove '{dest}': {e}")
         return PatchResult(

@@ -10,7 +10,22 @@ with `forge patch --dry-run`.
 | --- | --- | --- |
 | `youtube-21.32.4.yaml` | Safe cosmetic: display name + signed-out 90s preview video swap | dry-run OK |
 | `youtube-adblock.yaml` | **Player ad removal** via `dylib_inject` of `libYTHook.dylib` | dry-run OK |
-| `youtube-21.32.4-full.yaml` | Everything above in one file (one-command patching) | dry-run OK |
+| `youtube-21.32.4-full.yaml` | Everything above **plus extension stripping** (required for AltStore install) | dry-run OK |
+
+## Why extensions are stripped (and what you lose)
+
+AltStore appends your Team ID to the main bundle id at install
+(`com.google.ios.youtube` → `com.google.ios.youtube.<teamID>`). iOS requires every
+embedded app extension's id to start with the parent id, but the stock extensions
+keep `com.google.ios.youtube.<Name>` — so install fails with
+`IXErrorDomain Code=2 Failed to set app extension placeholders`. The free-account
+App-ID cap (~3) is also blown by 6 extension ids. The full set removes
+`Extensions/` and `PlugIns/` (dayanch96's own releases strip them too).
+
+Lost: home-screen widget, Share-to-YouTube, Siri intents, and push-notification
+extensions (push is unavailable on free sideload accounts anyway). Core playback,
+ads removal, downloads, and all patched features are unaffected — the main
+Info.plist references none of them.
 
 ## Player ad removal (`youtube-adblock.yaml`)
 

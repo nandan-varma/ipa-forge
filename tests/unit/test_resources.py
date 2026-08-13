@@ -78,17 +78,20 @@ def test_resource_path_traversal_is_rejected(tmp_path: Path, fake_ipa: Path):
     assert "escapes" in result.message
 
 
-def test_resource_remove_rejects_directory_in_dry_run(tmp_path: Path, fake_ipa: Path):
-    """F3: a directory passes the old exists() dry-run check but unlink()
-    cannot remove it -- the gate must reject it up front, never crash at apply."""
+def test_resource_remove_directory_recursive(tmp_path: Path, fake_ipa: Path):
+    """Directories are removed recursively (used to strip .appex dirs so
+    AltStore's team-ID-suffixed parent id keeps the extension prefix rule)."""
     ctx = _bundle_ctx(tmp_path, fake_ipa, tmp_path)
-    (ctx.bundle.root / "subdir").mkdir()
+    subdir = ctx.bundle.root / "subdir"
+    subdir.mkdir()
+    (subdir / "nested").mkdir()
+    (subdir / "file.txt").write_text("x")
+    (subdir / "nested" / "file2.txt").write_text("y")
 
     op = ResourceRemoveOp(op_id="r7", path="subdir")
     dry = op.dry_run(ctx)
-    assert dry.status == "failed"
-    assert "not a file" in dry.message
+    assert dry.status == "dry_run_ok"
 
     result = op.apply(ctx)
-    assert result.status == "failed"
-    assert (ctx.bundle.root / "subdir").is_dir()
+    assert result.status == "applied"
+    assert not subdir.exists()
