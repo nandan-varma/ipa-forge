@@ -103,6 +103,43 @@ Run `pytest tests/` to confirm before continuing.
   whole task — everything else (items 1-4 above) is safe to do without
   further check-ins.
 
+### 6. Open audit findings (from the second full audit; user chose report-only)
+
+All three medium findings are confirmed reproducible; each needs a regression
+
+test when fixed.
+
+- **F1 (medium) Silent no-op on zero matching ops**: a definition whose
+  bundle_id/version matches nothing resolves to zero ops, passes the dry-run
+  gate, and reports success (`Dry run OK` / `Wrote out.ipa`) with nothing
+  applied. `pipeline.py` stage 4 should warn on zero resolved ops, and
+  ideally fail in non-dry-run mode.
+- **F2 (medium) Schema errors traceback**: empty/mis-shaped YAML raises an
+  uncaught `pydantic.ValidationError` (loader.py only wraps OSError/
+  YAMLError). Catch `ValidationError` → `PatchLoadError` → clean CLI error.
+- **F3 (medium) resource_remove on a directory**: dry_run passes
+  (`dest.exists()`), apply crashes with `PermissionError` on `unlink()`,
+  violating the dry-run-gate contract. Require `dest.is_file()` in dry_run;
+  catch OSError in apply → `PatchResult(failed)`.
+- **F4 (low) dry-run demands signing inputs**: `forge patch --dry-run` still
+  requires `--profile` (exists=True) and `--identity`; make optional and
+  enforce only when not dry-running (CLI + GUI form).
+- **F5 (low) ProfilePool first-wins on duplicates**: two profiles authorizing
+  the same bundle id (or two wildcards) pick the first silently; raise an
+  ambiguity error like `resolve_identity` does.
+- **F6 (low) Nested profiles never bundle-id-validated**: only the main
+  app's profile is validated; appex/watch-app targets can get a mismatched
+  profile embedded silently (legacy single-profile behavior, but warn).
+- **F7 (low) Dead code**: `manifest.py::Manifest.write()` has no callers;
+  `machO/arch.py::available_archs` has no callers (maybe intended public API
+  for tooling).
+- **F8 (low) parse_version ignores non-numeric segments**: `"1.0.0-beta"` ≡
+  `(1,0,0)` for range matching while `VersionExact` uses raw string
+  equality; exact vs range disagree on suffixed versions.
+- **F9 (low) source: paths unsandboxed**: `(patch_source_dir / source)` can
+  reach `../` anywhere on disk. Fine under the trusted-input model; revisit
+  if the GUI ever serves multiple users.
+
 ## Quick resume checklist
 
 ```bash
