@@ -3,7 +3,7 @@
 // Declares the settings keys, the hook plumbing (plain ObjC-runtime
 // swizzling, no substrate), and the informal protocols used to call
 // YouTube's settings-UI classes. Every non-plumbing selector used here was
-// verified present in the 21.32.4 binary (yt_inventory.py + strings).
+// verified present in the 21.32.4 binary (forge hooks + strings).
 
 #ifndef YTFREEDOM_H
 #define YTFREEDOM_H

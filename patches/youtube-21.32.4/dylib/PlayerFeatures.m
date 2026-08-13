@@ -1,7 +1,7 @@
 // PlayerFeatures.m — player toggles (ROADMAP G1–G5), ported from YouMod's
 // Player.x (which itself adapts YouTube-X / YTClassicVideoQuality / YouSpeed
 // / YTLitePlus). All hook classes and selectors verified present in the
-// 21.32.4 binary (yt_inventory.py + strings); the old-quality and speed
+// 21.32.4 binary (forge hooks + strings); the old-quality and speed
 // groups are consolidated into a single YTMenuController hook so both can
 // be active at once (YouMod's %group split would collide).
 

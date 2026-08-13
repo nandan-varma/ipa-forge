@@ -3,7 +3,7 @@
 // app's own Settings (YTSettingsGroupData / YTAppSettingsPresentationData),
 // builds the section items via YTSettingsSectionItem factories, and pushes
 // sub-sections with YTSettingsPickerViewController. All classes and
-// selectors verified present in the 21.32.4 binary (yt_inventory.py +
+// selectors verified present in the 21.32.4 binary (forge hooks +
 // strings); runtime-only calls are guarded where noted.
 
 #import "YTFreedom.h"
