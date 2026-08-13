@@ -22,7 +22,7 @@ def test_full_pipeline_against_synthetic_app(tmp_path: Path, synthetic_profile: 
         ipa_path=FIXTURES / "synthetic_app.ipa",
         patch_definition_path=FIXTURES / "patches" / "example.yaml",
         identity_query="Apple Development",
-        profile_path=synthetic_profile,
+        profile_paths=[synthetic_profile],
         output_path=output,
     )
 
@@ -57,7 +57,7 @@ def test_dry_run_does_not_mutate_or_sign(tmp_path: Path, synthetic_profile: Path
         ipa_path=FIXTURES / "synthetic_app.ipa",
         patch_definition_path=FIXTURES / "patches" / "example.yaml",
         identity_query="Apple Development",
-        profile_path=synthetic_profile,
+        profile_paths=[synthetic_profile],
         output_path=output,
         dry_run=True,
     )

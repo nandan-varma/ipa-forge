@@ -74,3 +74,52 @@ def validate_profile(profile: ProvisioningProfile, bundle_id: str) -> None:
         raise ProfileError(
             f"provisioning profile '{profile.name}' authorizes '{pattern}', not '{bundle_id}'"
         )
+
+
+@dataclass
+class ProfilePool:
+    """A set of parsed provisioning profiles, each paired with its original
+    .mobileprovision file (needed to embed the raw file later), resolved
+    per-bundle-id at signing time -- so nested extensions and watch apps can
+    be signed with their own profile instead of always reusing the main
+    app's."""
+
+    entries: list[tuple[ProvisioningProfile, Path]]
+
+    def select_for(self, bundle_id: str) -> tuple[ProvisioningProfile, Path]:
+        exact = [e for e in self.entries if e[0].bundle_id_pattern == bundle_id]
+        if exact:
+            return exact[0]
+
+        wildcard = [e for e in self.entries if e[0].bundle_id_pattern == "*"]
+        if wildcard:
+            return wildcard[0]
+
+        # A single supplied profile is the common case (one app, no
+        # extensions) and is used for every target, matching the pre-pool
+        # behavior exactly. Ambiguity is only an error once >1 profile is
+        # supplied and none of them actually authorizes this bundle id.
+        if len(self.entries) == 1:
+            return self.entries[0]
+
+        available = ", ".join(sorted({e[0].bundle_id_pattern for e in self.entries}))
+        raise ProfileError(
+            f"no supplied provisioning profile authorizes bundle id '{bundle_id}' "
+            f"(available: {available}); supply a matching --profile for it"
+        )
+
+
+def load_profile_pool(profile_paths: list[Path]) -> ProfilePool:
+    if not profile_paths:
+        raise ProfileError("at least one provisioning profile is required")
+
+    entries = []
+    for path in profile_paths:
+        profile = parse_provisioning_profile(path)
+        if profile.is_expired:
+            raise ProfileError(
+                f"provisioning profile '{profile.name}' ({profile.uuid}) at {path} "
+                f"expired on {profile.expiration_date}"
+            )
+        entries.append((profile, path))
+    return ProfilePool(entries)

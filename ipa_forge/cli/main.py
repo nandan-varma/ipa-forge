@@ -43,7 +43,14 @@ def patch(
     ipa: Path = typer.Option(..., "--ipa", exists=True, help="Input .ipa"),
     patches: Path = typer.Option(..., "--patches", exists=True, help="Patch definition YAML/JSON file"),
     identity: str = typer.Option(..., "--identity", help="Codesigning identity: SHA-1 hash or unique name substring"),
-    profile: Path = typer.Option(..., "--profile", exists=True, help="Provisioning profile (.mobileprovision)"),
+    profile: list[Path] = typer.Option(
+        ...,
+        "--profile",
+        exists=True,
+        help="Provisioning profile (.mobileprovision). Repeat to supply one per app "
+        "extension/watch app -- each is matched to its own bundle id; a single "
+        "profile signs everything, as before.",
+    ),
     output: Path = typer.Option(..., "--output", help="Output .ipa path"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate patches without mutating or signing anything"),
     verbose: bool = typer.Option(False, "--verbose", help="Print the full manifest on success"),

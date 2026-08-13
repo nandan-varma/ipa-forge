@@ -25,6 +25,11 @@ class MachOTarget:
     depth: int
     """Number of path components below the top-level app root; used to derive bottom-up sign order."""
 
+    bundle_id: str | None = None
+    """CFBundleIdentifier of the owning bundle, for kinds that have their own Info.plist and can
+    carry their own embedded.mobileprovision (main, appex, watch_app). None for framework/dylib/other,
+    which are signed but never embed a profile of their own."""
+
 
 @dataclass
 class AppBundle:

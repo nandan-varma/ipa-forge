@@ -15,8 +15,8 @@ from ipa_forge.patch.engine import apply_all, dry_run_all
 from ipa_forge.patch.loader import build_operations, load_patch_definition
 from ipa_forge.patch.resolver import resolve_definitions
 from ipa_forge.signing.backend import SigningBackendError
-from ipa_forge.signing.pipeline import embed_provisioning_profile, sign_bundle, sign_target_path
-from ipa_forge.signing.profile import ProfileError, parse_provisioning_profile, validate_profile
+from ipa_forge.signing.pipeline import sign_bundle, sign_target_path
+from ipa_forge.signing.profile import ProfileError, load_profile_pool, validate_profile
 from ipa_forge.signing.provider import LocalIdentityProvider, SigningProvider, VerifyResult, resolve_identity
 from ipa_forge.validators.archive_validator import validate_final_archive
 from ipa_forge.validators.bundle_validator import validate_bundle
@@ -37,12 +37,17 @@ def run_pipeline(
     ipa_path: Path,
     patch_definition_path: Path,
     identity_query: str,
-    profile_path: Path,
+    profile_paths: list[Path],
     output_path: Path,
     *,
     provider: SigningProvider | None = None,
     dry_run: bool = False,
 ) -> PipelineResult:
+    """profile_paths accepts one or more .mobileprovision files. A single
+    profile signs every target, exactly as before per-extension profiles
+    existed. Supplying more than one lets nested app extensions / watch apps
+    be matched and signed with their own profile by their own bundle id --
+    see signing/pipeline.py::sign_bundle and signing/profile.py::ProfilePool."""
     provider = provider or LocalIdentityProvider()
 
     with tempfile.TemporaryDirectory(prefix="ipa_forge_") as tmp:
@@ -86,19 +91,21 @@ def run_pipeline(
         manifest = Manifest.from_patch_results(ipa_path, bundle.bundle_id, bundle.version, bundle.build, results)
 
         try:
-            # Stage 11: load + validate provisioning profile
-            profile = parse_provisioning_profile(profile_path)
-            validate_profile(profile, bundle.bundle_id)
+            # Stage 11: load + validate provisioning profile(s)
+            profiles = load_profile_pool(profile_paths)
+            main_profile, _ = profiles.select_for(bundle.bundle_id)
+            validate_profile(main_profile, bundle.bundle_id)
             manifest.profile = ProfileManifestEntry(
-                uuid=profile.uuid, team_id=profile.team_identifier, expiration=str(profile.expiration_date)
+                uuid=main_profile.uuid,
+                team_id=main_profile.team_identifier,
+                expiration=str(main_profile.expiration_date),
             )
 
-            # Stage 13: embed profile (stage 12, entitlement reconciliation, happens per-target inside sign_bundle)
-            embed_provisioning_profile(bundle, profile_path)
-
-            # Stage 14: recursive bottom-up codesign
+            # Stages 12-13 (entitlement reconciliation + profile embedding, per
+            # target -- each profile-bearing target selects its own profile by
+            # its own bundle id) and stage 14 (recursive bottom-up codesign):
             identity = resolve_identity(provider, identity_query)
-            sign_bundle(bundle, provider, identity, profile)
+            sign_bundle(bundle, provider, identity, profiles)
 
             # Stage 15: verify every signed bundle/dylib, then a final deep+strict pass on the app bundle
             sign_paths = {sign_target_path(t) for t in bundle.executables}

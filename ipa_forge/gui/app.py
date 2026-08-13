@@ -31,7 +31,9 @@ _FORM_HTML = """<!doctype html>
 <form action="/patch" method="post" enctype="multipart/form-data">
   <p>IPA: <input type="file" name="ipa" required></p>
   <p>Patch definition (YAML/JSON): <input type="file" name="patches" required></p>
-  <p>Provisioning profile (.mobileprovision): <input type="file" name="profile" required></p>
+  <p>Provisioning profile(s) (.mobileprovision) -- select more than one to
+     provide a separate profile per app extension/watch app, matched by
+     bundle id: <input type="file" name="profile" multiple required></p>
   <p>Signing identity (SHA-1 or name substring): <input type="text" name="identity" required></p>
   <p><label><input type="checkbox" name="dry_run" value="1"> Dry run only</label></p>
   <p><button type="submit">Patch</button></p>
@@ -50,7 +52,7 @@ def index() -> str:
 async def patch(
     ipa: UploadFile = File(...),
     patches: UploadFile = File(...),
-    profile: UploadFile = File(...),
+    profile: list[UploadFile] = File(...),
     identity: str = Form(...),
     dry_run: bool = Form(False),
 ) -> JSONResponse:
@@ -59,14 +61,21 @@ async def patch(
 
     ipa_path = request_dir / ipa.filename
     patches_path = request_dir / patches.filename
-    profile_path = request_dir / profile.filename
-    for upload, dest in ((ipa, ipa_path), (patches, patches_path), (profile, profile_path)):
+    ipa_path.write_bytes(await ipa.read())
+    patches_path.write_bytes(await patches.read())
+
+    profile_dir = request_dir / "profiles"
+    profile_dir.mkdir()
+    profile_paths = []
+    for i, upload in enumerate(profile):
+        dest = profile_dir / f"{i}_{upload.filename}"
         dest.write_bytes(await upload.read())
+        profile_paths.append(dest)
 
     output_path = request_dir / f"patched_{ipa_path.name}"
 
     try:
-        result = run_pipeline(ipa_path, patches_path, identity, profile_path, output_path, dry_run=dry_run)
+        result = run_pipeline(ipa_path, patches_path, identity, profile_paths, output_path, dry_run=dry_run)
     except PipelineError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
 

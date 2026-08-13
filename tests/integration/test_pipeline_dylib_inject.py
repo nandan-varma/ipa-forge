@@ -22,7 +22,7 @@ def test_dylib_injection_survives_signing_and_repackaging(tmp_path: Path, synthe
         ipa_path=FIXTURES / "synthetic_app.ipa",
         patch_definition_path=FIXTURES / "patches" / "example_dylib_inject.yaml",
         identity_query="Apple Development",
-        profile_path=synthetic_profile,
+        profile_paths=[synthetic_profile],
         output_path=output,
     )
 

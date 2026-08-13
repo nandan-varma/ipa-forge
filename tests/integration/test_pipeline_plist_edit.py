@@ -23,7 +23,7 @@ def test_plist_edit_survives_signing_and_repackaging(tmp_path: Path, synthetic_p
         ipa_path=FIXTURES / "synthetic_app.ipa",
         patch_definition_path=FIXTURES / "patches" / "example_plist_edit.yaml",
         identity_query="Apple Development",
-        profile_path=synthetic_profile,
+        profile_paths=[synthetic_profile],
         output_path=output,
     )
 

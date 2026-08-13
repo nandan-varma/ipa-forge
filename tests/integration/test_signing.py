@@ -8,7 +8,7 @@ import pytest
 
 from ipa_forge.bundle.models import AppBundle, MachOTarget
 from ipa_forge.bundle.plist import write_plist
-from ipa_forge.signing.profile import ProvisioningProfile
+from ipa_forge.signing.profile import ProfilePool, ProvisioningProfile
 from ipa_forge.signing.provider import LocalIdentityProvider
 from ipa_forge.signing.pipeline import sign_bundle, sign_target_path
 
@@ -60,6 +60,9 @@ def test_sign_bundle_recursive_bottom_up(tmp_path: Path, compiled_macho_binary: 
     identity = _first_apple_development_identity()
     provider = LocalIdentityProvider()
     profile = _fake_profile("com.example.testapp")
+    profile_path = tmp_path / "profile.mobileprovision"
+    profile_path.write_bytes(b"fake profile bytes for embedding, not parsed by this test")
+    profiles = ProfilePool([(profile, profile_path)])
 
     app_root = tmp_path / "Payload" / "TestApp.app"
     (app_root / "Frameworks" / "Foo.framework").mkdir(parents=True)
@@ -83,13 +86,25 @@ def test_sign_bundle_recursive_bottom_up(tmp_path: Path, compiled_macho_binary: 
         version="1.0.0",
         build="1",
         executables=[
-            MachOTarget(path=fw_exec, bundle_relative="Payload/TestApp.app/Frameworks/Foo.framework/Foo", kind="framework", depth=3),
-            MachOTarget(path=main_exec, bundle_relative="Payload/TestApp.app/TestApp", kind="main", depth=1),
+            MachOTarget(
+                path=fw_exec,
+                bundle_relative="Payload/TestApp.app/Frameworks/Foo.framework/Foo",
+                kind="framework",
+                depth=3,
+            ),
+            MachOTarget(
+                path=main_exec,
+                bundle_relative="Payload/TestApp.app/TestApp",
+                kind="main",
+                depth=1,
+                bundle_id="com.example.testapp",
+            ),
         ],
     )
 
-    results = sign_bundle(bundle, provider, identity, profile)
+    results = sign_bundle(bundle, provider, identity, profiles)
     assert len(results) == 2
+    assert (app_root / "embedded.mobileprovision").is_file()
 
     for target in bundle.executables:
         verify_result = provider.verify(sign_target_path(target))
