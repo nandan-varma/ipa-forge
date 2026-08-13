@@ -11,12 +11,12 @@ Status legend: ✅ done · 🔄 in progress · ⬜ planned · ⛔ verified absen
 ## Context
 
 - Base IPA: `com.google.ios.youtube_21.32.4_und3fined.ipa` (decrypted, thin arm64).
-- Delivery: `YouTubeAdblock_21.32.4_unsigned.ipa` (unsigned; AltStore signs at install) →
-  rename to `YouTubeMod_...` once the feature set is complete.
-- Hook target verification: `tools/yt_inventory.py` (class/method walk of `__objc_classlist`/
-  `__objc_methlist`) + `tools/verify_reference_hooks.py` (extracts every `%hook` from the
-  references and checks it against the binary). The parser misses some methods; every
-  suspicious selector was cross-checked with `strings` on the binary — **all confirmed present**.
+- Delivery: `YouTubeMod_21.32.4_unsigned.ipa` (unsigned; AltStore signs at install).
+- Hook verification is built into forge: `forge hooks extract|verify|audit` (class/method
+  walk of `__objc_classlist`/`__objc_methlist`/`__objc_selrefs`, chained-fixup aware) and
+  the `hooks:` block in `youtube-mod.yaml` (159 declared, 12 required). The parser misses
+  some methods; every suspicious selector was cross-checked with `strings` on the binary —
+  **all confirmed present**.
 
 ### Architecture (from G0)
 
@@ -315,10 +315,13 @@ FRPSelectListTable/settingsReorderTable (uYou's own settings UI — we use the
 native YouTube settings), BigYTMiniPlayer (needs the absent YTWatchMiniBarView),
 YTReExplore, alternate-app-icons (no icon set in our build).
 
-## Audit results (systematic pass, all 148 hooks classified)
+## Audit results (systematic pass — all 159 hooks classified)
 
-`tools/audit_our_hooks.py` classifies every hook our dylib installs against
-the 21.32.4 binary. Results: all hooks attach except two, both fixed:
+`forge hooks audit --ipa <decrypted.ipa> --dir dylib/` classifies every hook
+our dylib installs against the 21.32.4 binary (`forge hooks verify` does the
+same for the `hooks:` block in `youtube-mod.yaml`). Results: 151/159 attach;
+the 8 `unverified` are classname-only classes / parser decode gaps (all
+strings-confirmed present). Two earlier findings, both fixed:
 
 - **Paid-content promo**: `YTMainAppVideoPlayerOverlayViewController
   setPaidContentWithPlayerData:` does not exist on that class in 21.32.4 (the
@@ -340,8 +343,8 @@ the `YTFreedom: hooked -[...]` os_log lines at launch.
 
 ## Verification loop (per goal)
 
-1. Extract target selectors from the reference file, verify with
-   `tools/verify_reference_hooks.py` (or strings on the binary).
+1. Verify targets with `forge hooks extract --ipa <ipa> --search <regex>`
+   and `forge hooks audit --ipa <ipa> --dir dylib/` (or strings on the binary).
 2. Implement in the area `.m`, build dylib (`dylib/build.sh`), dry-run + build IPA.
 3. On-device: toggle in Settings → apply → relaunch → confirm behavior + check
    `com.nandan.ytfreedom` os_log lines for hook-attach messages.

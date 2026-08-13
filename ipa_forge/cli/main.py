@@ -267,8 +267,13 @@ def hooks_audit(
             cls = cls or cls2
             sel = sel or sel2
             if cls and sel:
-                kind = "class" if fn == "ytfHookClass" else "instance"
-                decls.append(HookDecl(cls, sel, kind))
+                decls.append(
+                    HookDecl(
+                        cls,
+                        sel,
+                        "class" if fn == "ytfHookClass" else "instance",  # type: ignore[arg-type]
+                    )
+                )
     if not decls:
         typer.echo("No hook calls found in the sources.")
         raise typer.Exit(code=0)

@@ -81,8 +81,8 @@ def main() -> None:
             flags += "\n    added: true"
         if required:
             flags += "\n    required: true"
-        out.append(f"  - class: \"{cls}\"")
-        out.append(f"    selector: \"{sel}\"")
+        out.append(f'  - class: "{cls}"')
+        out.append(f'    selector: "{sel}"')
         out.append(flags)
     print("\n".join(out))
     print(f"\n# {len(rows)} hooks ({sum(1 for r in rows if (r[0], r[1]) in REQUIRED)} required)", file=sys.stderr)

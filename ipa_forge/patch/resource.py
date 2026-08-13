@@ -10,8 +10,8 @@ ever serves untrusted/multi-user uploads.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
 
 from ipa_forge.patch.base import PatchContext, PatchResult

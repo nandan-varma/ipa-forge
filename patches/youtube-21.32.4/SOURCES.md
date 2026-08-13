@@ -18,12 +18,16 @@ GPL-3.0-or-later (matching ipa-forge).
 | **YouSpeed / YTLitePlus gestures** | via YouMod Player.x | Extra speeds + edge gestures → `PlayerFeatures.m`/`PlayerGestures.m` (G5/G6) |
 | **YouTube Native Share** ([jkhsjdhjs](https://github.com/jkhsjdhjs/youtube-native-share)) | via YTLite `YTNativeShare.x` | G15 — documented; protobuf extension-root + unknown-field APIs changed in 21.32.4, port deferred |
 
-## Verification tooling
+## Verification tooling (built into forge)
 
-- `tools/yt_inventory.py` — walks `__objc_classlist`/`__objc_methlist` (chained fixups,
-  two-level selref decode) of the arm64 slice: class existence + per-class method lists.
-- `tools/verify_reference_hooks.py` — extracts every `%hook` from the reference `.x`
-  files and checks each (class, selector, class/instance) against the binary. The parser
-  under-reports methods on GPBMessage subclasses; every flagged selector was re-checked
-  with `strings` on the binary — all confirmed present except the items listed in
-  `ROADMAP.md` ("verified absent").
+- `forge hooks extract --ipa X --class C` / `--search RE` — walk
+  `__objc_classlist`/`__objc_methlist`/`__objc_selrefs` (chained-fixup aware,
+  lipo-thinned) of the arm64 slice: class existence + per-class method lists.
+- `forge hooks verify --ipa X --patches Y` — verify the definition's `hooks:`
+  block (159 declared in `youtube-mod.yaml`); also runs on `--dry-run`.
+- `forge hooks audit --ipa X --dir dylib/` — scan tweak sources for hook calls
+  and check each. The parser under-reports methods on GPBMessage subclasses;
+  every flagged selector was re-checked with `strings` on the binary — all
+  confirmed present except the items listed in `ROADMAP.md` ("verified absent").
+- `tools/generate_hooks_manifest.py` — regenerates the `hooks:` block from the
+  dylib sources (marks 12 load-bearing hooks `required: true`).

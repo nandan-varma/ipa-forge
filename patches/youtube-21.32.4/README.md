@@ -96,7 +96,8 @@ Supporting identity spoofing so Google frameworks see the stock app
 `NSBundle` main-bundle spoof; `GULAppEnvironmentUtil isFromAppStore`;
 `APMAEU isFAS`). Hook set is the union of YouMod's `Sideloading.x` (adapted
 from YTLite + uYouEnhanced) and YTSideloadSignInFix; every class and
-selector was verified present in the 21.32.4 binary with `yt_inventory.py`
+selector was verified present in the 21.32.4 binary with
+`forge hooks verify --ipa <decrypted.ipa> --patches youtube-mod.yaml`
 (only `OGLPhenotypeFlagServiceImpl` is absent and is skipped).
 
 ### Build the dylib
@@ -111,16 +112,19 @@ no substrate/ellekit dependency; loads via a plain `LC_LOAD_DYLIB`.)
 ### Hook targets — how they were found (reproducible)
 
 ```bash
-# requires the decrypted IPA extracted at /tmp/verify/Payload/YouTube.app/YouTube
-python3 patches/youtube-21.32.4/tools/yt_inventory.py class YTLocalPlaybackController
-python3 patches/youtube-21.32.4/tools/yt_inventory.py class YTAdsInnerTubeContextDecorator
-python3 patches/youtube-21.32.4/tools/yt_inventory.py class YTInnerTubeCollectionViewController
+# dump a class's methods (classes, superclass, inst/class selectors)
+forge hooks extract --ipa youtube-21.32.4-decrypted.ipa --class YTLocalPlaybackController
+# search classes by name
+forge hooks extract --ipa youtube-21.32.4-decrypted.ipa --search "AdBreak|ControlFlow"
+# verify every hook the mod declares against the binary (also runs in --dry-run)
+forge hooks verify --ipa youtube-21.32.4-decrypted.ipa --patches youtube-mod.yaml
+# scan the dylib sources for hook calls and check each
+forge hooks audit --ipa youtube-21.32.4-decrypted.ipa --dir dylib/
 ```
 
-The tool walks `__objc_classlist`/`__objc_methlist` of the arm64 slice,
-decoding chained fixups and the two-level selref method-name indirection
-(entry-relative offset → `__objc_selrefs` slot → selector string). Adjust
-`BIN` at the top of the tool to point at your extracted binary.
+The engine walks `__objc_classlist`/`__objc_methlist`/`__objc_selrefs` of the
+arm64 slice (chained-fixup aware; fat binaries are thinned with lipo). See
+`ipa-forge`'s `docs/patch-reference.md` → "The `hooks` block".
 
 ## Try it (dry run)
 

@@ -9,7 +9,7 @@
 #     see PlayerFeatures.m, PlayerGestures.m, NavbarTabbar.m, FeedShorts.m,
 #     MiscFeatures.m, Appearance.m
 # Every hook class and selector was verified present in the 21.32.4 binary
-# (yt_inventory.py + strings) before being ported.
+# (forge hooks extract/audit + strings) before being ported.
 #
 # Installable output: this set also strips Extensions/ and PlugIns/, which
 # AltStore requires (the parent bundle id gets a Team-ID suffix at install,

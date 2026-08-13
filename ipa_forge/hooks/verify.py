@@ -258,9 +258,5 @@ def verify_hooks(analysis: MachOAnalysis, hooks: list[HookDecl]) -> list[HookRes
     return results
 
 
-def ok(results: list[HookResult]) -> bool:
-    return all(r.ok for r in results)
-
-
 def failing(results: list[HookResult]) -> list[HookResult]:
     return [r for r in results if not r.ok]

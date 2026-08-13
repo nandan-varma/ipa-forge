@@ -56,8 +56,16 @@ Lint and typecheck (config lives in `pyproject.toml`): `ruff check .`,
 
 **Dependency direction is one-way and enforced by convention, not tooling**:
 `patch/` and `signing/` both depend on `bundle/` but never on each other.
-`pipeline.py` orchestrates `patch/`, `signing/`, `validators/`, and
-`manifest.py`. `cli/` and `gui/` call into `pipeline.py` for patching —
+`pipeline.py` orchestrates `patch/`, `signing/`, `hooks/`, `validators/`, and
+`manifest.py`.
+
+**Hook verification (`ipa_forge/hooks/`)**: the `hooks:` block in a patch
+definition declares the dylib's runtime hook targets; `pipeline.py` verifies
+them against the app's main binary (class table + method lists + selrefs,
+chained-fixup aware) during the dry-run gate and fails when a `required` hook
+can't attach. This is the safety net for version drift — a renamed/removed
+class silently kills a hook otherwise. The CLI surface is `forge hooks
+verify|extract|audit`. `cli/` and `gui/` call into `pipeline.py` for patching —
 neither touches `patch/` or `signing/` directly; `cli/` additionally uses
 `altstore/` (export-source) and `validators/` (inspect/validate) directly,
 and structural IPA validation (stage 1) is run by the pipeline, not by

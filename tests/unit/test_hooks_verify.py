@@ -130,9 +130,10 @@ def test_pipeline_hook_report_shape():
 
 def test_hook_spec_yaml_roundtrip():
     """A patch definition with a `hooks:` section parses (schema integration)."""
-    from ipa_forge.patch.loader import load_patch_definition
-    from pathlib import Path
     import tempfile
+    from pathlib import Path
+
+    from ipa_forge.patch.loader import load_patch_definition
 
     yaml_text = """
 target:
@@ -165,9 +166,10 @@ hooks:
 
 
 def test_hook_spec_rejects_bad_kind():
-    from ipa_forge.patch.loader import PatchLoadError, load_patch_definition
-    from pathlib import Path
     import tempfile
+    from pathlib import Path
+
+    from ipa_forge.patch.loader import PatchLoadError, load_patch_definition
 
     yaml_text = """
 target:
