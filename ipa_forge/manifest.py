@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Structured manifest emitted after patch application, before signing --
 makes debugging a failed install possible independent of signing outcome.
 """

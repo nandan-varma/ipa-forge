@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Provisioning profile parsing and early validation.
 
 The profile is treated as authoritative input: it is rejected up front when

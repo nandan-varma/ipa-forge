@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """IPA extraction and repackaging.
 
 Uses the platform `zip`/`unzip` CLI tools rather than Python's `zipfile`

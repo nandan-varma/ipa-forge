@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Entitlement reconciliation: original app entitlements ∩ profile-authorized entitlements.
 
 Apple's rule (TN3125): every entitlement claimed by the app must be in the

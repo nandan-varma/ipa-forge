@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Bottom-up nested-executable inventory walker.
 
 Classification is purely structural (by containing directory suffix), never

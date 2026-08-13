@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Pydantic schema for the external YAML/JSON patch-definition contract.
 
 The core engine understands these operation *types* but never a specific

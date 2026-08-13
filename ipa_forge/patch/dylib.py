@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Dylib load-command injection patch operation.
 
 Assumes the dylib file is already present in the bundle (placed there by a

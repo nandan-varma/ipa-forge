@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """End-to-end pipeline orchestration: the 17 stages described in the
 architecture doc, from raw .ipa in to AltStore-Classic-ready .ipa out.
 """

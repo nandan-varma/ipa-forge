@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Loads patch-definition YAML/JSON files and builds concrete PatchOperation instances."""
 from __future__ import annotations
 

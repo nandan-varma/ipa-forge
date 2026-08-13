@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Deterministic byte-pattern binary patching, bounded to a specific arch slice."""
 from __future__ import annotations
 

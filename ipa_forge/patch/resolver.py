@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Selects which patch definitions apply to a given bundle, by bundle_id + version."""
 from __future__ import annotations
 

@@ -170,3 +170,7 @@ Real-device AltStore Classic install/launch/refresh cannot be automated in
 this environment -- see
 [`docs/altstore_device_testing.md`](docs/altstore_device_testing.md) for the
 manual checklist.
+
+## License
+
+GPLv3-or-later. See [`LICENSE`](LICENSE).

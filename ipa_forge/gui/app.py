@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Minimal local web GUI wrapping the same ipa_forge.pipeline used by the CLI.
 
 Single-user, local-only tool -- request state lives in module-level dicts,

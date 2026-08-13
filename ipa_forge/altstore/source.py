@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """AltStore Classic source.json app-entry export.
 
 A distribution metadata layer, deliberately kept separate from the signing

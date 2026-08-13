@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Resource file replace/add/remove operations, sandboxed to the app bundle root."""
 from __future__ import annotations
 

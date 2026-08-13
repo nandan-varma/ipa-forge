@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """LIEF-backed dylib load-command injection.
 
 Modifies the target Mach-O's load commands only -- copying the dylib file

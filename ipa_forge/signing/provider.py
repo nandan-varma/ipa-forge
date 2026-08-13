@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """SigningProvider abstraction: decouples the pipeline from *how* signing happens."""
 from __future__ import annotations
 

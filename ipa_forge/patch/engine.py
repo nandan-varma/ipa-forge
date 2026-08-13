@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Dry-run gate + ordered apply for a resolved set of patch operations.
 
 Enforces pipeline stages 5-8: every operation must report dry_run_ok before

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The only module in ipa_forge permitted to invoke codesign/security directly.
 
 Per the architecture's hard constraint, Apple's code signature format is never

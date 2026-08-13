@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Core bundle data model shared by the patch engine and the signing subsystem."""
 from __future__ import annotations
 

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Validates raw .ipa structure before extraction (stage 1 of the pipeline)."""
 from __future__ import annotations
 

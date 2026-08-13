@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Recursive bottom-up signing orchestration + provisioning-profile embedding."""
 from __future__ import annotations
 
