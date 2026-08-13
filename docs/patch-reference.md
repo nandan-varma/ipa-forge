@@ -247,7 +247,60 @@ When applying, operations run in a fixed order:
 
 Order within a group follows the order in the YAML file.
 
+
+## The `hooks` block — verify runtime hooks against the binary
+
+Dylib-injection tweaks live or die on ObjC runtime hooks: the dylib swizzles
+`-[Class selector]`, and when a **newer app version renames or removes that
+class/selector the hook silently no-ops** — the feature just stops working
+with no error. The `hooks:` block declares every hook the patch set relies on
+so `forge` can verify it against the actual binary before anything mutates:
+
+```yaml
+hooks:
+  - class: "YTColdConfig"
+    selector: "iosEnableMuteButtonPlayerControl"
+    kind: instance        # instance (default) | class
+  - class: "YTPlayerResponse"
+    selector: "playerAdsArray"
+    added: true           # the tweak ADDS this method (logos' %new)
+  - class: "SSORPCService"
+    selector: "URLFromURL:withAdditionalFragmentParameters:"
+    required: true        # fail the run if this hook can't attach
+```
+
+Per hook:
+
+| Field | Meaning |
+| --- | --- |
+| `class` | ObjC class name the hook targets. |
+| `selector` | Selector, colons included (`didReceiveAdBreakResponse:fromAdBreakSlot:`). |
+| `kind` | `instance` (default) or `class` (metaclass method). |
+| `added` | The tweak adds the method itself (`%new`). Absence is *expected* and counts as a pass; if the binary's selrefs reference the selector, the report confirms the app calls it and your add is load-bearing. |
+| `required` | Fail the run when this hook can't attach. Leave unset (or `false`) for nice-to-have hooks — they warn instead. |
+
+`forge patch --dry-run` verifies every declared hook against the app's main
+binary (class table + method lists + selrefs, chained-fixup aware) and prints
+a summary:
+
+```
+Dry run OK -- 4 operation(s) would apply.
+Hooks: 151/159 attach (8 issue(s))
+  ! YTSettings -[areHintsDisabled]: unverified -- class exists ... walk missed it
+```
+
+Statuses: `ok` (on the class), `ok-inherited` (on an ancestor or a system
+superclass like UIView), `ok-system` (system class, selector referenced by the
+app), `added` (the tweak provides it), `unverified` (class/selector exists but
+the parser couldn't fully confirm — treat as a soft warning), `missing-class` /
+`missing-selector` / `elsewhere` (the hook would silently no-op — these fail
+the run when `required`).
+
+Porting to a new app version becomes: bump `target.version`, run
+`--dry-run`, read the hook report, and fix exactly the hooks the report flags.
+
 ## The manifest
+
 
 Every run produces a structured manifest (`--verbose` prints it; the GUI shows
 it in the result card):

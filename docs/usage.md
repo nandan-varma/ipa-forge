@@ -150,6 +150,28 @@ Launches the local web GUI on `127.0.0.1:8765` by default (override with
 
 Prints the installed version.
 
+## Hook verification (`forge hooks`)
+
+Dylib tweaks silently break when a new app version renames/removes hook
+targets. Three commands turn that into a checkable report:
+
+```bash
+# Verify every hook declared in a patch definition's `hooks:` block
+forge hooks verify --ipa App.ipa --patches patch.yaml
+
+# Dump the ObjC class table (classes, superclasses, method lists)
+forge hooks extract --ipa App.ipa --class YTPlayerResponse
+forge hooks extract --ipa App.ipa --search "AdBreak"
+
+# Scan tweak sources for hook calls and verify each against the binary
+forge hooks audit --ipa App.ipa --dir dylib/
+```
+
+`forge patch --dry-run` also verifies the definition's `hooks:` block
+automatically and prints an attach summary; `required: true` hooks that
+can't attach fail the run before anything mutates. See
+`docs/patch-reference.md` → "The `hooks` block".
+
 ## Signing identity & profile
 
 ipa-forge re-signs with **your own** Apple development credentials — it never

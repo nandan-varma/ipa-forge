@@ -48,3 +48,502 @@ patches:
     executable: "YouTube"
     install_name: "@rpath/libYTHook.dylib"
     load_command: "LC_LOAD_DYLIB"
+
+hooks:
+  - class: "YTIClientMdxGlobalConfig"
+    selector: "enableSkippableAd"
+    kind: instance
+    added: true
+  - class: "YTLocalPlaybackController"
+    selector: "createAdsPlaybackCoordinator"
+    kind: instance
+    required: true
+  - class: "YTAdShieldUtils"
+    selector: "spamSignalsDictionary"
+    kind: class
+    required: true
+  - class: "YTAdShieldUtils"
+    selector: "spamSignalsDictionaryWithoutIDFA"
+    kind: class
+  - class: "YTAdsInnerTubeContextDecorator"
+    selector: "decorateContext:"
+    kind: instance
+    required: true
+  - class: "YTAccountScopedAdsInnerTubeContextDecorator"
+    selector: "decorateContext:"
+    kind: instance
+    required: true
+  - class: "MDXSessionImpl"
+    selector: "adPlaying:"
+    kind: instance
+  - class: "YTAdBreakResponseReceivedOpportunityAdapterV2"
+    selector: "didReceiveAdBreakResponse:fromAdBreakSlot:"
+    kind: instance
+  - class: "YTAdBreakRendererAdapter"
+    selector: "createAds"
+    kind: instance
+  - class: "YTIElementRenderer"
+    selector: "elementData"
+    kind: instance
+    required: true
+  - class: "YTReelDataSource"
+    selector: "setReels:"
+    kind: instance
+    required: true
+  - class: "YTReelDataSource"
+    selector: "insertContentModel:atIndex:"
+    kind: instance
+  - class: "GOODialogView"
+    selector: "setBackgroundColor:"
+    kind: instance
+  - class: "ASCollectionView"
+    selector: "didMoveToWindow"
+    kind: instance
+  - class: "ASScrollView"
+    selector: "didMoveToWindow"
+    kind: instance
+  - class: "UIKeyboard"
+    selector: "displayLayer:"
+    kind: instance
+  - class: "UIPredictionViewController"
+    selector: "_currentTextSuggestions"
+    kind: instance
+  - class: "UIKeyboardDockView"
+    selector: "layoutSubviews"
+    kind: instance
+  - class: "UIInputView"
+    selector: "layoutSubviews"
+    kind: instance
+  - class: "UIKBVisualEffectView"
+    selector: "layoutSubviews"
+    kind: instance
+  - class: "_ASDisplayView"
+    selector: "didMoveToWindow"
+    kind: instance
+    required: true
+  - class: "YTMySubsFilterHeaderView"
+    selector: "setChipFilterView:"
+    kind: instance
+  - class: "YTHeaderContentComboView"
+    selector: "enableSubheaderBarWithView:"
+    kind: instance
+  - class: "YTChipCloudCell"
+    selector: "layoutSubviews"
+    kind: instance
+  - class: "YTSearchViewController"
+    selector: "viewDidLoad"
+    kind: instance
+  - class: "YTSearchViewController"
+    selector: "setSuggestions:"
+    kind: instance
+  - class: "YTPersonalizedSuggestionsCacheProvider"
+    selector: "activeCache"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "iosEnableVideoPlayerScrubber"
+    kind: instance
+  - class: "YTReelWatchPlaybackOverlayView"
+    selector: "setActionBarElementRenderer:"
+    kind: instance
+  - class: "YTIPlayabilityStatus"
+    selector: "isPlayableInBackground"
+    kind: instance
+  - class: "YTPlaybackData"
+    selector: "isPlayableInBackground"
+    kind: instance
+  - class: "MLVideo"
+    selector: "playableInBackground"
+    kind: instance
+  - class: "YTIBackgroundOfflineSettingCategoryEntryRenderer"
+    selector: "isBackgroundEnabled"
+    kind: instance
+    added: true
+  - class: "YTColdConfig"
+    selector: "shortsPlayerGlobalConfigEnableReelsPictureInPicture"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "shortsPlayerGlobalConfigEnableReelsPictureInPictureIos"
+    kind: instance
+  - class: "YTHotConfig"
+    selector: "shortsPlayerGlobalConfigEnableReelsPictureInPictureAllowedFromPlayer"
+    kind: instance
+  - class: "YTReelModel"
+    selector: "isPiPSupported"
+    kind: instance
+  - class: "YTReelPlayerViewController"
+    selector: "isPictureInPictureAllowed"
+    kind: instance
+  - class: "YTReelWatchRootViewController"
+    selector: "switchToPictureInPicture"
+    kind: instance
+  - class: "YTGlobalConfig"
+    selector: "shouldBlockUpgradeDialog"
+    kind: instance
+  - class: "YTGlobalConfig"
+    selector: "shouldShowUpgradeDialog"
+    kind: instance
+  - class: "YTGlobalConfig"
+    selector: "shouldShowUpgrade"
+    kind: instance
+  - class: "YTGlobalConfig"
+    selector: "shouldForceUpgrade"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "enableYouthereCommandsOnIos"
+    kind: instance
+  - class: "GOOHUDManagerInternal"
+    selector: "showMessageMainThread:"
+    kind: instance
+  - class: "GOOHUDManagerInternal"
+    selector: "activateOverlay:"
+    kind: instance
+  - class: "GOOHUDManagerInternal"
+    selector: "displayHUDViewForMessage:"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "mainAppCoreClientIosEnableStartupAnimation"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "enableIosFloatingMiniplayer"
+    kind: instance
+  - class: "YTInnerTubeResponseWrapper"
+    selector: "initWithResponse:cacheContext:requestStatistics:mutableSharedData:"
+    kind: instance
+  - class: "YTIShowFullscreenInterstitialCommand"
+    selector: "shouldThrottleInterstitial"
+    kind: instance
+  - class: "YTDefaultSheetController"
+    selector: "addAction:"
+    kind: instance
+  - class: "YTAppCollectionViewController"
+    selector: "loadWithModel:"
+    kind: instance
+  - class: "SKStoreReviewController"
+    selector: "requestReview"
+    kind: class
+  - class: "YTHUDMessageView"
+    selector: "initWithMessage:dismissHandler:"
+    kind: instance
+  - class: "YTRightNavigationButtons"
+    selector: "layoutSubviews"
+    kind: instance
+  - class: "YTNavigationBarTitleView"
+    selector: "layoutSubviews"
+    kind: instance
+  - class: "YTHeaderView"
+    selector: "stickyNavHeaderEnabled"
+    kind: instance
+  - class: "YTPivotBarView"
+    selector: "setRenderer:"
+    kind: instance
+  - class: "YTPivotBarIndicatorView"
+    selector: "setFillColor:"
+    kind: instance
+  - class: "YTPivotBarIndicatorView"
+    selector: "setBorderColor:"
+    kind: instance
+  - class: "YTPivotBarItemView"
+    selector: "setRenderer:"
+    kind: instance
+  - class: "YTPivotBarViewController"
+    selector: "viewDidAppear:"
+    kind: instance
+  - class: "YTMainAppControlsOverlayView"
+    selector: "setAutoplaySwitchButtonRenderer:"
+    kind: instance
+  - class: "YTMainAppControlsOverlayView"
+    selector: "setClosedCaptionsOrSubtitlesButtonAvailable:"
+    kind: instance
+  - class: "YTMainAppControlsOverlayView"
+    selector: "setPreviousButtonHidden:"
+    kind: instance
+  - class: "YTMainAppControlsOverlayView"
+    selector: "setNextButtonHidden:"
+    kind: instance
+  - class: "YTMainAppControlsOverlayView"
+    selector: "titleViewHidden"
+    kind: instance
+  - class: "YTSettings"
+    selector: "isAutoplayEnabled"
+    kind: instance
+  - class: "YTSettingsImpl"
+    selector: "isAutoplayEnabled"
+    kind: instance
+  - class: "YTInlinePlayerBarContainerView"
+    selector: "setShouldDisplayTimeRemaining:"
+    kind: instance
+  - class: "YTPlayerBarController"
+    selector: "setActiveSingleVideo:"
+    kind: instance
+  - class: "YTInlinePlayerBarContainerView"
+    selector: "setPlayerBarAlpha:"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "replaceNextPaddleWithFastForwardButtonForSingletonVods"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "replacePreviousPaddleWithRewindButtonForSingletonVods"
+    kind: instance
+  - class: "YTMainAppVideoPlayerOverlayView"
+    selector: "setBackgroundVisible:isGradientBackground:"
+    kind: instance
+  - class: "YTMainAppVideoPlayerOverlayView"
+    selector: "isWatermarkEnabled"
+    kind: instance
+  - class: "YTMainAppVideoPlayerOverlayView"
+    selector: "setWatermarkEnabled:"
+    kind: instance
+  - class: "YTMainAppVideoPlayerOverlayView"
+    selector: "isFullscreenActionsVisible"
+    kind: instance
+  - class: "YTMainAppVideoPlayerOverlayView"
+    selector: "layoutSubviews"
+    kind: instance
+  - class: "YTCreatorEndscreenView"
+    selector: "setHidden:"
+    kind: instance
+  - class: "YTCreatorEndscreenView"
+    selector: "setHoverCardHidden:"
+    kind: instance
+  - class: "YTCreatorEndscreenView"
+    selector: "setHoverCardRenderer:"
+    kind: instance
+  - class: "YTAutonavEndscreenController"
+    selector: "showEndscreen"
+    kind: instance
+  - class: "YTAutonavEndscreenController"
+    selector: "showEndscreenControlsInPlayerBar:"
+    kind: instance
+  - class: "YTFullscreenActionsView"
+    selector: "sizeThatFits:"
+    kind: instance
+  - class: "YTCinematicContainerView"
+    selector: "layoutSubviews"
+    kind: instance
+  - class: "YTCinematicContainerView"
+    selector: "loadWithModel:"
+    kind: instance
+  - class: "YTCinematicContainerView"
+    selector: "initWithFrame:"
+    kind: instance
+  - class: "YTAnnotationsViewController"
+    selector: "loadFeaturedChannelWatermark"
+    kind: instance
+  - class: "YTPlayabilityResolutionUserActionUIController"
+    selector: "showConfirmAlert"
+    kind: instance
+  - class: "YTPlayabilityResolutionUserActionUIControllerImpl"
+    selector: "showConfirmAlert"
+    kind: instance
+  - class: "YTPlaybackConfig"
+    selector: "setStartPlayback:"
+    kind: instance
+  - class: "YTWatchFlowController"
+    selector: "shouldExitFullScreenOnFinish"
+    kind: instance
+  - class: "YTWatchViewController"
+    selector: "allowedFullScreenOrientations"
+    kind: instance
+  - class: "YTSettings"
+    selector: "areHintsDisabled"
+    kind: instance
+  - class: "YTSettings"
+    selector: "setHintsDisabled:"
+    kind: instance
+  - class: "YTSettingsImpl"
+    selector: "areHintsDisabled"
+    kind: instance
+  - class: "YTSettingsImpl"
+    selector: "setHintsDisabled:"
+    kind: instance
+  - class: "YTUserDefaults"
+    selector: "areHintsDisabled"
+    kind: instance
+  - class: "YTUserDefaults"
+    selector: "setHintsDisabled:"
+    kind: instance
+  - class: "YTIMiniplayerRenderer"
+    selector: "hasMinimizedEndpoint"
+    kind: instance
+    added: true
+  - class: "YTIMiniplayerRenderer"
+    selector: "hasPlaybackMode"
+    kind: instance
+    added: true
+  - class: "YTMainAppVideoPlayerOverlayViewController"
+    selector: "allowDoubleTapToSeekGestureRecognizer"
+    kind: instance
+  - class: "YTMainAppVideoPlayerOverlayViewController"
+    selector: "allowLongPressGestureRecognizerInView:"
+    kind: instance
+  - class: "YTPlayerViewController"
+    selector: "prepareToLoadWithPlayerTransition:expectedLayout:"
+    kind: instance
+  - class: "YTIMediaQualitySettingsHotConfig"
+    selector: "enableQuickMenuVideoQualitySettings"
+    kind: instance
+    added: true
+  - class: "YTVideoQualitySwitchOriginalController"
+    selector: "setUserSelectableFormats:"
+    kind: instance
+  - class: "YTMenuController"
+    selector: "actionsForRenderers:fromView:entry:shouldLogItems:firstResponder:"
+    kind: instance
+  - class: "YTVarispeedSwitchController"
+    selector: "init"
+    kind: instance
+  - class: "YTVarispeedSwitchControllerImpl"
+    selector: "init"
+    kind: instance
+  - class: "YTIPlayerHotConfig"
+    selector: "maximumPlaybackRate"
+    kind: instance
+    added: true
+  - class: "YTIGranularVariableSpeedConfig"
+    selector: "maximumPlaybackRate"
+    kind: instance
+    added: true
+  - class: "YTMainAppVideoPlayerOverlayViewController"
+    selector: "playerOverlayProvider:didInsertPlayerOverlay:"
+    kind: instance
+  - class: "YTPaidContentController"
+    selector: "setPaidContentRenderer:"
+    kind: instance
+  - class: "YTPaidContentViewController"
+    selector: "showPaidContentRenderer:"
+    kind: instance
+  - class: "YTPaidContentViewController"
+    selector: "hidePaidContent"
+    kind: instance
+  - class: "YTInlineMutedPlaybackPlayerOverlayViewController"
+    selector: "setPaidContentWithPlayerData:"
+    kind: instance
+  - class: "YTInlinePlayerBarContainerView"
+    selector: "quietProgressBarColor"
+    kind: instance
+  - class: "YTMainAppVideoPlayerOverlayViewController"
+    selector: "didPressPause:"
+    kind: instance
+  - class: "YTWatchNextResultsViewController"
+    selector: "setVisibleSections:"
+    kind: instance
+  - class: "YTFullscreenEngagementOverlayController"
+    selector: "setRelatedVideosVisible:"
+    kind: instance
+  - class: "YTFullscreenEngagementOverlayController"
+    selector: "relatedVideosPeekingEnabled"
+    kind: instance
+  - class: "YTQTMButton"
+    selector: "titleLabel"
+    kind: instance
+  - class: "YTReelPlayerButton"
+    selector: "titleLabel"
+    kind: instance
+  - class: "YTPlaylistMiniBarView"
+    selector: "setFrame:"
+    kind: instance
+  - class: "YTWatchPullToFullController"
+    selector: "shouldRecognizeOverscrollEventsFromWatchOverscrollController:"
+    kind: instance
+  - class: "YTInlinePlayerBarContainerView"
+    selector: "didPressScrubber:"
+    kind: instance
+  - class: "YTPlayerBarHeatwaveView"
+    selector: "initWithFrame:heatmap:startTime:endTime:"
+    kind: instance
+  - class: "YTPlayerBarController"
+    selector: "setHeatmap:"
+    kind: instance
+  - class: "YTWatchLayerViewController"
+    selector: "watchController:didSetPlayerViewController:"
+    kind: instance
+  - class: "YTSettingsGroupData"
+    selector: "orderedCategories"
+    kind: instance
+    required: true
+  - class: "YTAppSettingsPresentationData"
+    selector: "settingsCategoryOrder"
+    kind: class
+    required: true
+  - class: "YTSettingsSectionItemManager"
+    selector: "updateYTFreedomSectionWithEntry:"
+    kind: instance
+    added: true
+  - class: "YTSettingsSectionItemManager"
+    selector: "updateSectionForCategory:withEntry:"
+    kind: instance
+    required: true
+  - class: "SSORPCService"
+    selector: "URLFromURL:withAdditionalFragmentParameters:"
+    kind: class
+    required: true
+  - class: "SSOClientLogin"
+    selector: "defaultSourceString"
+    kind: class
+  - class: "YTVersionUtils"
+    selector: "appName"
+    kind: class
+  - class: "YTVersionUtils"
+    selector: "appID"
+    kind: class
+  - class: "GCKBUtils"
+    selector: "appIdentifier"
+    kind: class
+  - class: "GPCDeviceInfo"
+    selector: "bundleId"
+    kind: class
+  - class: "OGLBundle"
+    selector: "shortAppName"
+    kind: class
+  - class: "GVROverlayView"
+    selector: "appName"
+    kind: class
+  - class: "GULAppEnvironmentUtil"
+    selector: "isFromAppStore"
+    kind: class
+  - class: "APMAEU"
+    selector: "isFAS"
+    kind: class
+  - class: "YTHotConfig"
+    selector: "clientInfraClientConfigIosEnableFillingEncodedHacksInnertubeContext"
+    kind: class
+  - class: "SSOConfiguration"
+    selector: "initWithClientID:supportedAccountServices:"
+    kind: instance
+    required: true
+  - class: "SSOFolsomKeychainUtils"
+    selector: "sharedAccessGroup"
+    kind: instance
+  - class: "GULKeychainStorage"
+    selector: "getObjectForKey:objectClass:accessGroup:completionHandler:"
+    kind: instance
+  - class: "GULKeychainStorage"
+    selector: "getObjectFromKeychainForKey:objectClass:accessGroup:completionHandler:"
+    kind: instance
+  - class: "GULKeychainStorage"
+    selector: "setObject:forKey:accessGroup:completionHandler:"
+    kind: instance
+  - class: "GULKeychainStorage"
+    selector: "removeObjectForKey:accessGroup:completionHandler:"
+    kind: instance
+  - class: "GULKeychainStorage"
+    selector: "keychainQueryWithKey:accessGroup:"
+    kind: instance
+  - class: "GNPEncryptionConfiguration"
+    selector: "initWithKeychainAccessGroup:"
+    kind: instance
+  - class: "GNPEncryptionConfiguration"
+    selector: "keychainAccessGroup"
+    kind: instance
+  - class: "FIRInstallationsStore"
+    selector: "initWithSecureStorage:accessGroup:"
+    kind: instance
+  - class: "FIRInstallationsStore"
+    selector: "accessGroup"
+    kind: instance
+  - class: "CHMConfiguration"
+    selector: "setKeychainAccessGroup:"
+    kind: instance
+  - class: "CHMConfiguration"
+    selector: "keychainAccessGroup"
+    kind: instance

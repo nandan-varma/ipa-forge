@@ -91,8 +91,28 @@ PatchSpec = Annotated[
 ]
 
 
+class HookSpec(BaseModel):
+    """Declare a runtime hook the patch set relies on, so `forge` can verify
+    it against the actual binary and catch silent no-ops on version drift."""
+
+    class_name: str = Field(alias="class")
+    selector: str
+    kind: Literal["instance", "class"] = "instance"
+    added: bool = False
+    """True when the tweak adds the method itself (logos' %new) -- absence is
+    expected and counts as a pass; presence in selrefs confirms the app calls it."""
+    required: bool = False
+    """Fail the run when this hook can't attach (missing class/selector or
+    selector-only-elsewhere). Non-required hooks only warn."""
+
+    model_config = {"populate_by_name": True}
+
+
 class PatchDefinition(BaseModel):
     target: TargetSpec
     patches: list[PatchSpec] = Field(
         min_length=1, description="At least one operation -- an empty definition is always a mistake."
     )
+    hooks: list[HookSpec] | None = None
+    """Runtime hook targets to verify against the binary before patching;
+    catches silent hook no-ops when a new app version renames/removes classes."""

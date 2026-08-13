@@ -10,6 +10,9 @@ import typer
 
 from ipa_forge.altstore.source import build_app_entry, write_source_json
 from ipa_forge.bundle.ipa import extract_ipa, load_bundle
+from ipa_forge.hooks.binary import analyze_macho
+from ipa_forge.hooks.verify import HookDecl, verify_hooks
+from ipa_forge.patch.loader import PatchLoadError, load_patch_definition
 from ipa_forge.pipeline import PipelineError, run_pipeline
 from ipa_forge.validators.bundle_validator import validate_bundle
 from ipa_forge.validators.ipa_validator import IpaValidationError, validate_ipa_structure
@@ -109,9 +112,7 @@ def patch(
             )
             raise typer.Exit(code=1) from None
     try:
-        result = run_pipeline(
-            ipa, patches, identity or "", profile or [], output, dry_run=dry_run, no_sign=no_sign
-        )
+        result = run_pipeline(ipa, patches, identity or "", profile or [], output, dry_run=dry_run, no_sign=no_sign)
     except PipelineError as e:
         typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from None
@@ -119,6 +120,17 @@ def patch(
     if dry_run:
         count = len(result.manifest.patches_applied)
         typer.echo(f"Dry run OK -- {count} operation(s) would apply.")
+        hook_report = result.manifest.hook_report
+        if hook_report:
+            ok = sum(1 for h in hook_report if h["status"] in ("ok", "ok-system", "ok-inherited", "added"))
+            typer.echo(f"Hooks: {ok}/{len(hook_report)} attach ({len(hook_report) - ok} issue(s))")
+            for h in hook_report:
+                if h["status"] not in ("ok", "ok-system", "ok-inherited", "added"):
+                    typer.secho(
+                        f"  ! {h['class']} {'+' if h['kind'] == 'class' else '-'}[{h['selector']}]: "
+                        f"{h['status']} -- {h['detail']}",
+                        fg=typer.colors.YELLOW,
+                    )
     else:
         manifest = result.manifest
         applied = sum(1 for p in manifest.patches_applied if p["status"] == "applied")
@@ -151,6 +163,130 @@ def gui(
     import uvicorn
 
     uvicorn.run("ipa_forge.gui.app:app", host=host, port=port)
+
+
+hooks_app = typer.Typer(help="Mach-O Objective-C hook verification (catches silent no-ops on version drift).")
+app.add_typer(hooks_app, name="hooks")
+
+
+@hooks_app.command("verify")
+def hooks_verify(
+    ipa: Path = typer.Option(..., "--ipa", exists=True, help="Input .ipa"),
+    patches: Path = typer.Option(..., "--patches", exists=True, help="Patch definition with a `hooks:` section"),
+    required_only: bool = typer.Option(False, "--required-only", help="Only print hooks that fail to attach"),
+) -> None:
+    """Verify every declared hook in the patch definition against the app binary.
+    Exit code 0 = all required hooks attach; 1 = a required hook is missing."""
+    with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
+        try:
+            app_path = _validated_extract(ipa, Path(tmp))
+            bundle = load_bundle(app_path)
+            definition = load_patch_definition(patches)
+        except (IpaValidationError, PatchLoadError, PipelineError) as e:
+            typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1) from None
+        decls = [HookDecl(h.class_name, h.selector, h.kind, h.added, h.required) for h in (definition.hooks or [])]
+        if not decls:
+            typer.echo("No hooks declared in this definition (add a `hooks:` section).")
+            raise typer.Exit(code=0)
+        main_exec = bundle.root / bundle.main_executable_name
+        analysis = analyze_macho(main_exec)
+        results = verify_hooks(analysis, decls)
+        for r in results:
+            if required_only and r.ok:
+                continue
+            color = typer.colors.GREEN if r.ok else typer.colors.YELLOW
+            flag = "" if r.ok else f"  ({r.detail})"
+            typer.secho(
+                f"[{r.status:16}] {r.class_name} {'+' if r.kind == 'class' else '-'}[{r.selector}]{flag}", fg=color
+            )
+        bad = [r for r in results if not r.ok and r.required]
+        ok = sum(1 for r in results if r.ok)
+        typer.echo(f"{ok}/{len(results)} hooks attach; {len(bad)} required hook(s) failing.")
+        raise typer.Exit(code=1 if bad else 0)
+
+
+@hooks_app.command("extract")
+def hooks_extract(
+    ipa: Path = typer.Option(..., "--ipa", exists=True, help="Input .ipa"),
+    class_name: str | None = typer.Option(None, "--class", help="Restrict to one class"),
+    search: str | None = typer.Option(None, "--search", help="Only classes whose name matches this regex"),
+    limit: int = typer.Option(60, "--limit", help="Max classes to print (0 = no limit)"),
+) -> None:
+    """Dump the Objective-C class table of the app's main binary: class names,
+    superclasses, and instance/class method lists (chained-fixup aware)."""
+    import re as _re
+
+    with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
+        app_path = _validated_extract(ipa, Path(tmp))
+        bundle = load_bundle(app_path)
+        analysis = analyze_macho(bundle.root / bundle.main_executable_name)
+    if class_name:
+        cls = analysis.classes.get(class_name)
+        if not cls:
+            in_names = class_name in analysis.classnames
+            typer.secho(f"class '{class_name}' not parsed (classname string: {in_names})", fg=typer.colors.YELLOW)
+            raise typer.Exit(code=1)
+        targets = [cls]
+    elif search:
+        pat = _re.compile(search)
+        targets = [c for c in analysis.classes.values() if pat.search(c.name)]
+        targets.sort(key=lambda c: c.name)
+    else:
+        targets = sorted(analysis.classes.values(), key=lambda c: c.name)
+    if limit:
+        targets = targets[:limit]
+    for cls in targets:
+        typer.echo(f"{cls.name} : {cls.super_name}  (inst={len(cls.inst)} cls={len(cls.cls)})")
+        if cls.inst:
+            typer.echo("  inst: " + ", ".join(sorted(cls.inst)[:40]))
+        if cls.cls:
+            typer.echo("  class: " + ", ".join(sorted(cls.cls)[:12]))
+
+
+@hooks_app.command("audit")
+def hooks_audit(
+    ipa: Path = typer.Option(..., "--ipa", exists=True, help="Input .ipa"),
+    dylib_src: Path = typer.Option(..., "--dir", exists=True, help="Directory of tweak sources (*.m/*.h) to scan"),
+) -> None:
+    """Scan ObjC tweak sources for NSClassFromString + selector hook calls and
+    verify each target against the app binary. Catches hooks the author wrote
+    but a newer app version broke."""
+    import re as _re
+
+    pattern = _re.compile(
+        r"(ytfHookInstance|ytfHookClass|ytfAddInstanceMethod)\("
+        r"\s*(?:NSClassFromString\(@?\"([^\"]+)\"\)|\[\s*(\w+)\s*class\])"
+        r"\s*,\s*(?:@selector\(([^)]+)\)|sel_registerName\(\"([^\"]+)\"\))"
+    )
+    decls: list[HookDecl] = []
+    for f in sorted(dylib_src.glob("*.m")):
+        text = f.read_text(errors="replace")
+        for m in pattern.finditer(text):
+            fn, cls, cls2, sel, sel2 = m.groups()
+            cls = cls or cls2
+            sel = sel or sel2
+            if cls and sel:
+                kind = "class" if fn == "ytfHookClass" else "instance"
+                decls.append(HookDecl(cls, sel, kind))
+    if not decls:
+        typer.echo("No hook calls found in the sources.")
+        raise typer.Exit(code=0)
+    with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
+        app_path = _validated_extract(ipa, Path(tmp))
+        bundle = load_bundle(app_path)
+        analysis = analyze_macho(bundle.root / bundle.main_executable_name)
+    results = verify_hooks(analysis, decls)
+    from collections import Counter
+
+    statuses = Counter(r.status for r in results)
+    typer.echo(f"{len(results)} hooks found in sources: " + ", ".join(f"{k}={v}" for k, v in sorted(statuses.items())))
+    for r in results:
+        if not r.ok:
+            typer.secho(
+                f"[{r.status:16}] {r.class_name} {'+' if r.kind == 'class' else '-'}[{r.selector}]  {r.detail}",
+                fg=typer.colors.YELLOW,
+            )
 
 
 if __name__ == "__main__":

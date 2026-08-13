@@ -43,6 +43,7 @@ class Manifest:
     files_modified: list[str] = field(default_factory=list)
     files_removed: list[str] = field(default_factory=list)
     macho_modified: list[str] = field(default_factory=list)
+    hook_report: list[dict[str, Any]] = field(default_factory=list)
     profile: ProfileManifestEntry | None = None
     output_sha256: str | None = None
 

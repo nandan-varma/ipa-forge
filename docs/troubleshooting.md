@@ -3,6 +3,23 @@
 Errors are reported as single-line `error:` messages (CLI) or a red banner
 (GUI) — never raw tracebacks. This page maps each message to its cause and fix.
 
+## Hook verification reports "missing" / "elsewhere"
+
+**Symptom:** `forge patch --dry-run` or `forge hooks verify` reports a hook
+with `missing-class`, `missing-selector`, or `elsewhere`.
+
+**Cause:** the app version doesn't have the class/selector the tweak targets —
+a silent no-op on device (feature stops working, no crash). This is exactly
+what the `hooks:` block exists to catch.
+
+**Fix:** find the new name: `forge hooks extract --ipa App.ipa --search
+"<substring of old class>"` shows what replaced it (e.g. `YTWatchBreakController`
+→ `YTAdsControlFlowManagerImpl`). Update the hook target (and the tweak
+source), then re-run `--dry-run`. Statuses `unverified` and `ok-inherited`
+are soft — the class/selector likely exists but the parser couldn't fully
+confirm (system superclasses, chained-fixup gaps) — verify once on device
+via your tweak's attach logs rather than chasing them.
+
 ## Patch definition problems
 
 ### `patch definition '<file>' is invalid: ...`

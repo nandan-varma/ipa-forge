@@ -11,6 +11,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ipa_forge.bundle.ipa import extract_ipa, load_bundle, repack_ipa
+from ipa_forge.hooks.binary import analyze_macho
+from ipa_forge.hooks.verify import HookDecl, verify_hooks
+from ipa_forge.hooks.verify import failing as hook_failures
 from ipa_forge.manifest import Manifest, ProfileManifestEntry, sha256_of
 from ipa_forge.patch.base import PatchContext
 from ipa_forge.patch.engine import apply_all, dry_run_all
@@ -34,6 +37,46 @@ class PipelineResult:
     manifest: Manifest
     output_path: Path | None
     verify_results: list[VerifyResult] = field(default_factory=list)
+
+
+def _hook_decls(definition) -> list[HookDecl]:
+    return [
+        HookDecl(
+            class_name=h.class_name,
+            selector=h.selector,
+            kind=h.kind,
+            added=h.added,
+            required=h.required,
+        )
+        for h in (definition.hooks or [])
+    ]
+
+
+def _verify_definition_hooks(bundle, definition) -> list:
+    """Verify the definition's declared hooks against the app's main binary.
+    Returns the hook report (list of dicts). Raises PipelineError when a
+    required hook cannot attach."""
+    decls = _hook_decls(definition)
+    if not decls:
+        return []
+    main_exec = bundle.root / bundle.main_executable_name
+    analysis = analyze_macho(main_exec)
+    results = verify_hooks(analysis, decls)
+    bad_required = [r for r in hook_failures(results) if r.required]
+    if bad_required:
+        detail = "; ".join(f"{r.class_name} {r.selector}: {r.status} ({r.detail})" for r in bad_required)
+        raise PipelineError(f"required hook verification failed: {detail}")
+    return [
+        {
+            "class": r.class_name,
+            "selector": r.selector,
+            "kind": r.kind,
+            "status": r.status,
+            "detail": r.detail,
+            "required": r.required,
+        }
+        for r in results
+    ]
 
 
 def run_pipeline(
@@ -90,6 +133,10 @@ def run_pipeline(
                     f"{bundle.bundle_id} v{bundle.version} (definition targets "
                     f"{definition.target.bundle_id}); refusing to produce an unpatched IPA"
                 )
+
+        # Stage 4.5: verify declared runtime hooks against the actual binary --
+        # catches silent hook no-ops on version drift before anything mutates.
+        hook_report = _verify_definition_hooks(bundle, definition)
         ctx = PatchContext(bundle=bundle, patch_source_dir=patch_definition_path.parent)
 
         # Stage 5: dry-run gate -- hard fail before anything mutates
@@ -104,6 +151,7 @@ def run_pipeline(
             manifest = Manifest.from_patch_results(
                 ipa_path, bundle.bundle_id, bundle.version, bundle.build, dry_results
             )
+            manifest.hook_report = hook_report
             return PipelineResult(manifest=manifest, output_path=None)
 
         # Stages 6-8: apply resources -> binary patches -> dylib injection (fixed order)
@@ -119,6 +167,7 @@ def run_pipeline(
 
         # Stage 10: emit manifest, before signing
         manifest = Manifest.from_patch_results(ipa_path, bundle.bundle_id, bundle.version, bundle.build, results)
+        manifest.hook_report = hook_report
 
         if no_sign:
             # Unsigned output for AltStore-style installers, which perform
