@@ -1,7 +1,11 @@
-// SpotifyHook.m — entry point. Runs after the ObjC runtime has mapped all
-// images, so NSClassFromString works for every app/framework class. Each
-// feature init is isolated in @try: a failure in one logs and degrades
-// gracefully — the app must never crash because of the mod.
+// SpotifyHook.m — entry point.
+//
+// v4: the constructor stays INERT. All hook installation is deferred to the
+// main run loop (after launch), when every app/framework image is loaded and
+// the runtime is fully up — the same late-loading model substrate uses, and
+// the load model of the working SpotC builds (which weak-LC the tweaks).
+// Loading the dylib can therefore never crash the app, and a hook failure
+// logs and degrades instead.
 #import "SpotifyHook.h"
 
 static void safeInit(const char *name, void (^block)(void)) {
@@ -13,11 +17,18 @@ static void safeInit(const char *name, void (^block)(void)) {
     }
 }
 
-__attribute__((constructor))
-static void SpotifyModInit(void) {
-    os_log(spotLog(), "SpotifyMod init");
+static void installAll(void) {
+    os_log(spotLog(), "SpotifyMod installing hooks (post-launch)");
     safeInit("sideload", ^{ SpotifySideloadFixInit(); });
     safeInit("session-protection", ^{ SpotifySessionProtectionInit(); });
     safeInit("premium", ^{ SpotifyPremiumPatchInit(); });
-    os_log(spotLog(), "SpotifyMod init complete");
+    os_log(spotLog(), "SpotifyMod install complete");
+}
+
+__attribute__((constructor))
+static void SpotifyModInit(void) {
+    os_log(spotLog(), "SpotifyMod loaded (inert)");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        installAll();
+    });
 }

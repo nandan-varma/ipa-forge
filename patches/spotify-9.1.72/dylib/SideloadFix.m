@@ -21,9 +21,23 @@
 #import <Security/Security.h>
 #import "fishhook.h"
 
-static NSString *s_realAccessGroup; // captured before rebinding; never re-queried
+static NSString *s_realAccessGroup; // from LSBundleProxy entitlements, never via SecItem
+
+@interface LSBundleProxy : NSObject
+@property (nonatomic, assign, readonly) NSDictionary *entitlements;
++ (instancetype)bundleProxyForCurrentProcess;
+@end
 
 static NSString *captureAccessGroupID(void) {
+    // zxPluginsInject approach: the entitled app-group of the CURRENT profile
+    // (via LaunchServices), never a keychain query — so this can't interact
+    // with the rebound SecItem functions at all.
+    LSBundleProxy *proxy = [objc_getClass("LSBundleProxy") bundleProxyForCurrentProcess];
+    NSArray *groups = proxy.entitlements[@"com.apple.security.application-groups"];
+    if ([groups isKindOfClass:[NSArray class]] && groups.count)
+        return groups.firstObject;
+    // fall back to the bundleSeedID generic-password group, queried ONCE here
+    // (before rebinding, so it reaches the real SecItemCopyMatching).
     NSDictionary *query = @{
         (__bridge NSString *)kSecClass: (__bridge NSString *)kSecClassGenericPassword,
         (__bridge NSString *)kSecAttrAccount: @"bundleSeedID",
@@ -58,6 +72,7 @@ static CFDictionaryRef spotRewriteGroup(CFDictionaryRef query) {
 }
 
 static OSStatus spot_SecItemCopyMatching(CFDictionaryRef query, CFTypeRef *result) {
+    if (!orig_SecItemCopyMatching) return errSecUnimplemented;
     CFDictionaryRef rewritten = spotRewriteGroup(query);
     OSStatus status = orig_SecItemCopyMatching(rewritten, result);
     if (rewritten != query) CFRelease(rewritten);
@@ -65,6 +80,7 @@ static OSStatus spot_SecItemCopyMatching(CFDictionaryRef query, CFTypeRef *resul
 }
 
 static OSStatus spot_SecItemAdd(CFDictionaryRef attributes, CFTypeRef *result) {
+    if (!orig_SecItemAdd) return errSecUnimplemented;
     CFDictionaryRef rewritten = spotRewriteGroup(attributes);
     OSStatus status = orig_SecItemAdd(rewritten, result);
     if (rewritten != attributes) CFRelease(rewritten);
@@ -72,6 +88,7 @@ static OSStatus spot_SecItemAdd(CFDictionaryRef attributes, CFTypeRef *result) {
 }
 
 static OSStatus spot_SecItemUpdate(CFDictionaryRef query, CFDictionaryRef attrs) {
+    if (!orig_SecItemUpdate) return errSecUnimplemented;
     CFDictionaryRef rewrittenQuery = spotRewriteGroup(query);
     CFDictionaryRef rewrittenAttrs = spotRewriteGroup(attrs);
     OSStatus status = orig_SecItemUpdate(rewrittenQuery, rewrittenAttrs);
@@ -81,6 +98,7 @@ static OSStatus spot_SecItemUpdate(CFDictionaryRef query, CFDictionaryRef attrs)
 }
 
 static OSStatus spot_SecItemDelete(CFDictionaryRef query) {
+    if (!orig_SecItemDelete) return errSecUnimplemented;
     CFDictionaryRef rewritten = spotRewriteGroup(query);
     OSStatus status = orig_SecItemDelete(rewritten);
     if (rewritten != query) CFRelease(rewritten);

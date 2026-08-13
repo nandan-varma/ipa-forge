@@ -46,7 +46,9 @@ patches:
     type: dylib_inject
     executable: "Spotify"
     install_name: "@rpath/SpotifyHook.dylib"
-    load_command: "LC_LOAD_DYLIB"
+    # weak, exactly like the working SpotC builds (EeveeSpotify.dylib etc.
+    # are LC_LOAD_WEAK_DYLIB) — a load failure degrades instead of aborting.
+    load_command: "LC_LOAD_WEAK_DYLIB"
 
 # Runtime hooks SpotifyHook.dylib relies on, verified against the 9.1.72
 # binary (main executable + SpotifyShared.framework) with `forge hooks verify`.
