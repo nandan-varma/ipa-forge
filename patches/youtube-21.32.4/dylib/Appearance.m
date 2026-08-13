@@ -1,11 +1,16 @@
-// Appearance.m — OLED theme (G13), ported from YouMod's Apperence.x
-// (uYouEnhanced OLEDTheme + dayanch96 OledKeyboard lineage).
+// Appearance.m — OLED theme + keyboard (G13), ported from YouMod's
+// Apperence.x (uYouEnhanced OLEDTheme lineage) with the full
+// YTCommonColorPalette surface set.
 //
-// OLED theme: YTColor's blackN palette and YTCommonColorPalette surfaces
-// return pure black for the dark page style (1).
-// OLED keyboard: UIKit keyboard classes are repainted black in dark mode.
-// UIKit classes are hooked via class_getInstanceMethod at runtime — no
-// classlist needed, and missing methods no-op gracefully.
+// OLED theme: every dark-mode palette surface returns pure black (or a
+// slightly-raised black for secondary surfaces). The dark page style is
+// palette.pageStyle == 1. NOTE: pageStyle is an NSNumber via KVC — read it
+// with integerValue (casting the object pointer to NSInteger silently
+// breaks every check; that was the original "OLED does nothing" bug).
+//
+// OLED keyboard: UIKit keyboard classes are repainted black in dark mode;
+// UIKit/Texture classes are hooked via class_getInstanceMethod at runtime
+// (no classlist needed) and missing methods no-op gracefully.
 
 #import "YTFreedom.h"
 #import <UIKit/UIKit.h>
@@ -17,6 +22,11 @@ static BOOL ytfIsDarkMode(void) {
     }
     if (!keyWindow) keyWindow = [UIApplication sharedApplication].windows.firstObject;
     return keyWindow.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark;
+}
+
+static NSInteger ytfPageStyle(id palette) {
+    id value = [palette valueForKey:@"pageStyle"];
+    return [value respondsToSelector:@selector(integerValue)] ? [value integerValue] : 0;
 }
 
 static void fixOLEDTheme(void) {
@@ -34,10 +44,12 @@ static void fixOLEDTheme(void) {
     }
 
     // YTCommonColorPalette surfaces -> black for page style 1.
+    // background3 is absent in 21.32.4 (guarded); the rest exist.
     NSArray *paletteSelectors = @[
         @"baseBackground", @"brandBackgroundSolid", @"brandBackgroundPrimary",
         @"brandBackgroundSecondary", @"raisedBackground", @"staticBrandBlack",
-        @"generalBackgroundA",
+        @"generalBackgroundA", @"generalBackgroundB", @"menuBackground",
+        @"background1", @"background2", @"background3",
     ];
     Class palette = NSClassFromString(@"YTCommonColorPalette");
     for (NSString *selName in paletteSelectors) {
@@ -47,14 +59,63 @@ static void fixOLEDTheme(void) {
         IMP orig = method_getImplementation(m);
         class_replaceMethod(palette, sel,
             imp_implementationWithBlock(^id(id self) {
-                NSInteger pageStyle = [self respondsToSelector:@selector(pageStyle)]
-                    ? (NSInteger)[self valueForKey:@"pageStyle"] : 0;
-                if (pageStyle == 1)
+                if (ytfPageStyle(self) == 1)
                     return [selName isEqualToString:@"brandBackgroundSecondary"]
                         ? [UIColor colorWithWhite:0 alpha:0.9] : (id)[UIColor blackColor];
                 return ((id(*)(id, SEL))orig)(self, sel);
             }), method_getTypeEncoding(m));
     }
+}
+
+// Settings tables and dialogs render with a grey system background that the
+// palette hooks don't reach — repaint them for a consistent OLED look.
+static void fixOLEDSurfaces(void) {
+    if (!IS_ENABLED(KOLEDTheme)) return;
+
+    // UITableViewCell's private system background (used by settings rows).
+    Class cellCls = [UITableViewCell class];
+    Method mCell = class_getInstanceMethod(cellCls, sel_registerName("_layoutSystemBackgroundView"));
+    if (mCell) {
+        class_replaceMethod(cellCls, sel_registerName("_layoutSystemBackgroundView"),
+            imp_implementationWithBlock(^void(id self) {
+                id systemBackground = [self valueForKey:@"_systemBackgroundView"];
+                id colorView = [systemBackground valueForKey:@"_colorView"];
+                if (colorView) [colorView setBackgroundColor:[UIColor blackColor]];
+            }), method_getTypeEncoding(mCell));
+    }
+
+    // Google dialogs.
+    static IMP orig_dialogBackground;
+    orig_dialogBackground = ytfHookInstance(NSClassFromString(@"GOODialogView"),
+        @selector(setBackgroundColor:),
+        ^void(id self, UIColor *color) {
+            ((void(*)(id, SEL, id))orig_dialogBackground)(
+                self, @selector(setBackgroundColor:), [UIColor blackColor]);
+        });
+    (void)orig_dialogBackground;
+
+    // Texture collection/scroll views: clear so the black palette shows.
+    static IMP orig_collectionDidMove;
+    orig_collectionDidMove = ytfHookInstance(NSClassFromString(@"ASCollectionView"),
+        @selector(didMoveToWindow),
+        ^void(id self) {
+            ((void(*)(id, SEL))orig_collectionDidMove)(self, @selector(didMoveToWindow));
+            if (ytfIsDarkMode()) {
+                [(UIView *)self setBackgroundColor:[UIColor clearColor]];
+                [[(UIView *)self superview] setBackgroundColor:[UIColor blackColor]];
+            }
+        });
+    (void)orig_collectionDidMove;
+
+    static IMP orig_scrollDidMove;
+    orig_scrollDidMove = ytfHookInstance(NSClassFromString(@"ASScrollView"),
+        @selector(didMoveToWindow),
+        ^void(id self) {
+            ((void(*)(id, SEL))orig_scrollDidMove)(self, @selector(didMoveToWindow));
+            if (ytfIsDarkMode())
+                [(UIView *)self setBackgroundColor:[UIColor clearColor]];
+        });
+    (void)orig_scrollDidMove;
 }
 
 static void fixOLEDKeyboard(void) {
@@ -119,5 +180,6 @@ static void fixOLEDKeyboard(void) {
 
 void YTFreedomAppearanceInit(void) {
     fixOLEDTheme();
+    fixOLEDSurfaces();
     fixOLEDKeyboard();
 }

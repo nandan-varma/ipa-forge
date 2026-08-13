@@ -264,15 +264,19 @@ Status legend: ✅ done · 🔄 in progress · ⬜ planned · ⛔ verified absen
   extension field numbers via protobuf analysis of the binary, or (b) a simpler
   direct approach — extract the watch URL from `YTWatchController`/`YTPlayerViewController`
   and present `UIActivityViewController` from the share button. Revisit after G17.
-- **G16 Return YouTube Dislikes — partial research done.** The classic RYD hook classes
-  (`YTLikeButtonViewController`, `YTLikeButtonViewModel`) are gone; 21.32.4 uses ELM
-  like buttons (`ELMPBVideoActionLikeButtonModel`). YouMod ships a compiled
-  `YouTubeDislikesReturn.dylib` for 21.32.4 whose class map is: API
-  `returnyoutubedislikeapi.com/votes?videoId=%@`, display targets via
-  `setLikeCountText:`/`setDislikeCountText:` on the like/dislike view models,
-  watched via `YTWatchViewController`/`YTReelWatchLikesController`. Next step:
-  disassemble that dylib's apply function (objc_msgSend target + model access path)
-  to recover the exact application point, then port.
+- **G16 Return YouTube Dislikes — research updated.** Evidence that the stock
+  client renders the Shorts dislike button: RYD's 21.32.4 dylib hooks
+  `updateLikeButtonWithRenderer:` + `setDislikeCountText:` on the reel overlay.
+  The Shorts action rail is **server-driven**: `YTReelWatchPlaybackOverlayView
+  setActionBarElementRenderer:` receives a renderer whose `actionBarButtonsArray`
+  (protobuf repeated field) defines the buttons; YouTube omits the dislike entry
+  for some cohorts/regions (A-B). Our patch has no code path that removes it
+  (the `_ASDisplayView` id-hides are inert on 21.32.4 — those ids don't exist).
+  A diagnostic hook now logs the received buttons to `com.nandan.ytfreedom`
+  os_log, so the device log proves what the server sent. Forcing the button
+  client-side would need protobuf construction of a dislike renderer with a
+  `YTIDislikeEndpoint` tap target — deferred until the diagnostic confirms it's
+  worth the RE.
 - **G17 Downloads (final milestone).** YouMod's `Download.x` (2386 lines) is
   self-contained (NSURLSession on `streamingData` URLs + AVFoundation merge + Photos
   export, no server). Sub-plan: (1) download button on the player via
@@ -309,7 +313,7 @@ Status legend: ✅ done · 🔄 in progress · ⬜ planned · ⛔ verified absen
 | G8–G9 Navbar/Tabbar | ✅ implemented — on-device pass pending |
 | G10–G11 Feed/Shorts | ✅ implemented (ads part done earlier) — on-device pass pending |
 | G12 Misc | ✅ implemented (+ NoYTPremium promo blockers, menu-item removal) — on-device pass pending |
-| G13 Appearance (OLED) | ✅ implemented — on-device pass pending |
+| G13 Appearance (OLED) | ✅ fixed + expanded (pageStyle cast bug; full palette + surfaces) — on-device pass pending |
 | G14 Preferences manager | ✅ implemented (import/export/reset/cache) — on-device pass pending |
 | G15 Native share | ⛔ blocked on API drift — see below |
 | G16 RYD dislikes | 🔄 partial research — see below |

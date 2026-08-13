@@ -286,6 +286,29 @@ static void fixShorts(void) {
                     self, @selector(iosEnableVideoPlayerScrubber));
         });
     (void)orig_iosEnableVideoPlayerScrubber;
+
+    // Diagnostic (research aid for the "Shorts has no dislike button"
+    // report): the Shorts action rail is server-driven — the client renders
+    // whatever button entries the renderer's actionBarButtonsArray contains.
+    // Log them so the device log shows whether the server sent a dislike
+    // entry (icon 42?/aid id.reel_dislike_button) or omitted it entirely.
+    static IMP orig_setActionBarElementRenderer;
+    orig_setActionBarElementRenderer = ytfHookInstance(
+        NSClassFromString(@"YTReelWatchPlaybackOverlayView"),
+        @selector(setActionBarElementRenderer:),
+        ^void(id self, id renderer) {
+            ((void(*)(id, SEL, id))orig_setActionBarElementRenderer)(
+                self, @selector(setActionBarElementRenderer:), renderer);
+            NSArray *buttons = [renderer valueForKey:@"actionBarButtonsArray"];
+            NSMutableArray *summary = [NSMutableArray array];
+            for (id button in buttons) {
+                NSString *aid = [button valueForKey:@"accessibilityIdentifier"];
+                [summary addObject:[NSString stringWithFormat:@"icon=%@ aid=%@",
+                                    [button valueForKey:@"iconType"], aid]];
+            }
+            os_log(ytfLog(), "YTFreedom: reel action bar buttons from server: %@", summary);
+        });
+    (void)orig_setActionBarElementRenderer;
 }
 
 void YTFreedomFeedShortsInit(void) {
