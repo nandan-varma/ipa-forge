@@ -1,0 +1,293 @@
+# YouTube 21.32.4 — Feature-Port ROADMAP (YTFreedom)
+
+Goal: port **all** features from the reference projects — [YouMod](https://github.com/Tonwalter888/YouMod)
+(`Ads.x`/`Apperence.x`/`Cache.x`/`Download.x`/`Feed.x`/`Navbar.x`/`Others.x`/`Player.x`/`Settings.x`/
+`Shorts.x`/`Sideloading.x`/`Tabbar.x`/`YouModPerferences.x`, built for exactly 21.32.4), [YTLite](https://github.com/dayanch96/YTLite)
+(`YTLite.x`/`Settings.x`/`YTNativeShare.x`/`Sideloading.x`), and [uYouPlus](https://github.com/qnblackcat/uYouPlus) —
+into the decrypted 21.32.4 IPA via ipa-forge, with a clean in-app settings UI mirroring the references.
+
+Status legend: ✅ done · 🔄 in progress · ⬜ planned · ⛔ verified absent in 21.32.4 (skipped)
+
+## Context
+
+- Base IPA: `com.google.ios.youtube_21.32.4_und3fined.ipa` (decrypted, thin arm64).
+- Delivery: `YouTubeAdblock_21.32.4_unsigned.ipa` (unsigned; AltStore signs at install) →
+  rename to `YouTubeMod_...` once the feature set is complete.
+- Hook target verification: `tools/yt_inventory.py` (class/method walk of `__objc_classlist`/
+  `__objc_methlist`) + `tools/verify_reference_hooks.py` (extracts every `%hook` from the
+  references and checks it against the binary). The parser misses some methods; every
+  suspicious selector was cross-checked with `strings` on the binary — **all confirmed present**.
+
+### Architecture (from G0)
+
+- One dylib `libYTHook.dylib`, plain ObjC-runtime swizzling (no substrate/logos), loaded via
+  `LC_LOAD_DYLIB`. Source split per feature area, all compiled by `dylib/build.sh`:
+  ```
+  dylib/
+    YTFreedom.h      # shared: keys, IS_ENABLED/INTFORVAL macros, hook plumbing, helpers
+    YTFreedom.m      # constructor: registers defaults, calls each area's init
+    SignInFix.m      # SSO/keychain/bundle-identity (done)
+    AdBlock.m        # player+feed+shorts ads (done)
+    SettingsUI.m     # G0: in-app settings section
+    PlayerFeatures.m # G1–G6
+    BackgroundPlayback.m # G7
+    NavbarTabbar.m   # G8, G9
+    FeedShorts.m     # G10, G11
+    MiscFeatures.m   # G12–G14
+    Appearance.m     # G15
+    Downloads.m      # G17 (biggest, last)
+  ```
+- Settings storage: `NSUserDefaults`, key prefix `YTFreedom` (e.g. `YTFreedomBackgroundPlayback`).
+  Defaults registered in the constructor; every toggle read via `IS_ENABLED(key)`.
+- Settings UI: a "YTFreedom" section inside the app's own Settings (category id inserted into
+  `YTSettingsGroupData orderedCategories` + `YTAppSettingsPresentationData settingsCategoryOrder`,
+  items built by `YTSettingsSectionItemManager` hook). Sub-sections (Player / Appearance /
+  Navbar / Tab bar / Feed / Shorts / Downloading / Miscellaneous / Preferences) are pushed via
+  `YTSettingsPickerViewController`. All UI classes/methods verified present in 21.32.4.
+- Prompts/toasts: `YTAlertView` (infoDialog / confirmationDialogWithAction:actionTitle:) and
+  `YTToastResponderEvent eventWithMessage:firstResponder:` — verified present.
+
+## Goals (executed in order)
+
+### G0 — Settings framework + Preferences section ✅⬜
+- **Sections/sub-goals:**
+  - 0.1 Split dylib into per-area files, shared `YTFreedom.h`, `build.sh` compiles `*.m`. ✅
+  - 0.2 Settings keys header (all keys from the table below, defaults registration). ✅
+  - 0.3 In-app "YTFreedom" settings section (category injection + item manager hook). ✅
+  - 0.4 Preferences sub-section: Import / Export / Restore defaults + Clear cache +
+    Auto-clear-cache toggle (from `YouModPerferences.x`).
+  - 0.5 Version/about row.
+- **Settings keys (all `YTFreedom*`; defaults in parentheses):**
+
+  | Group | Key | Default |
+  |---|---|---|
+  | Player | HideAutoPlayToggle, HideCaptionsButton, HidePrevButton, HideNextButton, ReplacePrevNextButtons, RemoveDarkOverlay, HideWaterMark, HideEndScreenCards, HideSuggestedVideo, HidePaidPromoOverlay, HideFullAction, HideFullvidTitle, DisablesShowRemaining, AlwaysShowRemaining, AlwaysShowSeekbar, RemoveAmbiantColors, StopAutoplayVideo, AutoExitFullScreen, AutoFullScreen, PortFull, DisablesCaptions, DisableHints, ForceMiniPlayer, FixesSlowMiniPlayer, DisablesNewMiniPlayer, DisablesDoubleTap, DisablesLongHold, HideContentWarning, OldQualityPicker, ExtraSpeed, GestureControls, GestureActivationArea(1), LeftSideGesture(1), RightSideGesture(2), GestureHUD, GestureHUDSize(1), GestureHUDPosition(0), HideLikeButton, HideDisLikeButton, HideShareButton, HideDownloadButton, HideClipButton, HideRemixButton, HideSaveButton | |
+  | Background | BackgroundPlayback (**ON**), DisablesShortsPiP | |
+  | Navbar | HideYTLogo, PremiumLogo (**ON**), HideNotificationButton, HideSearchButton, HideVoiceSearchButton, HideCastButtonNav | |
+  | Tab bar | DefaultTab(0), HideTabIndicators, HideTabLabels, HideHomeTab, HideShortsTab, HideCreateButton (**ON**), HideSubscriptionsTab | |
+  | Feed | HideSubbar, HideGenMusicShelf, HideFeedPost, HideShortsShelf, HideSearchHistory, HideSubButton, HideShoppingButton, HideMemberButton | |
+  | Shorts | HideShortsLikeButton, HideShortsDisLikeButton, HideShortsCommentButton, HideShortsShareButton, HideShortsRemixButton, HideShortsMetaButton, HideShortsProducts, HideShortsRecbar, HideShortsCommit, HideShortsSubscriptButton, HideShortsLiveButton, HideShortsLensButton, HideShortsTrendsButton, HideShortsToVideo, EnablesShortsQuality, ShowShortsSeekbar | |
+  | Misc | BlockUpgradeDialogs, HideAreYouThereDialog, DisablesSnackBar, HideStartupAnimations, HidePlayInNextQueue, HideLikeDislikeVotes, AutoClearCache (**ON**) | |
+  | Appearance | OLEDTheme, OLEDKeyboard | |
+  | Download | DownloadManager (**ON**), DownloadSaveToPhotos (**ON**), DownloadPreferDRCAudio | |
+  | Ads | (always-on, no toggle) | |
+- **Acceptance:** Settings → YTFreedom renders all groups; toggles persist across relaunch;
+  import/export/restore work; no crash on any settings path.
+
+### G1 — Player bar toggles (Player.x)
+- Hide autoplay switch, captions button, prev/next buttons; replace prev/next with
+  rewind/ffw; always show seekbar; remaining-time disable/always; hide fullscreen title.
+- Hooks (all verified): `YTMainAppControlsOverlayView setAutoplaySwitchButtonRenderer:/
+  setClosedCaptionsOrSubtitlesButtonAvailable:/setPreviousButtonHidden:/setNextButtonHidden:/
+  titleViewHidden`, `YTInlinePlayerBarContainerView setShouldDisplayTimeRemaining:/
+  setPlayerBarAlpha:`, `YTPlayerBarController setActiveSingleVideo:`, `YTSettings/YTSettingsImpl
+  isAutoplayEnabled`, `YTColdConfig replaceNextPaddleWithFastForwardButtonForSingletonVods/
+  replacePreviousPaddleWithRewindButtonForSingletonVods` (strings-verified).
+- **Acceptance:** each toggle visibly affects the player bar in fullscreen/inline.
+
+### G2 — Player overlay/UI toggles (Player.x)
+- Remove dark overlay gradient, hide watermark (player + featured-channel annotation),
+  hide endscreen cards, hide suggested-video endscreen, hide fullscreen action buttons,
+  disable ambient (cinematic) lights, hide paid-content overlay, skip content-warning confirm.
+- Hooks (verified): `YTMainAppVideoPlayerOverlayView setBackgroundVisible:isGradientBackground:/
+  isWatermarkEnabled/setWatermarkEnabled:/isFullscreenActionsVisible`, `YTCreatorEndscreenView
+  setHidden:/setHoverCardHidden:/setHoverCardRenderer:`, `YTAutonavEndscreenController
+  showEndscreen/showEndscreenControlsInPlayerBar:`, `YTFullscreenActionsView sizeThatFits:`,
+  `YTCinematicContainerView layoutSubviews/loadWithModel:/initWithFrame:`,
+  `YTAnnotationsViewController loadFeaturedChannelWatermark`, `YTMainAppVideoPlayerOverlayView-
+  Controller setPaidContentWithPlayerData:/playerOverlayProvider:didInsertPlayerOverlay:`
+  (paid_content id), `YTInlineMutedPlaybackPlayerOverlayViewController
+  setPaidContentWithPlayerData:`, `YTPlayabilityResolutionUserActionUIController(Impl)
+  showConfirmAlert`.
+- **Acceptance:** overlay toggles apply without breaking playback controls.
+
+### G3 — Playback behavior toggles (Player.x)
+- Stop autoplay, exit fullscreen on finish, auto-fullscreen, portrait fullscreen,
+  auto-disable captions, disable hints (3 settings classes), force miniplayer,
+  disable double-tap/long-hold gestures.
+- Hooks (verified): `YTPlaybackConfig setStartPlayback:`, `YTWatchFlowController
+  shouldExitFullScreenOnFinish`, `YTPlayerViewController loadWithPlayerTransition:
+  playbackConfig:/prepareToLoadWithPlayerTransition:expectedLayout:`,
+  `YTWatchViewController allowedFullScreenOrientations`, `YTSettings/YTSettingsImpl/
+  YTUserDefaults areHintsDisabled/setHintsDisabled:`, `YTIMiniplayerRenderer` (+
+  `hasMinimizedEndpoint`/`hasPlaybackMode` %new), `YTMainAppVideoPlayerOverlayViewController
+  allowDoubleTapToSeekGestureRecognizer/allowLongPressGestureRecognizerInView:`,
+  `YTMainAppVideoPlayerOverlayView setSeekAnywherePanGestureRecognizer` (strings).
+- **Acceptance:** toggles behave on device (auto-fullscreen after 0.75s, hints gone, etc.).
+
+### G4 — Video quality (Player.x / YTClassicVideoQuality)
+- "Old" quality picker (redesigned controller bypass) when enabled; `%new`
+  `YTIMediaQualitySettingsHotConfig enableQuickMenuVideoQualitySettings -> NO`.
+- Hooks: `YTVideoQualitySwitchOriginalController setUserSelectableFormats:/dealloc`
+  (parser flags setUserSelectableFormats:initWithServiceRegistryScope:parentResponder:
+  sel-absent → verify exact selector via strings before porting), `YTMenuController
+  actionsForRenderers:fromView:entry:shouldLogItems:firstResponder:` (menu_item_video_quality).
+- **Acceptance:** quality menu shows classic picker; no crash switching formats.
+
+### G5 — Extra playback speed (Player.x / YouSpeed)
+- Speed options 0.25×–10×: replace `YTVarispeedSwitchController(Impl)` `_options`,
+  `%new` `YTIPlayerHotConfig maximumPlaybackRate -> 10.0` (f@:) and
+  `YTIGranularVariableSpeedConfig maximumPlaybackRate -> 1000` (d@:), plus
+  `YTMenuController` hook so "Playback speed" opens the varispeed sheet directly.
+- **Acceptance:** speed menu lists 13 rates; 5×/7.5×/10× actually apply; setting persists.
+
+### G6 — Player gestures (Player.x / YTLitePlus)
+- Vertical edge swipes → brightness/volume/playback-speed (left/right side configurable),
+  activation-area percent, HUD with icon+percent, HUD size/position.
+- Hooks: `YTWatchLayerViewController watchController:didSetPlayerViewController:` (attach
+  pan), `YTPlayerViewController` +`YouModPanGesture`/`YouModGestureHUD` properties,
+  `%new gestureRecognizerShouldBegin:/YouModHandlePanGesture:/gestureRecognizer:shouldBe-
+  RequiredToFailByGestureRecognizer:/gestureRecognizer:shouldRecognizeSimultaneouslyWith-
+  GestureRecognizer:` (needs associated-object storage since no %property in plain runtime).
+- Depends on G5 (`setPlaybackRate:` speed control).
+- **Acceptance:** left/right edge swipe adjusts the chosen control with HUD; center area
+  unaffected; no gesture conflicts with seek/dismiss.
+
+### G7 — Background playback (Others.x / YouTube-X)
+- `YTIPlayabilityStatus isPlayableInBackground`, `YTPlaybackData isPlayableInBackground`,
+  `MLVideo playableInBackground` → YES when enabled; `%new YTIBackgroundOfflineSetting-
+  CategoryEntryRenderer isBackgroundEnabled -> YES`. (YTIPlayerResponse variant: selector
+  exists elsewhere in 21.32.4 — skip, superseded.)
+- Shorts PiP toggle: `YTColdConfig shortsPlayerGlobalConfigEnableReelsPictureInPicture(Ios)`,
+  `YTHotConfig ...AllowedFromPlayer`, `YTReelModel isPiPSupported`,
+  `YTReelPlayerViewController isPictureInPictureAllowed`, `YTReelWatchRootViewController
+  switchToPictureInPicture`.
+- **Acceptance:** audio continues with screen off / app backgrounded; PiP off in Shorts.
+
+### G8 — Navbar / header (Navbar.x)
+- Hide YT logo, premium logo swap, hide notification/search/voice-search/cast buttons.
+- Hooks: `YTHeaderLogoController` (`class-unparsed` → strings-verify
+  `init/setPremiumLogo:/isPremiumLogo/setTopbarLogoRenderer:`), `YTRightNavigationButtons`,
+  `YTHeaderView` (verified via strings), `MDXPlaybackRouteButtonController` (cast).
+- **Acceptance:** logo/buttons hide per toggle on home; premium logo shows when enabled.
+
+### G9 — Tab bar (Tabbar.x)
+- Default tab, hide indicators/labels, hide Home/Shorts/Create/Subscriptions tabs.
+- Hooks: `YTPivotBarViewController/YTPivotBarView/YTPivotBarItemView/YTPivotBarIndicatorView`,
+  `_ASDisplayView didMoveToWindow` (accessibility-identifier based),
+  `YTAppViewController showPivotBar` (class-unparsed → strings-verify).
+- **Acceptance:** tabs hide/select per toggle; no blank tab bar.
+
+### G10 — Feed (Feed.x + Ads.x sections)
+- Hide subbar, music shelf, feed posts, shorts shelf, search history/suggestions,
+  subscribe/shop/membership buttons; ad-card filtering (already in AdBlock, extend if needed).
+- Hooks: `YTInnerTubeCollectionViewController displaySectionsWithReloadingSectionController-
+  ByRenderer:/addSectionsFromArray:` (KVC `_sectionRenderers`), `_ASDisplayView
+  didMoveToWindow` (accessibility ids), `YTSearchViewController`, `YTMySubsFilterHeaderView`
+  (strings-verify setChipFilterView), `YTHeaderContentComboView` (strings-verify
+  setFeedHeaderScrollMode).
+- **Acceptance:** feed elements hide per toggle; scrolling stays smooth.
+
+### G11 — Shorts (Shorts.x + YTLite.x)
+- Hide like/dislike/comment/share/remix/meta/products/recbar/commit/subscribe/live/lens/
+  trends/to-video buttons; enable quality in Shorts; show seekbar; always player bar.
+- Hooks: `YTReelWatchPlaybackOverlayView` setters (several parser-absent → strings-verify:
+  setNativePivotButton:/setPivotButtonElementRenderer:/setReelLikeButton:/setReelDislikeButton:/
+  setRemixButton:/setShareButton:/setViewCommentButton:), `YTReelPlayerViewController
+  shouldEnablePlayerBar`, `YTReelPlayerButton titleLabel` (strings), `YTShortsPlayerViewController`
+  (strings-verify quality/seekbar paths), `_ASDisplayView didMoveToWindow` (ids).
+- **Acceptance:** Shorts buttons hide per toggle; player bar shows on pause when enabled.
+
+### G12 — Miscellaneous (Others.x)
+- Block upgrade dialogs, hide "Are you there?" dialog, disable snackbar, hide startup
+  animations, hide "Play next in queue" menu item, silent like/dislike vote
+  (drop `YTInnerTubeResponseWrapper initWithResponse:...` for like/dislike responses).
+- Hooks (verified): `YTGlobalConfig shouldBlockUpgradeDialog/shouldShowUpgradeDialog/
+  shouldShowUpgrade/shouldForceUpgrade`, `YTColdConfig enableYouthereCommandsOnIos/
+  mainAppCoreClientIosEnableStartupAnimation`, `YTYouThereController(Impl)
+  shouldShowYouTherePrompt/showYouTherePrompt`, `GOOHUDManagerInternal sharedInstance/
+  showMessageMainThread:/activateOverlay:/displayHUDViewForMessage:`, `YTMenuItemVisibility-
+  Handler(Impl) shouldShowServiceItemRenderer:` (iconType 251).
+- **Acceptance:** dialogs suppressed; snackbar gone; startup animation skipped.
+
+### G13 — Appearance (Apperence.x)
+- OLED true-black theme + OLED keyboard.
+- Hooks: `YTCommonColorPalette`, `YTColor`, `UIKeyboard/UIInputView/UIKBVisualEffectView/
+  UIPredictionViewController/UIKeyboardDockView` layout (system classes — plain swizzle on
+  UIKit, no classlist needed; guard with `class_getInstanceMethod`).
+- **Acceptance:** dark theme becomes pure black when enabled; keyboard black in dark mode.
+
+### G14 — Preferences manager (YouModPerferences.x)
+- Import/export `YTFreedom*` NSUserDefaults keys via `UIDocumentPickerViewController`,
+  restore defaults, clear cache (with size display + `YTToastResponderEvent` toast),
+  auto-clear cache on launch.
+- Classes: `YTAlertView` dialogs, `YTSettingsPickerViewController` rows. Depends on G0.
+- **Acceptance:** export → reinstall → import restores all settings; reset clears them;
+  cache size shows and clears.
+
+### G15 — Native share sheet (YTLite YTNativeShare.x)
+- Replace YouTube's share UI with the native share sheet (`UIActivityViewController`).
+- Hooks from `YTNativeShare.x` (verify each selector in 21.32.4).
+- **Acceptance:** Share button opens native sheet with video link/thumbnail.
+
+### G16 — Return YouTube Dislikes (uYouPlus / YouTubeDislikesReturn)
+- Show dislike counts back on the like bar. Requires a public dislikes API
+  (e.g. the RYD endpoint) — decide server approach during implementation.
+- **Acceptance:** dislike count renders next to the dislike button on watch pages.
+
+### G17 — Download manager (Download.x — biggest, do last)
+- Download button on the player, format picker (video/audio), NSURLSession downloads of
+  `streamingData` URLs, AVFoundation merge (no ffmpegkit dependency — fallback path only),
+  Photos export, background tasks, progress UI, download manager screen.
+- Hooks (verified): `YTPlayerViewController` (`viewDidAppear:/viewWillDisappear:` for the
+  download button + current-player tracking), `SSOAuthorization(Impl) accessToken` +
+  `GNPSSOAuthorizationService` (authenticated downloads; class-unparsed → strings-verify
+  `accessToken`), `_ASDisplayView` (button insertion).
+- 2386-line port; break into sub-goals (button → picker → download core → manager UI →
+  photos). Requires `streamingData` probe logic + cookies/headers (already in reference).
+- **Acceptance:** can download a video in background, file appears in Files/Photos, UI shows
+  progress; pauses/resumes survive relaunch where iOS allows.
+
+### G18 — YTLite-only extras (YTLite.x)
+- Background playback via YTLite classes (subset of G7), subscriptions filter header chips,
+  hide YT shorts shelf variants, comments-section chip hiding (`YTColdConfig
+  enableChipsInTheCommentsHeaderIos` — ⛔ absent, skip), `YTSectionListViewController`
+  (⛔ absent — ad filtering lives in YTInnerTubeCollectionViewController already),
+  `YTPlaylistMiniBarView` (⛔ setFrame sel-elsewhere — skip), `NSParagraphStyle` text
+  direction hack (⛔ skip).
+- **Acceptance:** each ported toggle works; everything verified-absent is documented here.
+
+### G19 — Adblock polish (in progress)
+- Feed filtering already active; add remaining `_ASDisplayView` eml.ads ids if the user
+  reports feed ads; verify `YTAdsInnerTubeContextDecorator` decorates nothing on device.
+- **Acceptance:** no player/feed/Shorts ads across a 30-minute mixed session.
+
+## Explicitly out of scope / deferred
+
+- **SponsorBlock** (uYouPlus): needs its own API integration + segment UI — defer until G17
+  done; decide then.
+- **Server-side anything** (YouMod's CI flow): not needed — Download.x is self-contained.
+- **Watch-mini-bar / segmentable player bar** (⛔ classes absent in 21.32.4).
+- **OGLPhenotypeFlagServiceImpl / YTReelInfinitePlaybackDataSource** (⛔ absent).
+- **App extensions** (widgets/share/intents/notifications): deliberately stripped for
+  AltStore install (IXErrorDomain Code=2 fix) — do not re-add.
+
+## Verification loop (per goal)
+
+1. Extract target selectors from the reference file, verify with
+   `tools/verify_reference_hooks.py` (or strings on the binary).
+2. Implement in the area `.m`, build dylib (`dylib/build.sh`), dry-run + build IPA.
+3. On-device: toggle in Settings → apply → relaunch → confirm behavior + check
+   `com.nandan.ytfreedom` os_log lines for hook-attach messages.
+4. Update this ROADMAP's status column; commit per goal.
+
+## Current status
+
+| Goal | Status |
+|---|---|
+| G0 Settings framework | ✅ (0.1–0.5 done; needs on-device pass) |
+| G1–G3 Player bar / overlay / behavior | ✅ implemented — on-device pass pending |
+| G4 Old quality picker | ✅ implemented — on-device pass pending |
+| G5 Extra speed (0.25×–10×) | ✅ implemented — on-device pass pending |
+| G6 Player gestures | ⬜ next (pan-gesture + HUD infra) |
+| G7 Background playback | ✅ implemented — on-device pass pending |
+| G8–G9 Navbar/Tabbar | ✅ implemented — on-device pass pending |
+| G10–G11 Feed/Shorts | ✅ implemented (ads part done earlier) — on-device pass pending |
+| G12 Misc | ✅ implemented — on-device pass pending |
+| G13 Appearance (OLED) | ✅ implemented — on-device pass pending |
+| G14 Preferences manager | ✅ implemented (import/export/reset/cache) — on-device pass pending |
+| G15 Native share | ⬜ |
+| G16 RYD dislikes | ⬜ |
+| G17 Downloads | ⬜ |
+| G18 YTLite extras | ⬜ |
+| G19 Adblock polish | 🔄 (verified working) |
