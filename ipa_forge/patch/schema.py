@@ -59,7 +59,11 @@ class DylibInjectSpec(BaseModel):
     type: Literal["dylib_inject"]
     id: str
     executable: str
-    dylib: str
+    # The load path to add as an LC_LOAD_DYLIB/LC_LOAD_WEAK_DYLIB entry (e.g.
+    # "@rpath/libFoo.dylib"), not a source file to copy in -- getting the
+    # dylib itself into the bundle is a separate resource_add operation, so
+    # this stays a single-responsibility Mach-O load-command edit.
+    install_name: str
     arch: str | None = None
     load_command: Literal["LC_LOAD_DYLIB", "LC_LOAD_WEAK_DYLIB"] = "LC_LOAD_DYLIB"
 

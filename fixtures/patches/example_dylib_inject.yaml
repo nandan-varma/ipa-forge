@@ -1,0 +1,15 @@
+# Phase 4 example: injects the fixture's standalone, unlinked libInjectable.dylib
+# into TestApp's load commands. Kept separate from example.yaml, which stays
+# the canonical "one binary patch + one resource replacement" example.
+target:
+  bundle_id: "com.example.synthetic"
+  version:
+    exact: "1.0.0"
+
+patches:
+  - id: "inject-hook-lib"
+    type: dylib_inject
+    executable: "TestApp"
+    arch: "arm64"
+    install_name: "@rpath/libInjectable.dylib"
+    load_command: "LC_LOAD_DYLIB"

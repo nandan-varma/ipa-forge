@@ -25,7 +25,8 @@ class ArchNotFoundError(Exception):
     """Raised when an explicit `arch:` selector does not match any slice in the binary."""
 
 
-def _arch_name(binary: lief.MachO.Binary) -> str:
+def arch_name(binary: lief.MachO.Binary) -> str:
+    """Canonical arch name (e.g. "arm64") for a parsed Mach-O slice."""
     return _ARCH_NAMES.get(binary.header.cpu_type, str(binary.header.cpu_type))
 
 
@@ -43,7 +44,7 @@ def load_macho(path: Path, arch: str | None = None) -> lief.MachO.Binary:
     if len(fat) == 1:
         return fat.at(0)
 
-    available = [_arch_name(fat.at(i)) for i in range(len(fat))]
+    available = [arch_name(fat.at(i)) for i in range(len(fat))]
     if arch is None:
         raise AmbiguousArchError(
             f"{path} is a universal binary with architectures {available}; "
@@ -51,7 +52,7 @@ def load_macho(path: Path, arch: str | None = None) -> lief.MachO.Binary:
         )
     for i in range(len(fat)):
         binary = fat.at(i)
-        if _arch_name(binary) == arch:
+        if arch_name(binary) == arch:
             return binary
     raise ArchNotFoundError(f"Architecture '{arch}' not found in {path}; available: {available}")
 
@@ -60,7 +61,7 @@ def available_archs(path: Path) -> list[str]:
     fat = lief.MachO.parse(str(path))
     if fat is None or len(fat) == 0:
         raise NotMachOError(f"{path} is not a valid Mach-O file")
-    return [_arch_name(fat.at(i)) for i in range(len(fat))]
+    return [arch_name(fat.at(i)) for i in range(len(fat))]
 
 
 def slice_byte_range(path: Path, arch: str | None = None) -> tuple[int, int]:

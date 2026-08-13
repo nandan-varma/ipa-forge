@@ -21,6 +21,20 @@ def compiled_macho_binary(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def fat_macho_binary(tmp_path: Path) -> Path:
+    """A real universal (arm64 + x86_64) Mach-O binary, for arch-selection tests."""
+    src = tmp_path / "fat_main.c"
+    src.write_text("int main(void) { return 0; }\n")
+    arm64_bin = tmp_path / "fat_arm64"
+    x86_64_bin = tmp_path / "fat_x86_64"
+    subprocess.run(["clang", "-arch", "arm64", "-o", str(arm64_bin), str(src)], check=True)
+    subprocess.run(["clang", "-arch", "x86_64", "-o", str(x86_64_bin), str(src)], check=True)
+    out = tmp_path / "fat_universal"
+    subprocess.run(["lipo", "-create", str(arm64_bin), str(x86_64_bin), "-output", str(out)], check=True)
+    return out
+
+
+@pytest.fixture
 def fake_ipa(tmp_path: Path, compiled_macho_binary: Path) -> Path:
     """A minimal, hand-built .ipa: Payload/TestApp.app/{Info.plist, TestApp, resource.txt}."""
     ipa_path = tmp_path / "TestApp.ipa"

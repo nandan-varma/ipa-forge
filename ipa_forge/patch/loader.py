@@ -50,7 +50,7 @@ def build_operations(definition: PatchDefinition) -> list[PatchOperation]:
                 DylibInjectOp(
                     op_id=spec.id,
                     executable=spec.executable,
-                    dylib=spec.dylib,
+                    install_name=spec.install_name,
                     arch=spec.arch,
                     load_command=spec.load_command,
                 )
