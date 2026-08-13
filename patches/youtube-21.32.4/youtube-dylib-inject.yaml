@@ -1,0 +1,32 @@
+# YouTube 21.32.4 — dylib injection template (REQUIRES YOUR OWN dylib).
+#
+# This file intentionally does NOT pass dry-run as shipped: the staged dylib
+# does not exist. It is the plumbing for a hook dylib you (or a
+# reverse-engineering project like uYouPlus) must supply:
+#
+#   1. Build/obtain a hook dylib (arm64, e.g. libYTHook.dylib) that swizzles
+#      the methods you actually want to change.
+#   2. Place it at assets/libYTHook.dylib and uncomment the resource_add.
+#   3. Run forge patch --dry-run; it must report both operations OK before
+#      anything mutates.
+#
+# The main binary is thin arm64, so no arch: field is needed. The dylib is
+# staged into Frameworks/ and the load command added to the main executable;
+# re-signing happens automatically because LIEF's rewrite invalidates the
+# old signature.
+target:
+  bundle_id: "com.google.ios.youtube"
+  version:
+    exact: "21.32.4"
+
+patches:
+  - id: "stage-hook-dylib"
+    type: resource_add
+    path: "Frameworks/libYTHook.dylib"
+    source: "assets/libYTHook.dylib"
+
+  - id: "link-hook-dylib"
+    type: dylib_inject
+    executable: "YouTube"
+    install_name: "@rpath/libYTHook.dylib"
+    load_command: "LC_LOAD_DYLIB"
