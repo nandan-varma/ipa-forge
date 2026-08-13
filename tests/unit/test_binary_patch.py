@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
 from pathlib import Path
@@ -54,7 +55,13 @@ def test_binary_replace_dry_run_ok_on_unique_header_match(compiled_macho_binary:
     bundle = _bundle_for(compiled_macho_binary, tmp_path)
     ctx = PatchContext(bundle=bundle, patch_source_dir=tmp_path)
 
-    op = BinaryReplaceOp(op_id="t1", executable=compiled_macho_binary.name, pattern=header_hex, replacement=header_hex, expected_matches=1)
+    op = BinaryReplaceOp(
+        op_id="t1",
+        executable=compiled_macho_binary.name,
+        pattern=header_hex,
+        replacement=header_hex,
+        expected_matches=1,
+    )
     result = op.dry_run(ctx)
     assert result.status == "dry_run_ok"
 
@@ -80,7 +87,9 @@ def test_binary_replace_fails_on_more_than_expected_matches(compiled_macho_binar
     ctx = PatchContext(bundle=bundle, patch_source_dir=tmp_path)
 
     # A single zero byte occurs far more than once in any real Mach-O binary.
-    op = BinaryReplaceOp(op_id="t3", executable=compiled_macho_binary.name, pattern="00", replacement="00", expected_matches=1)
+    op = BinaryReplaceOp(
+        op_id="t3", executable=compiled_macho_binary.name, pattern="00", replacement="00", expected_matches=1
+    )
     result = op.dry_run(ctx)
     assert result.status == "failed"
     assert "expected 1 match" in result.message
@@ -114,7 +123,9 @@ def test_binary_replace_rejects_mismatched_replacement_length(compiled_macho_bin
     bundle = _bundle_for(compiled_macho_binary, tmp_path)
     ctx = PatchContext(bundle=bundle, patch_source_dir=tmp_path)
 
-    op = BinaryReplaceOp(op_id="t5", executable=compiled_macho_binary.name, pattern=header_hex, replacement="00 00", expected_matches=1)
+    op = BinaryReplaceOp(
+        op_id="t5", executable=compiled_macho_binary.name, pattern=header_hex, replacement="00 00", expected_matches=1
+    )
     result = op.apply(ctx)
     assert result.status == "failed"
     assert "length" in result.message

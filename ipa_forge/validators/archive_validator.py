@@ -2,6 +2,7 @@
 """Final validation (pipeline stage 17): re-extract the produced IPA from
 scratch and re-run structural validation, to catch corruption introduced by
 the repackaging step itself rather than trusting the in-memory state."""
+
 from __future__ import annotations
 
 from pathlib import Path

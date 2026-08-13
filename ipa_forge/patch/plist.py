@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Info.plist key set/remove operation, following the same single-file,
 single-responsibility pattern as the resource operations."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -32,12 +33,10 @@ class PlistEditOp:
             return PatchResult(op_id=self.op_id, status="failed", message=f"plist '{target}' does not exist")
         try:
             plist = read_plist(target)
-        except Exception as e:
+        except (OSError, ValueError) as e:  # plistlib can only raise these on malformed input
             return PatchResult(op_id=self.op_id, status="failed", message=f"failed to parse '{target}': {e}")
         if self.action == "remove" and self.key not in plist:
-            return PatchResult(
-                op_id=self.op_id, status="failed", message=f"key '{self.key}' not present in {target}"
-            )
+            return PatchResult(op_id=self.op_id, status="failed", message=f"key '{self.key}' not present in {target}")
         return PatchResult(op_id=self.op_id, status="dry_run_ok")
 
     def apply(self, ctx: PatchContext) -> PatchResult:

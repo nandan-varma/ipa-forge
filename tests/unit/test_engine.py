@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
 from pathlib import Path
@@ -17,7 +18,9 @@ def test_apply_all_raises_before_mutating_when_any_op_fails_dry_run(tmp_path: Pa
     ctx = PatchContext(bundle=bundle, patch_source_dir=tmp_path)
 
     good_op = ResourceReplaceOp(op_id="good", path="resource.txt", source="missing_source.txt")
-    bad_op = BinaryReplaceOp(op_id="bad", executable="TestApp", pattern="DE AD BE EF", replacement="00 00 00 00", expected_matches=1)
+    bad_op = BinaryReplaceOp(
+        op_id="bad", executable="TestApp", pattern="DE AD BE EF", replacement="00 00 00 00", expected_matches=1
+    )
 
     original_contents = (bundle.root / "resource.txt").read_bytes()
 
@@ -42,7 +45,9 @@ def test_apply_all_applies_resources_before_binary_patches(tmp_path: Path, fake_
     header_hex = " ".join(f"{b:02x}" for b in binary_data[:8])
 
     resource_op = ResourceReplaceOp(op_id="res", path="resource.txt", source="new.txt")
-    binary_op = BinaryReplaceOp(op_id="bin", executable="TestApp", pattern=header_hex, replacement=header_hex, expected_matches=1)
+    binary_op = BinaryReplaceOp(
+        op_id="bin", executable="TestApp", pattern=header_hex, replacement=header_hex, expected_matches=1
+    )
 
     results = apply_all([binary_op, resource_op], ctx)  # declared out of order on purpose
     statuses = {r.op_id: r.status for r in results}

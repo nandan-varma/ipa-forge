@@ -2,6 +2,7 @@
 """End-to-end pipeline orchestration: the 17 stages described in the
 architecture doc, from raw .ipa in to AltStore-Classic-ready .ipa out.
 """
+
 from __future__ import annotations
 
 import tempfile
@@ -12,7 +13,7 @@ from ipa_forge.bundle.ipa import extract_ipa, load_bundle, repack_ipa
 from ipa_forge.manifest import Manifest, ProfileManifestEntry, sha256_of
 from ipa_forge.patch.base import PatchContext
 from ipa_forge.patch.engine import apply_all, dry_run_all
-from ipa_forge.patch.loader import build_operations, load_patch_definition
+from ipa_forge.patch.loader import PatchLoadError, build_operations, load_patch_definition
 from ipa_forge.patch.resolver import resolve_definitions
 from ipa_forge.signing.backend import SigningBackendError
 from ipa_forge.signing.pipeline import sign_bundle, sign_target_path
@@ -20,6 +21,7 @@ from ipa_forge.signing.profile import ProfileError, load_profile_pool, validate_
 from ipa_forge.signing.provider import LocalIdentityProvider, SigningProvider, VerifyResult, resolve_identity
 from ipa_forge.validators.archive_validator import validate_final_archive
 from ipa_forge.validators.bundle_validator import validate_bundle
+from ipa_forge.validators.ipa_validator import IpaValidationError, validate_ipa_structure
 
 
 class PipelineError(Exception):
@@ -54,12 +56,19 @@ def run_pipeline(
         work_dir = Path(tmp)
 
         # Stages 1-3: validate + extract, inventory, parse Info.plist
+        try:
+            validate_ipa_structure(ipa_path)
+        except IpaValidationError as e:
+            raise PipelineError(str(e)) from e
         app_path = extract_ipa(ipa_path, work_dir / "extracted")
         bundle = load_bundle(app_path)
         validate_bundle(bundle)
 
         # Stage 4: resolve applicable patch definitions (bundle_id + version match)
-        definition = load_patch_definition(patch_definition_path)
+        try:
+            definition = load_patch_definition(patch_definition_path)
+        except PatchLoadError as e:
+            raise PipelineError(str(e)) from e
         matched = resolve_definitions(bundle, [definition])
         ops = [op for d in matched for op in build_operations(d)]
         ctx = PatchContext(bundle=bundle, patch_source_dir=patch_definition_path.parent)
@@ -73,7 +82,9 @@ def run_pipeline(
             )
 
         if dry_run:
-            manifest = Manifest.from_patch_results(ipa_path, bundle.bundle_id, bundle.version, bundle.build, dry_results)
+            manifest = Manifest.from_patch_results(
+                ipa_path, bundle.bundle_id, bundle.version, bundle.build, dry_results
+            )
             return PipelineResult(manifest=manifest, output_path=None)
 
         # Stages 6-8: apply resources -> binary patches -> dylib injection (fixed order)

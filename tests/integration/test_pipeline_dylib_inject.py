@@ -1,6 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """End-to-end pipeline test for the dylib_inject patch type: inject a load
 command, re-sign, and confirm the produced IPA still passes codesign
 verification and actually carries the new load command."""
+
 from __future__ import annotations
 
 from pathlib import Path

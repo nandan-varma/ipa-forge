@@ -46,7 +46,8 @@ forge gui   # launches the local FastAPI GUI on 127.0.0.1:8765
 scripts/rebuild_fixture.sh
 ```
 
-There is no separate lint/typecheck command configured yet.
+Lint and typecheck (config lives in `pyproject.toml`): `ruff check .`,
+`ruff format --check .`, `mypy ipa_forge/`.
 
 ## Architecture
 
@@ -58,8 +59,11 @@ There is no separate lint/typecheck command configured yet.
 **Dependency direction is one-way and enforced by convention, not tooling**:
 `patch/` and `signing/` both depend on `bundle/` but never on each other.
 `pipeline.py` orchestrates `patch/`, `signing/`, `validators/`, and
-`manifest.py`. `cli/` and `gui/` both call into `pipeline.py` only — they
-never touch `patch/` or `signing/` directly.
+`manifest.py`. `cli/` and `gui/` call into `pipeline.py` for patching —
+neither touches `patch/` or `signing/` directly; `cli/` additionally uses
+`altstore/` (export-source) and `validators/` (inspect/validate) directly,
+and structural IPA validation (stage 1) is run by the pipeline, not by
+`bundle/`.
 
 **The core engine is app-agnostic**: it understands patch operation *types*
 (`binary_replace`, `resource_replace`, `dylib_inject`, ...) via the

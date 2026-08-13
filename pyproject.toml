@@ -10,40 +10,48 @@ requires-python = ">=3.11"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "Nandan Varma" }]
-keywords = ["ios", "ipa", "codesign", "altstore", "sideloading", "mach-o", "patching"]
+keywords = [
+  "ios",
+  "ipa",
+  "codesign",
+  "altstore",
+  "sideloading",
+  "mach-o",
+  "patching",
+]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Environment :: Console",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-    "Operating System :: MacOS :: MacOS X",
-    "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Topic :: Software Development :: Build Tools",
-    "Topic :: Security",
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+  "Operating System :: MacOS :: MacOS X",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Build Tools",
+  "Topic :: Security",
 ]
 dependencies = [
-    "lief>=1.0.0",
-    "pydantic>=2.0",
-    "pyyaml>=6.0",
-    "typer>=0.12",
-    "fastapi>=0.110",
-    "uvicorn>=0.30",
-    "python-multipart>=0.0.9",
+  "lief>=1.0.0",
+  "pydantic>=2.0",
+  "pyyaml>=6.0",
+  "typer>=0.12",
+  "fastapi>=0.110",
+  "uvicorn>=0.30",
+  "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "httpx>=0.27",
-    "ruff>=0.6",
-    "mypy>=1.11",
-    "build>=1.2",
-    "twine>=5.1",
-    "types-PyYAML",
+  "pytest>=8.0",
+  "httpx>=0.27",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "build>=1.2",
+  "twine>=5.1",
+  "types-PyYAML",
 ]
 
 [project.urls]
@@ -59,6 +67,29 @@ packages = ["ipa_forge"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = [
-    "macos: requires macOS codesign/security tooling",
+markers = ["macos: requires macOS codesign/security tooling"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "BLE", "TRY"]
+# TRY003 wants every long message to live on a dedicated exception subclass;
+# this codebase's custom exception classes already carry their own context,
+# so the rule only adds noise here.
+ignore = ["TRY003"]
+
+# B008 fires on typer.Argument/Option and fastapi.File/Form in argument
+# defaults -- the canonical way to declare those frameworks' parameters.
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+  "typer.Argument",
+  "typer.Option",
+  "fastapi.File",
+  "fastapi.Form",
 ]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["ipa_forge"]

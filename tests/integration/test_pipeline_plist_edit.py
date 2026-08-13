@@ -1,6 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """End-to-end pipeline test for the plist_edit patch type: edit Info.plist,
 re-sign, and confirm the produced IPA passes codesign verification and
 actually carries the edited plist."""
+
 from __future__ import annotations
 
 from pathlib import Path

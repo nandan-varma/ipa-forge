@@ -2,6 +2,7 @@
 """Structured manifest emitted after patch application, before signing --
 makes debugging a failed install possible independent of signing outcome.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -50,12 +51,10 @@ class Manifest:
         version: str,
         build: str,
         results: list[PatchResult],
-    ) -> "Manifest":
+    ) -> Manifest:
         manifest = cls(input_sha256=sha256_of(input_ipa), bundle_id=bundle_id, version=version, build=build)
         for result in results:
-            manifest.patches_applied.append(
-                {"id": result.op_id, "status": result.status, "message": result.message}
-            )
+            manifest.patches_applied.append({"id": result.op_id, "status": result.status, "message": result.message})
             touched = [str(p) for p in result.files_touched]
             if result.category == "added":
                 manifest.files_added.extend(touched)

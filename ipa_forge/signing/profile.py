@@ -5,6 +5,7 @@ The profile is treated as authoritative input: it is rejected up front when
 expired or bundle-id-incompatible rather than discovered only at codesign
 time, per TN3125's model of profile/cert/entitlement as a compatibility set.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -34,8 +35,8 @@ class ProvisioningProfile:
     def is_expired(self) -> bool:
         expiry = self.expiration_date
         if expiry.tzinfo is None:
-            expiry = expiry.replace(tzinfo=datetime.timezone.utc)
-        return datetime.datetime.now(datetime.timezone.utc) >= expiry
+            expiry = expiry.replace(tzinfo=datetime.UTC)
+        return datetime.datetime.now(datetime.UTC) >= expiry
 
     @property
     def bundle_id_pattern(self) -> str:
@@ -43,7 +44,7 @@ class ProvisioningProfile:
         team-id prefix stripped from `application-identifier`."""
         prefix = f"{self.team_identifier}."
         if self.application_identifier.startswith(prefix):
-            return self.application_identifier[len(prefix):]
+            return self.application_identifier[len(prefix) :]
         return self.application_identifier
 
 
@@ -71,9 +72,7 @@ def validate_profile(profile: ProvisioningProfile, bundle_id: str) -> None:
         )
     pattern = profile.bundle_id_pattern
     if pattern != "*" and pattern != bundle_id:
-        raise ProfileError(
-            f"provisioning profile '{profile.name}' authorizes '{pattern}', not '{bundle_id}'"
-        )
+        raise ProfileError(f"provisioning profile '{profile.name}' authorizes '{pattern}', not '{bundle_id}'")
 
 
 @dataclass
@@ -118,8 +117,7 @@ def load_profile_pool(profile_paths: list[Path]) -> ProfilePool:
         profile = parse_provisioning_profile(path)
         if profile.is_expired:
             raise ProfileError(
-                f"provisioning profile '{profile.name}' ({profile.uuid}) at {path} "
-                f"expired on {profile.expiration_date}"
+                f"provisioning profile '{profile.name}' ({profile.uuid}) at {path} expired on {profile.expiration_date}"
             )
         entries.append((profile, path))
     return ProfilePool(entries)

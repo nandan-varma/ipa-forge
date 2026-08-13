@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Recursive bottom-up signing orchestration + per-bundle provisioning-profile embedding."""
+
 from __future__ import annotations
 
 import shutil
@@ -7,7 +8,7 @@ from pathlib import Path
 
 from ipa_forge.bundle.models import AppBundle, MachOTarget
 from ipa_forge.signing.profile import ProfilePool
-from ipa_forge.signing.provider import SignResult, SigningProvider
+from ipa_forge.signing.provider import SigningProvider, SignResult
 from ipa_forge.signing.reconcile import reconcile_entitlements
 
 _BUNDLE_SUFFIX_BY_KIND = {"main": ".app", "framework": ".framework", "appex": ".appex", "watch_app": ".app"}

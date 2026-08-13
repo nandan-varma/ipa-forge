@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Lightweight Mach-O detection by magic number, used by the bundle inventory walker."""
+
 from __future__ import annotations
 
 import struct

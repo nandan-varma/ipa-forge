@@ -45,27 +45,23 @@ repacking, plist inspection, patch resolution, resource patching, and binary
 pattern analysis/modification (`bundle/`, `patch/`, `machO/arch.py`,
 `machO/injector.py`). This means `forge inspect`, `forge validate`, and
 `forge patch --dry-run` (up through the dry-run gate) all work on Linux
-today without any code changes -- only the signing stages
-(`load_provisioning_profile` onward) require `codesign`/`security` and
-therefore fail on non-macOS. There is no runtime OS check gating this; it
-falls out naturally from which modules a given code path imports.
+today without any code changes -- only the signing stages (`load_profile_pool`
+onward) require `codesign`/`security` and therefore fail on non-macOS. There
+is no runtime OS check gating this; it falls out naturally from which modules
+a given code path imports.
 
-## Known v1 scope limits (not bugs, just not built yet)
+## Shipped v1 additions
 
-- **GUI single-file upload**: `gui/app.py`'s `/patch` endpoint accepts one
-  patch-definition file with no sibling `assets/` directory, so
-  `resource_replace`/`resource_add` operations that reference external
-  source files aren't usable from the GUI yet (the CLI has no such limit,
-  since `--patches` reads off a real filesystem path with its assets
-  alongside it). A real fix would accept a zip of the patch directory rather
-  than a single file.
-- **Per-extension provisioning profiles**: `signing/pipeline.py::sign_bundle`
-  reconciles every nested target's entitlements against the *same* supplied
-  profile. Real app extensions often need their own profile matching their
-  own bundle id. Multi-profile signing would need a profile-selection step
-  keyed by each target's own bundle id, which the inventory walker doesn't
-  currently expose (it tracks Mach-O structure, not each nested bundle's own
-  `Info.plist`).
-- **No `plist_edit` patch type**: Info.plist is read for bundle/version
-  resolution but isn't itself a patch target in v1. Would follow the same
-  `PatchOperation` pattern as `resource_replace`.
+The three scope limits listed in earlier revisions of this file are closed in
+0.1.0, each following the same extension seams described above:
+
+- **GUI zip upload**: `gui/uploads.py::resolve_patch_definition` accepts a
+  zip of a patch directory (definition + `assets/`), so
+  `resource_replace`/`resource_add` work from the GUI exactly as from the
+  CLI. `safe_extract_zip` enforces zip-slip and size/member caps.
+- **Per-extension provisioning profiles**: `signing/profile.py::ProfilePool`
+  matches each profile-bearing target (app, app extension, watch app) to its
+  own `.mobileprovision` by its own bundle id; a single profile still signs
+  everything, exactly as before (see `signing/pipeline.py::sign_bundle`).
+- **`plist_edit`**: a `PatchOperation` (`patch/plist.py`) for set/remove on
+  bundle-relative plists -- a compact worked example of steps 1-5 above.

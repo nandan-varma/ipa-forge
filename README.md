@@ -96,6 +96,13 @@ patches:
     arch: "arm64"
     install_name: "@rpath/libInjectable.dylib"   # the dylib must already be in the bundle
     load_command: "LC_LOAD_DYLIB"                 # or LC_LOAD_WEAK_DYLIB
+
+  - id: "set-verbose-logging"
+    type: plist_edit
+    action: "set"                  # or "remove" (no value needed)
+    key: "CFBundleDisplayName"
+    value: "Patched App"
+    path: "Info.plist"             # bundle-relative; defaults to Info.plist
 ```
 
 See `fixtures/patches/example.yaml` and `fixtures/patches/example_dylib_inject.yaml`
@@ -146,10 +153,6 @@ qualify.
 - **Dylib injection is more fragile than resource replacement** -- treat it
   as an advanced operation; see `machO/injector.py`'s explicit
   INJECTED/INJECTION_SKIPPED/INJECTION_UNSUPPORTED/INJECTION_FAILED statuses.
-- **The GUI's `/patch` endpoint accepts one patch-definition file only**, no
-  sibling assets directory -- `resource_replace`/`resource_add` operations
-  needing external source files currently only work via the CLI. See
-  `docs/extensibility.md`.
 - **You must have legitimate rights** to both the IPA you're patching and
   the signing credentials you use.
 

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Validates an extracted AppBundle's Info.plist and main executable presence."""
+
 from __future__ import annotations
 
 from ipa_forge.bundle.models import AppBundle

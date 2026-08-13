@@ -1,8 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Provisioning-profile parsing against real, locally-installed profiles.
 
 Skips gracefully if no profile is present rather than hardcoding any
 personal profile UUID/team id into the test.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

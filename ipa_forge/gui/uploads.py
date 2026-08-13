@@ -7,12 +7,19 @@ patch-definition path the pipeline can consume -- this is what lets
 resource_replace/resource_add operations (which need external source files)
 work from the GUI, not just the CLI.
 """
+
 from __future__ import annotations
 
 import zipfile
 from pathlib import Path
 
 _PATCH_DEFINITION_SUFFIXES = {".yaml", ".yml", ".json"}
+
+# Generous caps for a patch-directory upload: a real patch bundle is a few
+# small YAML files plus assets. Anything near these limits is hostile or
+# broken, and unbounded extraction is a zip-bomb risk.
+_MAX_ZIP_MEMBERS = 10_000
+_MAX_ZIP_UNCOMPRESSED = 512 * 1024 * 1024
 
 
 class UploadError(Exception):
@@ -25,15 +32,25 @@ def safe_extract_zip(zip_path: Path, dest_dir: Path) -> None:
     zipfile.extractall() alone is not a reliable guard against zip-slip
     (entries containing `../` or absolute paths) across all versions, so
     every member's resolved destination is checked before anything is
-    written.
+    written. Extraction failures are translated to UploadError so callers
+    surface a 400, never a 500.
     """
     dest_dir = dest_dir.resolve()
     with zipfile.ZipFile(zip_path) as zf:
-        for member in zf.namelist():
-            target = (dest_dir / member).resolve()
+        members = zf.infolist()
+        if len(members) > _MAX_ZIP_MEMBERS:
+            raise UploadError(f"zip contains {len(members)} entries; limit is {_MAX_ZIP_MEMBERS}")
+        total_size = sum(m.file_size for m in members)
+        if total_size > _MAX_ZIP_UNCOMPRESSED:
+            raise UploadError(f"zip uncompressed size {total_size} bytes exceeds limit of {_MAX_ZIP_UNCOMPRESSED}")
+        for member in members:
+            target = (dest_dir / member.filename).resolve()
             if target != dest_dir and dest_dir not in target.parents:
-                raise UploadError(f"zip entry '{member}' escapes the extraction directory")
-        zf.extractall(dest_dir)
+                raise UploadError(f"zip entry '{member.filename}' escapes the extraction directory")
+        try:
+            zf.extractall(dest_dir)
+        except (OSError, zipfile.BadZipFile) as e:
+            raise UploadError(f"failed to extract zip: {e}") from e
 
 
 def resolve_patch_definition(upload_path: Path, dest_dir: Path) -> Path:

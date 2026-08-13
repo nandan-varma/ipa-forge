@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Minimal dotted-version comparison for CFBundleShortVersionString matching."""
+
 from __future__ import annotations
 
 

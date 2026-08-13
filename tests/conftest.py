@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
 import datetime
@@ -80,7 +81,7 @@ def synthetic_profile(tmp_path: Path) -> Path:
                 "UUID": "11111111-2222-3333-4444-555555555555",
                 "Name": "ipa-forge test profile",
                 "TeamIdentifier": [team_id],
-                "ExpirationDate": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30),
+                "ExpirationDate": datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=30),
                 "Entitlements": {
                     "application-identifier": f"{team_id}.com.example.synthetic",
                     "com.apple.developer.team-identifier": team_id,

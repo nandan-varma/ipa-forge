@@ -4,6 +4,7 @@
 Per the architecture's hard constraint, Apple's code signature format is never
 reimplemented -- everything here shells out to Apple's own tooling.
 """
+
 from __future__ import annotations
 
 import plistlib

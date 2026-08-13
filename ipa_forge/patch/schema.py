@@ -5,9 +5,10 @@ The core engine understands these operation *types* but never a specific
 bundle id or byte pattern -- those only ever live in user-supplied definition
 files.
 """
+
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -78,21 +79,14 @@ class PlistEditSpec(BaseModel):
     path: str = "Info.plist"
 
     @model_validator(mode="after")
-    def _value_required_for_set(self) -> "PlistEditSpec":
+    def _value_required_for_set(self) -> PlistEditSpec:
         if self.action == "set" and self.value is None:
             raise ValueError("plist_edit with action 'set' requires a non-null 'value'")
         return self
 
 
 PatchSpec = Annotated[
-    Union[
-        BinaryReplaceSpec,
-        ResourceReplaceSpec,
-        ResourceAddSpec,
-        ResourceRemoveSpec,
-        DylibInjectSpec,
-        PlistEditSpec,
-    ],
+    BinaryReplaceSpec | ResourceReplaceSpec | ResourceAddSpec | ResourceRemoveSpec | DylibInjectSpec | PlistEditSpec,
     Field(discriminator="type"),
 ]
 

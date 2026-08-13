@@ -5,6 +5,7 @@ A distribution metadata layer, deliberately kept separate from the signing
 engine (see the architecture doc's AltStore-source-is-optional note) -- it
 only describes an already-patched-and-signed .ipa, it never produces one.
 """
+
 from __future__ import annotations
 
 import json
@@ -14,10 +15,12 @@ from typing import Any
 
 from ipa_forge.bundle.ipa import extract_ipa, load_bundle
 from ipa_forge.manifest import sha256_of
+from ipa_forge.validators.ipa_validator import validate_ipa_structure
 
 
 def build_app_entry(ipa_path: Path, download_url: str) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="ipa_forge_export_") as tmp:
+        validate_ipa_structure(ipa_path)
         app_path = extract_ipa(ipa_path, Path(tmp))
         bundle = load_bundle(app_path)
         name = bundle.info_plist.get("CFBundleName", bundle.main_executable_name)

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Read-only fat/universal Mach-O architecture selection, backed by LIEF."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -31,6 +32,15 @@ def arch_name(binary: lief.MachO.Binary) -> str:
     return _ARCH_NAMES.get(binary.header.cpu_type, str(binary.header.cpu_type))
 
 
+def require_slice(fat: lief.MachO.FatBinary, index: int) -> lief.MachO.Binary:
+    """LIEF's FatBinary.at() is typed as Optional; callers only use it after a
+    non-empty length check, so a None here means the file changed under us."""
+    binary = fat.at(index)
+    if binary is None:
+        raise NotMachOError(f"Mach-O slice {index} unexpectedly missing")
+    return binary
+
+
 def load_macho(path: Path, arch: str | None = None) -> lief.MachO.Binary:
     """Return the single Mach-O slice to operate on.
 
@@ -43,16 +53,16 @@ def load_macho(path: Path, arch: str | None = None) -> lief.MachO.Binary:
         raise NotMachOError(f"{path} is not a valid Mach-O file")
 
     if len(fat) == 1:
-        return fat.at(0)
+        return require_slice(fat, 0)
 
-    available = [arch_name(fat.at(i)) for i in range(len(fat))]
+    available = [arch_name(require_slice(fat, i)) for i in range(len(fat))]
     if arch is None:
         raise AmbiguousArchError(
             f"{path} is a universal binary with architectures {available}; "
             "an explicit `arch:` selector is required in the patch definition"
         )
     for i in range(len(fat)):
-        binary = fat.at(i)
+        binary = require_slice(fat, i)
         if arch_name(binary) == arch:
             return binary
     raise ArchNotFoundError(f"Architecture '{arch}' not found in {path}; available: {available}")
@@ -62,7 +72,7 @@ def available_archs(path: Path) -> list[str]:
     fat = lief.MachO.parse(str(path))
     if fat is None or len(fat) == 0:
         raise NotMachOError(f"{path} is not a valid Mach-O file")
-    return [arch_name(fat.at(i)) for i in range(len(fat))]
+    return [arch_name(require_slice(fat, i)) for i in range(len(fat))]
 
 
 def slice_byte_range(path: Path, arch: str | None = None) -> tuple[int, int]:

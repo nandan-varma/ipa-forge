@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Info.plist read/write helpers (binary or XML plist, transparently)."""
+
 from __future__ import annotations
 
 import plistlib

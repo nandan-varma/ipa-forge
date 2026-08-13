@@ -8,6 +8,7 @@ any existing code signature) happens later in the pipeline's signing stage.
 Never silently continues past a load-command failure: every outcome maps to
 one of the four explicit statuses below.
 """
+
 from __future__ import annotations
 
 import enum
@@ -16,7 +17,13 @@ from pathlib import Path
 
 import lief
 
-from ipa_forge.machO.arch import AmbiguousArchError, ArchNotFoundError, NotMachOError, arch_name
+from ipa_forge.machO.arch import (
+    AmbiguousArchError,
+    ArchNotFoundError,
+    NotMachOError,
+    arch_name,
+    require_slice,
+)
 
 
 class InjectionStatus(enum.Enum):
@@ -44,15 +51,15 @@ def _select_slice(fat: lief.MachO.FatBinary, arch: str | None) -> lief.MachO.Bin
     directly (`binary.write(path)`) discards every *other* slice in a
     universal binary, silently corrupting it."""
     if len(fat) == 1:
-        return fat.at(0)
+        return require_slice(fat, 0)
 
-    available = [arch_name(fat.at(i)) for i in range(len(fat))]
+    available = [arch_name(require_slice(fat, i)) for i in range(len(fat))]
     if arch is None:
         raise AmbiguousArchError(
             f"universal binary with architectures {available}; an explicit `arch:` selector is required"
         )
     for i in range(len(fat)):
-        binary = fat.at(i)
+        binary = require_slice(fat, i)
         if arch_name(binary) == arch:
             return binary
     raise ArchNotFoundError(f"architecture '{arch}' not found; available: {available}")
@@ -86,7 +93,7 @@ def inject_dylib(
         if binary.add(command) is None:
             return InjectionResult(InjectionStatus.INJECTION_FAILED, "LIEF failed to add the load command")
         fat.write(str(target_path))
-    except Exception as e:  # LIEF raises broad/internal exception types on malformed input
+    except Exception as e:  # noqa: BLE001 -- LIEF raises broad/internal exception types on malformed input
         return InjectionResult(InjectionStatus.INJECTION_FAILED, f"LIEF injection failed: {e}")
 
     return InjectionResult(InjectionStatus.INJECTED, f"added {load_command} {dylib_install_name}")

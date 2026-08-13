@@ -5,6 +5,7 @@ Classification is purely structural (by containing directory suffix), never
 by bundle/app identifier -- this keeps the core engine app-agnostic per the
 architecture's core rule.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -74,6 +75,7 @@ def build_inventory(bundle: AppBundle) -> list[MachOTarget]:
         rel = path.relative_to(app_root)
         kind = _classify(rel, main_name)
 
+        target_bundle_id: str | None
         if kind == "main":
             target_bundle_id = bundle.bundle_id
         else:

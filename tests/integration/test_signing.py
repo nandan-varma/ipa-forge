@@ -1,5 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Real-signing integration tests. Require macOS + a local codesigning identity
 in Keychain (both already confirmed present in this dev environment)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,9 +10,9 @@ import pytest
 
 from ipa_forge.bundle.models import AppBundle, MachOTarget
 from ipa_forge.bundle.plist import write_plist
+from ipa_forge.signing.pipeline import sign_bundle, sign_target_path
 from ipa_forge.signing.profile import ProfilePool, ProvisioningProfile
 from ipa_forge.signing.provider import LocalIdentityProvider
-from ipa_forge.signing.pipeline import sign_bundle, sign_target_path
 
 pytestmark = pytest.mark.macos
 
@@ -33,7 +35,7 @@ def _fake_profile(bundle_id: str, team_id: str = "TESTTEAM1") -> ProvisioningPro
         name="test profile",
         team_identifier=team_id,
         application_identifier=f"{team_id}.{bundle_id}",
-        expiration_date=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7),
+        expiration_date=datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=7),
         entitlements={
             "application-identifier": f"{team_id}.{bundle_id}",
             "com.apple.developer.team-identifier": team_id,

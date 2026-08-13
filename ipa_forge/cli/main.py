@@ -10,15 +10,27 @@ from ipa_forge.altstore.source import build_app_entry, write_source_json
 from ipa_forge.bundle.ipa import extract_ipa, load_bundle
 from ipa_forge.pipeline import PipelineError, run_pipeline
 from ipa_forge.validators.bundle_validator import validate_bundle
+from ipa_forge.validators.ipa_validator import IpaValidationError, validate_ipa_structure
 
 app = typer.Typer(help="Generic, data-driven iOS IPA patcher with AltStore Classic re-signing support.")
+
+
+def _validated_extract(ipa: Path, dest: Path) -> Path:
+    """Structure-validate (pipeline stage 1), then extract -- surfacing a clean
+    CLI error instead of a traceback for malformed input."""
+    try:
+        validate_ipa_structure(ipa)
+    except IpaValidationError as e:
+        typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
+    return extract_ipa(ipa, dest)
 
 
 @app.command()
 def inspect(ipa: Path = typer.Argument(..., exists=True, help="Path to the .ipa to inspect")) -> None:
     """Print bundle id, version, and the bottom-up executable inventory for an IPA."""
     with tempfile.TemporaryDirectory(prefix="ipa_forge_inspect_") as tmp:
-        app_path = extract_ipa(ipa, Path(tmp))
+        app_path = _validated_extract(ipa, Path(tmp))
         bundle = load_bundle(app_path)
         typer.echo(f"Bundle ID:  {bundle.bundle_id}")
         typer.echo(f"Version:    {bundle.version} (build {bundle.build})")
@@ -32,7 +44,7 @@ def inspect(ipa: Path = typer.Argument(..., exists=True, help="Path to the .ipa 
 def validate(ipa: Path = typer.Argument(..., exists=True, help="Path to the .ipa to validate")) -> None:
     """Validate IPA structure and Info.plist without patching or signing anything."""
     with tempfile.TemporaryDirectory(prefix="ipa_forge_validate_") as tmp:
-        app_path = extract_ipa(ipa, Path(tmp))
+        app_path = _validated_extract(ipa, Path(tmp))
         bundle = load_bundle(app_path)
         validate_bundle(bundle)
     typer.echo("OK")
@@ -60,7 +72,7 @@ def patch(
         result = run_pipeline(ipa, patches, identity, profile, output, dry_run=dry_run)
     except PipelineError as e:
         typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     if dry_run:
         typer.echo("Dry run OK -- no files were modified.")

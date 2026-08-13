@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Deterministic byte-pattern binary patching, bounded to a specific arch slice."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -53,7 +54,7 @@ def find_matches(haystack: bytes, pattern: bytes, mask: bytes, start: int = 0, e
     offsets = []
     for i in range(start, end - plen + 1):
         window = haystack[i : i + plen]
-        if all((b & m) == (p & m) for b, p, m in zip(window, pattern, mask)):
+        if all((b & m) == (p & m) for b, p, m in zip(window, pattern, mask, strict=True)):
             offsets.append(i)
     return offsets
 

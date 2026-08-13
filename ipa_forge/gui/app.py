@@ -5,9 +5,11 @@ Single-user, local-only tool -- request state lives in module-level dicts,
 which is intentionally not safe for concurrent multi-user deployment (this
 is meant to run on localhost next to AltServer, not as a hosted service).
 """
+
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 import uuid
 from pathlib import Path
@@ -22,6 +24,7 @@ app = FastAPI(title="ipa-forge")
 
 _WORK_DIR = Path(tempfile.mkdtemp(prefix="ipa_forge_gui_"))
 _outputs: dict[str, Path] = {}
+_OUTPUTS_MAX = 20
 
 _FORM_HTML = """<!doctype html>
 <html>
@@ -61,41 +64,57 @@ async def patch(
 ) -> JSONResponse:
     request_dir = _WORK_DIR / uuid.uuid4().hex
     request_dir.mkdir(parents=True)
-
-    # Upload filenames are client-supplied and untrusted -- take only the
-    # basename before joining into a filesystem path, or a crafted filename
-    # like "../../etc/whatever" could write outside request_dir.
-    ipa_path = request_dir / Path(ipa.filename or "upload.ipa").name
-    patches_upload_path = request_dir / Path(patches.filename or "patches").name
-    ipa_path.write_bytes(await ipa.read())
-    patches_upload_path.write_bytes(await patches.read())
-
     try:
-        patches_path = resolve_patch_definition(patches_upload_path, request_dir)
-    except UploadError as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
+        # Upload filenames are client-supplied and untrusted -- take only the
+        # basename before joining into a filesystem path, or a crafted filename
+        # like "../../etc/whatever" could write outside request_dir.
+        ipa_path = request_dir / Path(ipa.filename or "upload.ipa").name
+        patches_upload_path = request_dir / Path(patches.filename or "patches").name
+        ipa_path.write_bytes(await ipa.read())
+        patches_upload_path.write_bytes(await patches.read())
 
-    profile_dir = request_dir / "profiles"
-    profile_dir.mkdir()
-    profile_paths = []
-    for i, upload in enumerate(profile):
-        dest = profile_dir / f"{i}_{Path(upload.filename or 'profile.mobileprovision').name}"
-        dest.write_bytes(await upload.read())
-        profile_paths.append(dest)
+        try:
+            patches_path = resolve_patch_definition(patches_upload_path, request_dir)
+        except UploadError as e:
+            return JSONResponse(status_code=400, content={"error": str(e)})
 
-    output_path = request_dir / f"patched_{ipa_path.name}"
+        profile_dir = request_dir / "profiles"
+        profile_dir.mkdir()
+        profile_paths = []
+        for i, upload in enumerate(profile):
+            dest = profile_dir / f"{i}_{Path(upload.filename or 'profile.mobileprovision').name}"
+            dest.write_bytes(await upload.read())
+            profile_paths.append(dest)
 
-    try:
-        result = run_pipeline(ipa_path, patches_path, identity, profile_paths, output_path, dry_run=dry_run)
-    except PipelineError as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
+        output_path = request_dir / f"patched_{ipa_path.name}"
 
-    response: dict = {"manifest": json.loads(result.manifest.to_json())}
-    if result.output_path is not None:
-        token = uuid.uuid4().hex
-        _outputs[token] = result.output_path
-        response["download_url"] = f"/download/{token}"
-    return JSONResponse(response)
+        try:
+            result = run_pipeline(ipa_path, patches_path, identity, profile_paths, output_path, dry_run=dry_run)
+        except PipelineError as e:
+            return JSONResponse(status_code=400, content={"error": str(e)})
+
+        response: dict = {"manifest": json.loads(result.manifest.to_json())}
+        if result.output_path is not None:
+            # Stash the produced IPA outside the per-request dir (cleaned up
+            # in the finally below) so /download can still serve it, bounded
+            # by _evict_outputs so long-running sessions don't leak disk.
+            token = uuid.uuid4().hex
+            final_path = _WORK_DIR / f"{token}.ipa"
+            result.output_path.replace(final_path)
+            _outputs[token] = final_path
+            _evict_outputs()
+            response["download_url"] = f"/download/{token}"
+        return JSONResponse(response)
+    finally:
+        shutil.rmtree(request_dir, ignore_errors=True)
+
+
+def _evict_outputs() -> None:
+    """Drop the oldest completed outputs once the cap is exceeded."""
+    while len(_outputs) > _OUTPUTS_MAX:
+        token = next(iter(_outputs))
+        path = _outputs.pop(token)
+        path.unlink(missing_ok=True)
 
 
 @app.get("/download/{token}")

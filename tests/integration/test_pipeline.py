@@ -1,6 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """End-to-end pipeline test against the checked-in synthetic app fixture:
 extract -> patch -> sign -> repackage -> re-validate.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

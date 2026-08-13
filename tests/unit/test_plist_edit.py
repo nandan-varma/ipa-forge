@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
 from pathlib import Path
@@ -67,7 +68,13 @@ def test_plist_edit_spec_parses_and_builds_operation():
             "target": {"bundle_id": "com.example.test", "version": {"exact": "1.0.0"}},
             "patches": [
                 {"type": "plist_edit", "id": "x", "action": "set", "key": "Foo", "value": "bar"},
-                {"type": "plist_edit", "id": "y", "action": "remove", "key": "Baz", "path": "Frameworks/F.framework/Info.plist"},
+                {
+                    "type": "plist_edit",
+                    "id": "y",
+                    "action": "remove",
+                    "key": "Baz",
+                    "path": "Frameworks/F.framework/Info.plist",
+                },
             ],
         }
     )

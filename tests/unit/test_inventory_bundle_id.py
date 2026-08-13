@@ -1,9 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
 from pathlib import Path
 
-from ipa_forge.bundle.models import AppBundle
 from ipa_forge.bundle.inventory import build_inventory
+from ipa_forge.bundle.models import AppBundle
 from ipa_forge.bundle.plist import write_plist
 
 

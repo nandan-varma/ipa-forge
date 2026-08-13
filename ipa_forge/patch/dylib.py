@@ -5,6 +5,7 @@ Assumes the dylib file is already present in the bundle (placed there by a
 separate resource_add operation, or shipped in the original app) -- this
 operation's only job is the Mach-O load-command edit itself.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

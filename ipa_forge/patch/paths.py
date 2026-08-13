@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Bundle-relative path resolution shared by patch operations that touch
 files inside the app bundle (resource_replace/add/remove, plist_edit)."""
+
 from __future__ import annotations
 
 from pathlib import Path

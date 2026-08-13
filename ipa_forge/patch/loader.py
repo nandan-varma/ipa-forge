@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Loads patch-definition YAML/JSON files and builds concrete PatchOperation instances."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -22,9 +23,18 @@ from ipa_forge.patch.schema import (
 )
 
 
+class PatchLoadError(Exception):
+    """Raised when the patch-definition file cannot be read or parsed as YAML."""
+
+
 def load_patch_definition(path: Path) -> PatchDefinition:
-    with open(path) as f:
-        raw = yaml.safe_load(f)
+    try:
+        with open(path) as f:
+            raw = yaml.safe_load(f)
+    except OSError as e:
+        raise PatchLoadError(f"cannot read patch definition '{path}': {e}") from e
+    except yaml.YAMLError as e:
+        raise PatchLoadError(f"patch definition '{path}' is not valid YAML: {e}") from e
     return PatchDefinition.model_validate(raw)
 
 
@@ -59,9 +69,8 @@ def build_operations(definition: PatchDefinition) -> list[PatchOperation]:
                 )
             )
         elif isinstance(spec, PlistEditSpec):
-            ops.append(
-                PlistEditOp(op_id=spec.id, action=spec.action, key=spec.key, value=spec.value, path=spec.path)
-            )
+            ops.append(PlistEditOp(op_id=spec.id, action=spec.action, key=spec.key, value=spec.value, path=spec.path))
         else:
-            raise ValueError(f"unknown patch spec type: {spec!r}")
+            # Unreachable via the pydantic discriminated union in patch/schema.py
+            raise TypeError(f"unknown patch spec type: {spec!r}")
     return ops

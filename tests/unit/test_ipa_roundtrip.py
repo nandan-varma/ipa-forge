@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,7 +16,7 @@ def test_extract_repack_roundtrip_is_byte_identical(tmp_path: Path, fake_ipa: Pa
     repacked = repack_ipa(extract_dir_1, tmp_path / "repacked.ipa")
 
     extract_dir_2 = tmp_path / "extract2"
-    app_path_2 = extract_ipa(repacked, extract_dir_2)
+    extract_ipa(repacked, extract_dir_2)
 
     files_1 = sorted(p.relative_to(extract_dir_1) for p in extract_dir_1.rglob("*") if p.is_file())
     files_2 = sorted(p.relative_to(extract_dir_2) for p in extract_dir_2.rglob("*") if p.is_file())

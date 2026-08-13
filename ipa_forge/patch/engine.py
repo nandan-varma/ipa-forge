@@ -8,6 +8,7 @@ binary patches depend on, so injection must never run before binary
 patching). Resource and plist edits share a rank: neither touches Mach-O
 layout, so their relative order carries no correctness constraint.
 """
+
 from __future__ import annotations
 
 from ipa_forge.patch.base import PatchContext, PatchOperation, PatchResult

@@ -1,7 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """GUI smoke test via FastAPI's TestClient -- exercises the real pipeline
 (real codesign signing) through the HTTP layer. Browser-level rendering is
 not automated in this sandbox; see docs/altstore_device_testing.md for what
 is manual by necessity."""
+
 from __future__ import annotations
 
 from pathlib import Path

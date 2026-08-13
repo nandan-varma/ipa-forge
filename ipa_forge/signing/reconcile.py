@@ -6,6 +6,7 @@ profile's allowlist; the profile may authorize more than the app claims, but
 never the reverse. This module enforces that as an intersection, never a
 blind copy of either side.
 """
+
 from __future__ import annotations
 
 from typing import Any

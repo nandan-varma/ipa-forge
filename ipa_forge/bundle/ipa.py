@@ -6,29 +6,34 @@ module because Apple bundles routinely contain symlinks (e.g.
 `Foo.framework/Foo -> Versions/Current/Foo`), and `zip -y` / `unzip` round-trip
 those correctly while `zipfile` does not preserve them by default.
 """
+
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
 
-from ipa_forge.bundle.models import AppBundle
 from ipa_forge.bundle.inventory import build_inventory
+from ipa_forge.bundle.models import AppBundle
 from ipa_forge.bundle.plist import read_plist
-from ipa_forge.validators.ipa_validator import validate_ipa_structure
 
 
 def extract_ipa(ipa_path: Path, dest_dir: Path) -> Path:
-    """Extract ipa_path into dest_dir. Returns the path to Payload/<App>.app."""
-    app_dir_name = validate_ipa_structure(ipa_path)
+    """Extract ipa_path into dest_dir. Returns the path to Payload/<App>.app.
+
+    Structural validation of the archive itself is a separate stage
+    (validators/ipa_validator.py) run by the pipeline before this is called;
+    here we only require the extraction to yield exactly one Payload/*.app.
+    """
     dest_dir.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         ["unzip", "-qq", "-o", str(ipa_path), "-d", str(dest_dir)],
         check=True,
     )
-    app_path = dest_dir / "Payload" / app_dir_name
-    if not app_path.is_dir():
-        raise FileNotFoundError(f"Expected extracted app bundle at {app_path}")
-    return app_path
+    payload_dir = dest_dir / "Payload"
+    apps = [p for p in payload_dir.iterdir() if p.is_dir() and p.name.endswith(".app")]
+    if len(apps) != 1:
+        raise FileNotFoundError(f"expected exactly one Payload/*.app bundle under {payload_dir}, found {len(apps)}")
+    return apps[0]
 
 
 def repack_ipa(extraction_root: Path, output_path: Path) -> Path:

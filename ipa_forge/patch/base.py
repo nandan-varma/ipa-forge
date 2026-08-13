@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Shared patch-operation contract. The core engine only knows this interface --
 never a specific app, bundle id, or byte pattern."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

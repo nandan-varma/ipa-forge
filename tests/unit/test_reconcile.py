@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
 from ipa_forge.signing.reconcile import reconcile_entitlements

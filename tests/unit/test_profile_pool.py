@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
 import datetime
@@ -15,7 +16,7 @@ def _profile(bundle_id_or_wildcard: str, team_id: str = "TEAM1") -> Provisioning
         name=f"profile for {bundle_id_or_wildcard}",
         team_identifier=team_id,
         application_identifier=app_id,
-        expiration_date=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7),
+        expiration_date=datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=7),
         entitlements={"application-identifier": app_id},
     )
 
