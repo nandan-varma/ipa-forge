@@ -50,6 +50,35 @@ def analyze_macho(path: Path) -> MachOAnalysis:
         return _analyze_thin(bin_path, original=path)
 
 
+def analyze_bundle(bundle) -> MachOAnalysis:
+    """Analyze every executable in an AppBundle (main binary + embedded
+    frameworks/dylibs) and merge the results. Hook targets routinely live in
+    frameworks (Spotify's SPTDataLoaderService is in SpotifyShared.framework),
+    so verification must cover all of them, not just the main executable."""
+    targets = [bundle.root / bundle.main_executable_name]
+    for target in bundle.executables:
+        if target.kind == "framework":
+            targets.append(bundle.extraction_root / target.bundle_relative)
+
+    merged: MachOAnalysis | None = None
+    for target in targets:
+        if not target.is_file():
+            continue
+        try:
+            analysis = analyze_macho(target)
+        except Exception:
+            continue  # not a Mach-O or unreadable; skip
+        if merged is None:
+            merged = analysis
+        else:
+            merged.classes.update(analysis.classes)
+            merged.classnames |= analysis.classnames
+            merged.selectors |= analysis.selectors
+    if merged is None:
+        raise ValueError("no analyzable Mach-O found in the app bundle")
+    return merged
+
+
 def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
     otool = _run("otool", "-l", str(bin_path))
 
@@ -108,7 +137,25 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
             return "plain", raw
         if raw & (1 << 63):
             return "bind", None
-        return "rebase", (raw & 0xFFFFFFFFF) + ib
+        return "rebase", raw & 0xFFFFFFFFF
+
+    def resolve_ptr(raw: int | None) -> int | None:
+        """Resolve a (possibly chained) pointer to a vm address.
+
+        Two addressing modes occur in the wild:
+          - PIE executables: chained rebase targets are offsets from the image
+            base (ib) -- add ib.
+          - Mergeable/zero-based dylibs: targets are already absolute vms.
+        Try absolute first (cheap section lookup), then offset-from-base.
+        """
+        kind, val = chained(raw)
+        if kind == "plain":
+            return raw
+        if val is None:
+            return None
+        if vm2off(val) is not None:
+            return val
+        return val + ib
 
     classnames: set[str] = set()
     if "__objc_classname" in sections:
@@ -118,24 +165,28 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
     # ---- pass 1: class table (name, superclass, ro ptr, metaclass ptr) ----
     ro_by_name: dict[str, int] = {}
     meta_by_name: dict[str, int] = {}
+
+    def class_ptr(raw: int) -> int | None:
+        return resolve_ptr(raw)
+
     if "__objc_classlist" in sections:
         _a, sz, o = sections["__objc_classlist"]
         for i in range(sz // 8):
             raw = struct.unpack_from("<Q", data, o + i * 8)[0]
-            if raw >> 32 == 0 or raw & (1 << 63):
+            p = class_ptr(raw)
+            if p is None:
                 continue
-            p = (raw & 0xFFFFFFFFF) + ib
-            _dk, dp = chained(rd64(p + 32))
+            dp = resolve_ptr(rd64(p + 32))
             if not dp:
                 continue
-            _nk, np = chained(rd64(dp + 24))
+            np = resolve_ptr(rd64(dp + 24))
             if not np:
                 continue
             name = cstr(np)
             if not name:
                 continue
             ro_by_name[name] = dp
-            _ik, ip_ = chained(rd64(p))  # isa -> metaclass
+            ip_ = resolve_ptr(rd64(p))  # isa -> metaclass
             if ip_:
                 meta_by_name[name] = ip_
 
@@ -145,9 +196,9 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
         _a, sz, o = sections["__objc_classlist"]
         for i in range(sz // 8):
             raw = struct.unpack_from("<Q", data, o + i * 8)[0]
-            if raw >> 32 == 0 or raw & (1 << 63):
+            p = class_ptr(raw)
+            if p is None:
                 continue
-            p = (raw & 0xFFFFFFFFF) + ib
             _dk, dp = chained(rd64(p + 32))
             if not dp:
                 continue
@@ -157,15 +208,17 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
             name = cstr(np)
             if not name or name not in classes:
                 continue
-            sk, sp = chained(rd64(p + 8))
+            sp = resolve_ptr(rd64(p + 8))
             super_name: str | None = None
-            if sk == "rebase" and sp:
-                sdk, sdp = chained(rd64(sp + 32))
-                if sdk == "rebase" and sdp:
-                    snk, snp = chained(rd64(sdp + 24))
-                    if snk == "rebase" and snp:
+            if sp:
+                sdp = resolve_ptr(rd64(sp + 32))
+                if sdp:
+                    snp = resolve_ptr(rd64(sdp + 24))
+                    if snp:
                         super_name = cstr(snp)
-            elif sk == "bind":
+            else:
+                # a NULL/absent superclass pointer means it binds to an external
+                # superclass (defined in another image)
                 super_name = "«external»"
             classes[name].super_name = super_name
 
@@ -173,7 +226,7 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
     def parse_methods(list_raw: int | None) -> set[str]:
         if not list_raw:
             return set()
-        _lk, lp = chained(list_raw)
+        lp = resolve_ptr(list_raw)
         if not lp:
             return set()
         eo = vm2off(lp)
@@ -193,11 +246,9 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
                 break
             if rel and entsize == 12:
                 rel_off = struct.unpack_from("<i", data, eo_i)[0]
-                _sk, sp = chained(rd64(e + rel_off))
-                sel = cstr(sp) if sp else None
+                sel = cstr(resolve_ptr(rd64(e + rel_off)))
             elif not rel:
-                ptr = rd64(e)
-                sel = cstr(ptr) if ptr else None
+                sel = cstr(resolve_ptr(rd64(e)))
             else:
                 continue
             if sel:
@@ -209,7 +260,7 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
         cls.inst = parse_methods(rd64(ro + 32))  # ro.baseMethods
         meta = meta_by_name.get(name)
         if meta:
-            _mdk, mdp = chained(rd64(meta + 32))
+            mdp = resolve_ptr(rd64(meta + 32))
             if mdp:
                 cls.cls = parse_methods(rd64(mdp + 32))  # metaclass ro.baseMethods
 
@@ -219,7 +270,7 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
         _a, sz, o = sections["__objc_selrefs"]
         for i in range(sz // 8):
             raw = struct.unpack_from("<Q", data, o + i * 8)[0]
-            _k, sp = chained(raw)
+            sp = resolve_ptr(raw)
             if sp:
                 sel_str = cstr(sp)
                 if sel_str:

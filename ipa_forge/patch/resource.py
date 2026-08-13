@@ -74,7 +74,7 @@ class ResourceAddOp:
             dest, src = self._resolve(ctx)
         except BundlePathError as e:
             return PatchResult(op_id=self.op_id, status="failed", message=str(e))
-        if not src.is_file():
+        if not src.exists():
             return PatchResult(op_id=self.op_id, status="failed", message=f"source '{src}' does not exist")
         if dest.exists():
             return PatchResult(
@@ -90,8 +90,12 @@ class ResourceAddOp:
             return dry
         dest, src = self._resolve(ctx)
         try:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(src.read_bytes())
+            if src.is_dir():
+                # Whole-directory staging (e.g. a .framework): copy recursively.
+                shutil.copytree(src, dest, symlinks=True)
+            else:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(src.read_bytes())
         except OSError as e:
             return PatchResult(op_id=self.op_id, status="failed", message=f"failed to add '{dest}': {e}")
         return PatchResult(

@@ -1,0 +1,107 @@
+# Spotify 9.1.72 — EeveeSpotify premium unlock + ad block + QOL, injected via
+# ipa-forge. The tweak is built from the EeveeSpotify source (see README +
+# build.sh); this definition strips the AltStore-incompatible extensions and
+# wires the dylibs + SwiftProtobuf framework into the app.
+#
+# AltStore appends the Team ID to the main bundle id at install
+# (com.spotify.client.<teamID>), so the embedded extensions/watch app (whose
+# ids keep com.spotify.client.*) break install with IXErrorDomain Code=2 —
+# same as the YouTube set. Stripping PlugIns/ + Watch/ is required.
+target:
+  bundle_id: "com.spotify.client"
+  version:
+    exact: "9.1.72"
+
+patches:
+  - id: "remove-plugins"
+    type: resource_remove
+    path: "PlugIns"
+
+  - id: "remove-watch"
+    type: resource_remove
+    path: "Watch"
+
+  - id: "stage-eevee-dylib"
+    type: resource_add
+    path: "Frameworks/EeveeSpotify.dylib"
+    source: "build/EeveeSpotify.dylib"
+
+  - id: "stage-shim-dylib"
+    type: resource_add
+    path: "Frameworks/zxPluginsInject.dylib"
+    source: "build/zxPluginsInject.dylib"
+
+  - id: "stage-protobuf-framework"
+    type: resource_add
+    path: "Frameworks/EeveeSwiftProtobuf.framework"
+    source: "build/EeveeSwiftProtobuf.framework"
+
+  - id: "stage-eevee-bundle"
+    type: resource_add
+    path: "EeveeSpotify.bundle"
+    source: "build/EeveeSpotify.bundle"
+
+  - id: "link-eevee-dylib"
+    type: dylib_inject
+    executable: "Spotify"
+    install_name: "@rpath/EeveeSpotify.dylib"
+    load_command: "LC_LOAD_DYLIB"
+
+  - id: "link-shim-dylib"
+    type: dylib_inject
+    executable: "Spotify"
+    install_name: "@rpath/zxPluginsInject.dylib"
+    load_command: "LC_LOAD_DYLIB"
+
+# Runtime hooks EeveeSpotify relies on, verified against the 9.1.72 binary
+# (main executable + SpotifyShared.framework) with `forge hooks verify`.
+# required = the feature dies silently if the app version drops it.
+hooks:
+  # premium unlock — bootstrap response interception (SPTDataLoaderService in
+  # SpotifyShared.framework; SPTCoreURLSessionDataDelegate is the 9.1.x fallback)
+  - class: "SPTDataLoaderService"
+    selector: "URLSession:dataTask:didReceiveData:"
+    required: true
+  - class: "SPTDataLoaderService"
+    selector: "URLSession:task:didCompleteWithError:"
+    required: true
+  - class: "SPTCoreURLSessionDataDelegate"
+    selector: "URLSession:dataTask:didReceiveData:"
+  - class: "SPTCoreURLSessionDataDelegate"
+    selector: "URLSession:task:didCompleteWithError:"
+  # session logout protection
+  - class: "SPTAuthSessionImplementation"
+    selector: "logout"
+    required: true
+  - class: "SPTAuthSessionImplementation"
+    selector: "destroy"
+    required: true
+  - class: "SPTAuthSessionImplementation"
+    selector: "logoutWithReason:"
+  - class: "SPTAuthSessionImplementation"
+    selector: "callSessionDidLogoutOnDelegateWithReason:"
+  - class: "SPTAuthSessionImplementation"
+    selector: "logWillLogoutEventWithLogoutReason:"
+  - class: "SPTAuthSessionImplementation"
+    selector: "tryReconnect:toAP:"
+  - class: "SPTAuthLegacyLoginControllerImplementation"
+    selector: "forgetStoredCredentials"
+    required: true
+  - class: "SPTAuthLegacyLoginControllerImplementation"
+    selector: "sessionDidLogout:withReason:"
+  - class: "SPTAuthLegacyLoginControllerImplementation"
+    selector: "destroySession"
+  - class: "SPTAuthLegacyLoginControllerImplementation"
+    selector: "invalidate"
+  - class: "ARTWebSocketTransport"
+    selector: "webSocket:didReceiveMessage:"
+    required: true
+  - class: "ARTSRWebSocket"
+    selector: "_handleFrameWithData:opCode:"
+  # ad blocking + liked-songs row (HUB JSON filter)
+  - class: "HUBViewModelBuilderImplementation"
+    selector: "addJSONDictionary:"
+    required: true
+  # network-level logout/ad re-delivery blocking
+  - class: "NSURLSessionTask"
+    selector: "resume"

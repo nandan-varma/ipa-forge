@@ -95,3 +95,30 @@ def test_resource_remove_directory_recursive(tmp_path: Path, fake_ipa: Path):
     result = op.apply(ctx)
     assert result.status == "applied"
     assert not subdir.exists()
+
+
+def test_resource_add_directory_recursive(tmp_path: Path, fake_ipa: Path):
+    source_dir = tmp_path / "sources"
+    framework = source_dir / "Foo.framework"
+    (framework / "Versions" / "A").mkdir(parents=True)
+    (framework / "Versions" / "A" / "Foo").write_bytes(b"\xcf\xfa\xed\xfe")
+    (framework / "Info.plist").write_text("plist")
+
+    ctx = _bundle_ctx(tmp_path, fake_ipa, source_dir)
+    op = ResourceAddOp(op_id="a1", path="Frameworks/Foo.framework", source="Foo.framework")
+
+    assert op.dry_run(ctx).status == "dry_run_ok"
+    result = op.apply(ctx)
+    assert result.status == "applied"
+    staged = ctx.bundle.root / "Frameworks" / "Foo.framework"
+    assert staged.is_dir()
+    assert (staged / "Versions" / "A" / "Foo").read_bytes() == b"\xcf\xfa\xed\xfe"
+    assert (staged / "Info.plist").read_text() == "plist"
+
+
+def test_resource_add_directory_fails_on_missing_source(tmp_path: Path, fake_ipa: Path):
+    source_dir = tmp_path / "sources"
+    source_dir.mkdir()
+    ctx = _bundle_ctx(tmp_path, fake_ipa, source_dir)
+    op = ResourceAddOp(op_id="a2", path="Frameworks/Nope.framework", source="Nope.framework")
+    assert op.dry_run(ctx).status == "failed"

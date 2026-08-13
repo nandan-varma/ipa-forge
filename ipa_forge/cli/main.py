@@ -10,7 +10,7 @@ import typer
 
 from ipa_forge.altstore.source import build_app_entry, write_source_json
 from ipa_forge.bundle.ipa import extract_ipa, load_bundle
-from ipa_forge.hooks.binary import analyze_macho
+from ipa_forge.hooks.binary import analyze_bundle
 from ipa_forge.hooks.verify import HookDecl, verify_hooks
 from ipa_forge.patch.loader import PatchLoadError, load_patch_definition
 from ipa_forge.pipeline import PipelineError, run_pipeline
@@ -189,8 +189,7 @@ def hooks_verify(
         if not decls:
             typer.echo("No hooks declared in this definition (add a `hooks:` section).")
             raise typer.Exit(code=0)
-        main_exec = bundle.root / bundle.main_executable_name
-        analysis = analyze_macho(main_exec)
+        analysis = analyze_bundle(bundle)
         results = verify_hooks(analysis, decls)
         for r in results:
             if required_only and r.ok:
@@ -220,7 +219,7 @@ def hooks_extract(
     with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
         app_path = _validated_extract(ipa, Path(tmp))
         bundle = load_bundle(app_path)
-        analysis = analyze_macho(bundle.root / bundle.main_executable_name)
+        analysis = analyze_bundle(bundle)
     if class_name:
         cls = analysis.classes.get(class_name)
         if not cls:
@@ -280,7 +279,7 @@ def hooks_audit(
     with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
         app_path = _validated_extract(ipa, Path(tmp))
         bundle = load_bundle(app_path)
-        analysis = analyze_macho(bundle.root / bundle.main_executable_name)
+        analysis = analyze_bundle(bundle)
     results = verify_hooks(analysis, decls)
     from collections import Counter
 

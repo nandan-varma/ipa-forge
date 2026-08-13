@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ipa_forge.bundle.ipa import extract_ipa, load_bundle, repack_ipa
-from ipa_forge.hooks.binary import analyze_macho
+from ipa_forge.hooks.binary import analyze_bundle
 from ipa_forge.hooks.verify import HookDecl, verify_hooks
 from ipa_forge.hooks.verify import failing as hook_failures
 from ipa_forge.manifest import Manifest, ProfileManifestEntry, sha256_of
@@ -59,8 +59,7 @@ def _verify_definition_hooks(bundle, definition) -> list:
     decls = _hook_decls(definition)
     if not decls:
         return []
-    main_exec = bundle.root / bundle.main_executable_name
-    analysis = analyze_macho(main_exec)
+    analysis = analyze_bundle(bundle)
     results = verify_hooks(analysis, decls)
     bad_required = [r for r in hook_failures(results) if r.required]
     if bad_required:
