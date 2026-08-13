@@ -4,6 +4,8 @@
 Single-user, local-only tool -- request state lives in module-level dicts,
 which is intentionally not safe for concurrent multi-user deployment (this
 is meant to run on localhost next to AltServer, not as a hosted service).
+The page itself is a self-contained static template (gui/index.html) with an
+inline fetch flow -- no build step, no external assets, works offline.
 """
 
 from __future__ import annotations
@@ -12,6 +14,8 @@ import json
 import shutil
 import tempfile
 import uuid
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _installed_version
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, UploadFile
@@ -23,91 +27,21 @@ from ipa_forge.pipeline import PipelineError, run_pipeline
 app = FastAPI(title="ipa-forge")
 
 _WORK_DIR = Path(tempfile.mkdtemp(prefix="ipa_forge_gui_"))
-_outputs: dict[str, Path] = {}
+# token -> (path on disk, display filename for the download response)
+_outputs: dict[str, tuple[Path, str]] = {}
 _OUTPUTS_MAX = 20
 
-_FORM_HTML = """<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>ipa-forge</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
-  label { font-weight: 600; }
-  #result { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 6px; white-space: pre-wrap; }
-  #result.ok { background: #e6f4ea; border: 1px solid #34a853; }
-  #result.error { background: #fce8e6; border: 1px solid #d93025; }
-  #result.pending { background: #f1f3f4; border: 1px solid #9aa0a6; }
-  #result a { font-weight: 600; }
-  button[disabled] { opacity: 0.6; }
-</style>
-</head>
-<body>
-<h1>ipa-forge</h1>
-<p>Patch and re-sign an IPA for AltStore Classic sideloading.</p>
-<form id="patch-form" action="/patch" method="post" enctype="multipart/form-data">
-  <p><label>IPA</label><br>
-     <input type="file" name="ipa" required></p>
-  <p><label>Patch definition</label><br>
-     A single .yaml/.yml/.json file, or a .zip of the patch directory
-     (definition + assets/) if it uses resource_replace/resource_add.<br>
-     <input type="file" name="patches" required></p>
-  <p><label>Provisioning profile(s) (.mobileprovision)</label><br>
-     Select more than one to provide a separate profile per app
-     extension/watch app, matched by bundle id (not needed for dry run).<br>
-     <input type="file" name="profile" multiple></p>
-  <p><label>Signing identity</label><br>
-     SHA-1 or name substring, as shown by
-     <code>security find-identity -v -p codesigning</code> (not needed for dry run).<br>
-     <input type="text" name="identity"></p>
-  <p><label><input type="checkbox" name="dry_run" value="1"> Dry run only (validate patches, no signing)</label></p>
-  <p><button id="submit-btn" type="submit">Patch</button></p>
-</form>
-<div id="result" hidden></div>
-<script>
-  const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
-  const form = document.getElementById("patch-form");
-  const result = document.getElementById("result");
-  const btn = document.getElementById("submit-btn");
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    btn.disabled = true;
-    result.hidden = false;
-    result.className = "pending";
-    result.textContent = "Processing…";
-    try {
-      const res = await fetch("/patch", { method: "POST", body: new FormData(form) });
-      const body = await res.json();
-      if (!res.ok) {
-        result.className = "error";
-        result.textContent = "Error: " + (body.error || ("HTTP " + res.status));
-        return;
-      }
-      const m = body.manifest || {};
-      const ops = (m.patches_applied || [])
-        .map((p) => escapeHtml(p.id) + ": " + escapeHtml(p.status))
-        .join("\n");
-      const title = body.download_url ? "Patched" : "Dry run OK";
-      result.className = "ok";
-      result.innerHTML =
-        "<strong>" + title + "</strong>\n" +
-        escapeHtml(m.bundle_id || "") + " v" + escapeHtml(m.version || "") +
-        (ops ? "\n" + ops : "") +
-        (body.download_url
-          ? "\n<a href=\"" + body.download_url + "\">Download patched IPA</a>"
-          : "");
-    } catch (err) {
-      result.className = "error";
-      result.textContent = "Request failed: " + err;
-    } finally {
-      btn.disabled = false;
-    }
-  });
-</script>
-</body>
-</html>
-"""
+
+def _package_version() -> str:
+    try:
+        return _installed_version("ipa-forge")
+    except PackageNotFoundError:  # not installed (e.g. run from a source checkout)
+        return "0.1.0"
+
+
+_FORM_HTML = (
+    (Path(__file__).parent / "index.html").read_text(encoding="utf-8").replace("__VERSION__", _package_version())
+)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -171,7 +105,7 @@ async def patch(
             token = uuid.uuid4().hex
             final_path = _WORK_DIR / f"{token}.ipa"
             result.output_path.replace(final_path)
-            _outputs[token] = final_path
+            _outputs[token] = (final_path, f"patched_{ipa_path.name}")
             _evict_outputs()
             response["download_url"] = f"/download/{token}"
         return JSONResponse(response)
@@ -183,13 +117,16 @@ def _evict_outputs() -> None:
     """Drop the oldest completed outputs once the cap is exceeded."""
     while len(_outputs) > _OUTPUTS_MAX:
         token = next(iter(_outputs))
-        path = _outputs.pop(token)
+        path, _ = _outputs.pop(token)
         path.unlink(missing_ok=True)
 
 
 @app.get("/download/{token}")
 def download(token: str):
-    path = _outputs.get(token)
-    if path is None or not path.is_file():
+    entry = _outputs.get(token)
+    if entry is None:
         return JSONResponse(status_code=404, content={"error": "not found"})
-    return FileResponse(path, filename=path.name)
+    path, display_name = entry
+    if not path.is_file():
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    return FileResponse(path, filename=display_name)
