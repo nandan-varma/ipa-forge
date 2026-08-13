@@ -34,8 +34,7 @@ implementation would need to:
   already written against the `SigningProvider` interface, not against
   `LocalIdentityProvider` directly, so no other code should need to change.
 - Handle the account-level constraints AltStore Classic itself enforces
-  (7-day expiry, active-app count, App-ID-per-week limits) as *its own*
-  concern -- `ipa_forge`'s job stops at producing a correctly signed IPA; see
+  (7-day expiry, active-app count, App-ID-per-week limits) -- see
   `docs/architecture.md`'s AltStore flow diagram.
 
 ## Linux-only analysis mode

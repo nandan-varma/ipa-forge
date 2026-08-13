@@ -7,11 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A generic, data-driven iOS IPA patcher: extract a user-supplied `.ipa`, apply
 version-aware patches from external YAML (binary byte patches, resource
 replace/add/remove, dylib injection), and re-sign the result into a
-standard-structure `.ipa` that AltStore Classic can install/refresh. Never
-embeds, ships, or downloads third-party app content — see the "Known
-limitations" section of `README.md` for the full scope boundary (AltStore
-Classic only, not PAL; 7-day free-account expiry; entitlement reconciliation
-limits; etc).
+standard-structure `.ipa` that AltStore Classic can install/refresh.
 
 Full design rationale lives in `docs/architecture.md` (component map, the
 17-stage pipeline, two real bugs found empirically during implementation)
@@ -117,8 +113,8 @@ The boundary is which modules a code path imports, not a runtime OS check.
 
 ### Test fixture
 
-`fixtures/synthetic_app.ipa` is a real, from-scratch arm64 iOS Mach-O app
-(no third-party content) — main executable + linked framework + an
+`fixtures/synthetic_app.ipa` is a real, from-scratch arm64 iOS Mach-O app —
+main executable + linked framework + an
 *unlinked* standalone dylib (the dylib-injection target) + a resource file —
 built via `scripts/rebuild_fixture.sh` directly against the iOS SDK rather
 than a hand-authored Xcode project. It's checked in as a binary artifact;

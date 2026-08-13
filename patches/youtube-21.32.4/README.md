@@ -17,7 +17,7 @@ Premium gating is server-side (the app's `Info.plist` already declares
 `UIBackgroundModes: audio`), and ad-suppression requires version-specific
 Objective-C swizzling hooks — that's reverse-engineering work (see
 `youtube-dylib-inject.yaml` for where a hook dylib would plug in), not a YAML
-patch. Such patches would also violate YouTube's Terms of Service.
+patch.
 
 ## Try it
 
@@ -39,5 +39,5 @@ profile) so each embeds a matching profile.
 
 - `youtube-21.32.4.yaml` — the active patch set above.
 - `youtube-dylib-inject.yaml` — dylib-injection template (read its header).
-- `assets/90s-video.mp4` — generated replacement resource (no third-party
-  content; produced locally with ffmpeg).
+- `assets/90s-video.mp4` — generated replacement resource (produced locally
+  with ffmpeg).

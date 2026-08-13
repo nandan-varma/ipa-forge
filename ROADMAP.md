@@ -64,8 +64,7 @@ Run `pytest tests/` to confirm before continuing.
 
 ### 4. Update docs to reflect closed gaps; security review pass — DONE
 
-- `README.md` "Known limitations": stale GUI single-file-upload bullet
-  removed; `plist_edit` added to the patch-definition example.
+- `README.md`: `plist_edit` added to the patch-definition example.
 - `docs/extensibility.md`: "Known v1 scope limits" replaced with a
   "Shipped v1 additions" section covering all three closed gaps.
 - `CLAUDE.md`: dependency-direction wording corrected (cli also uses

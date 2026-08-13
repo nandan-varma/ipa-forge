@@ -137,11 +137,6 @@ since it never goes through LIEF's write path at all.
  AltStore/AltServer background refresh (re-signs in place before expiry)
 ```
 
-ipa-forge's job ends at "produce a correctly signed, standard-structure
-IPA." Everything from AltStore's install step onward is AltStore's own
-responsibility and is *not* simulated or automated by this project -- see
-`docs/altstore_device_testing.md` for the manual checklist that covers it.
-
 ## SigningProvider abstraction
 
 ```python

@@ -10,7 +10,7 @@ real iPhone. This is a manual procedure to run by hand.
 
 - AltServer running on the same Mac/PC used to sign the IPA, paired with your
   iPhone over USB or Wi-Fi (see AltStore Classic's own setup docs).
-- A real (not synthetic) `.ipa` you have legitimate rights to modify, or the
+- A real (not synthetic) `.ipa` to patch, or the
   `fixtures/synthetic_app.ipa` fixture for a structural-only smoke test (it
   will install and its process will launch, but it has no UI).
 - A matching `.mobileprovision` and signing identity for your Apple ID's

@@ -9,9 +9,6 @@ byte patches, resource replacement, dylib injection), and re-sign the result
 into a standard-structure `.ipa` that AltStore Classic can install and
 refresh on a real iPhone.
 
-ipa-forge never embeds, ships, or downloads any third-party app content --
-you always supply your own IPA and your own signing credentials.
-
 ## Documentation
 
 | Doc | What it covers |
@@ -146,31 +143,6 @@ profiles (exact match, wildcard, per-extension), is documented in
 fails with an actionable error before touching your IPA if it doesn't
 qualify.
 
-## Known limitations
-
-- **AltStore Classic only**, not AltStore PAL (which requires Apple
-  notarization and a different distribution format).
-- **Free Apple ID sideloads expire after 7 days** and are subject to
-  AltStore's current limits (≤3 active sideloaded apps, ≤10 App IDs per
-  rolling 7-day window) -- AltServer's background refresh re-signs before
-  expiry, but these are Apple/AltStore platform constraints, not something
-  ipa-forge can change or predict.
-- **Paid developer accounts** are still governed by whatever Apple's current
-  provisioning rules are at the time you sign -- this project doesn't
-  hard-code a signing-lifetime constant.
-- **Some entitlements cannot survive re-signing**: only entitlements both
-  claimed by the original app *and* authorized by your supplied provisioning
-  profile survive reconciliation (see `docs/architecture.md`).
-- **Apps whose functionality depends on the original signing identity**
-  (associated domains, push entitlements tied to the original team, App
-  Store receipt validation, etc.) may not work correctly after re-signing,
-  regardless of how correct the signature itself is.
-- **Dylib injection is more fragile than resource replacement** -- treat it
-  as an advanced operation; see `machO/injector.py`'s explicit
-  INJECTED/INJECTION_SKIPPED/INJECTION_UNSUPPORTED/INJECTION_FAILED statuses.
-- **You must have legitimate rights** to both the IPA you're patching and
-  the signing credentials you use.
-
 ## Testing
 
 ```bash
@@ -178,9 +150,9 @@ pytest tests/                    # everything, including real codesign signing
 pytest tests/ -m "not macos"     # skip real-signing tests (e.g. on Linux)
 ```
 
-`fixtures/synthetic_app.ipa` is a real, from-scratch iOS app (no
-third-party content) built via `scripts/rebuild_fixture.sh` against the iOS
-SDK -- a main executable, a linked framework, an unlinked standalone dylib
+`fixtures/synthetic_app.ipa` is a real, from-scratch iOS app built via
+`scripts/rebuild_fixture.sh` against the iOS SDK -- a main executable, a
+linked framework, an unlinked standalone dylib
 (the dylib-injection target), and a resource file. It's checked in as a
 binary artifact; re-run the script only if you need to change its shape.
 
