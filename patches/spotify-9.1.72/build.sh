@@ -32,7 +32,38 @@ BUNDLE="$(find /tmp/eevee_deb -name 'EeveeSpotify.bundle' -maxdepth 6 | head -1)
 [ -n "$BUNDLE" ] && cp -R "$BUNDLE" "$OUT/EeveeSpotify.bundle"
 
 echo "==> 3/3 zxPluginsInject"
-(cd "$SRC/modules/zxPluginsInject" && make package FINALPACKAGE=1 >/dev/null)
+ZXDIR="$SRC/modules/zxPluginsInject"
+# the module ships without theos packaging metadata; create it if missing
+if [ ! -f "$ZXDIR/zxPluginsInject.plist" ]; then
+    cat > "$ZXDIR/zxPluginsInject.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Filter</key>
+    <dict>
+        <key>Bundles</key>
+        <array>
+            <string>com.spotify.client</string>
+        </array>
+    </dict>
+</dict>
+</plist>
+PLIST
+fi
+if [ ! -f "$ZXDIR/control" ]; then
+    cat > "$ZXDIR/control" <<'CTRL'
+Package: com.eevee.zxpluginsinject
+Name: zxPluginsInject
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Sideload compat shim (keychain/group-container bridge) for Spotify
+Maintainer: Eevee
+Author: Eevee
+Section: Tweaks
+CTRL
+fi
+(cd "$ZXDIR" && make package FINALPACKAGE=1 >/dev/null)
 ZDEB="$(ls -t "$SRC/modules/zxPluginsInject"/packages/*.deb 2>/dev/null | head -1)"
 [ -n "$ZDEB" ] || { echo "no zxPluginsInject .deb produced"; exit 1; }
 rm -rf /tmp/zx_deb && mkdir -p /tmp/zx_deb && dpkg-deb -x "$ZDEB" /tmp/zx_deb
