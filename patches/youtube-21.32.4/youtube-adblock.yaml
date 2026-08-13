@@ -1,0 +1,31 @@
+# YouTube 21.32.4 — player ad removal via from-scratch hook dylib.
+#
+# libYTHook.dylib is built from dylib/libYTHook.m (see dylib/build.sh) and
+# swizzles, at load time via a plain ObjC-runtime constructor:
+#   - YTAdBreakResponseReceivedOpportunityAdapterV2
+#       didReceiveAdBreakResponse:fromAdBreakSlot:  -> response dropped
+#   - YTAdBreakRendererAdapter createAds            -> returns empty array
+# Hook targets were verified present in the 21.32.4 binary by static
+# analysis (class/method walk of __objc_classlist/__objc_methlist).
+#
+# No ads are scheduled; the ad-break timeline still resolves (empty), so
+# content playback is not left waiting on a missing callback.
+#
+# Build:   dylib/build.sh
+# Dry run: forge patch --ipa <youtube-21.32.4.ipa> --patches this-file --dry-run
+target:
+  bundle_id: "com.google.ios.youtube"
+  version:
+    exact: "21.32.4"
+
+patches:
+  - id: "stage-hook-dylib"
+    type: resource_add
+    path: "Frameworks/libYTHook.dylib"
+    source: "assets/libYTHook.dylib"
+
+  - id: "link-hook-dylib"
+    type: dylib_inject
+    executable: "YouTube"
+    install_name: "@rpath/libYTHook.dylib"
+    load_command: "LC_LOAD_DYLIB"

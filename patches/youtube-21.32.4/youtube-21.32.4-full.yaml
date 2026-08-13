@@ -1,0 +1,35 @@
+# YouTube 21.32.4 — complete patch set: cosmetic + player ad removal.
+#
+# Combines the safe resource/plist patches with the from-scratch ad-removal
+# hook dylib (see youtube-adblock.yaml and dylib/ for details).
+#
+# Build the dylib first if assets/libYTHook.dylib is missing:
+#   dylib/build.sh
+target:
+  bundle_id: "com.google.ios.youtube"
+  version:
+    exact: "21.32.4"
+
+patches:
+  - id: "rename-display-name"
+    type: plist_edit
+    action: "set"
+    key: "CFBundleDisplayName"
+    value: "YouTube (patched)"
+    path: "Info.plist"
+
+  - id: "replace-90s-preview-video"
+    type: resource_replace
+    path: "90s-video.mp4"
+    source: "assets/90s-video.mp4"
+
+  - id: "stage-hook-dylib"
+    type: resource_add
+    path: "Frameworks/libYTHook.dylib"
+    source: "assets/libYTHook.dylib"
+
+  - id: "link-hook-dylib"
+    type: dylib_inject
+    executable: "YouTube"
+    install_name: "@rpath/libYTHook.dylib"
+    load_command: "LC_LOAD_DYLIB"
