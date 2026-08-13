@@ -1,12 +1,28 @@
-# Spotify 9.1.72 — EeveeSpotify premium unlock + ad block + QOL, injected via
-# ipa-forge. The tweak is built from the EeveeSpotify source (see README +
-# build.sh); this definition strips the AltStore-incompatible extensions and
-# wires the dylibs + SwiftProtobuf framework into the app.
+# Spotify 9.1.72 — essential mod via a from-scratch plain-ObjC dylib.
+#
+# No Swift, no substrate, no third-party tweak binary: SpotifyHook.dylib is
+# built from dylib/*.m (see dylib/build.sh) and loaded via LC_LOAD_DYLIB —
+# the same pattern as the YouTube set, which cannot crash at launch the way a
+# Swift/Orion dylib loaded this early does.
+#
+# Essential features (in priority order):
+#   1. Sideload shim   — keychain access-group rebind, app-group container,
+#                        CloudKit neuter (SideloadFix.m). Without it the
+#                        re-signed app can't persist sign-in.
+#   2. Session protect — block forced logout (SPTAuthSessionImplementation /
+#                        SPTAuthLegacyLoginControllerImplementation) and the
+#                        network calls that drive it (SessionProtection.m).
+#   3. Premium unlock  — intercept the bootstrap + /v1/customize responses and
+#                        rewrite the UcsResponse protobuf: account attributes
+#                        -> premium (catalogue/type/player-license/on-demand/
+#                        shuffle-eligible/offline/high-bitrate/...), assigned
+#                        feature values -> ads off + capping removed. Also
+#                        answers the DAC/account-validate/trials endpoints
+#                        with canned responses (PremiumPatch.m + PBProto.m).
 #
 # AltStore appends the Team ID to the main bundle id at install
-# (com.spotify.client.<teamID>), so the embedded extensions/watch app (whose
-# ids keep com.spotify.client.*) break install with IXErrorDomain Code=2 —
-# same as the YouTube set. Stripping PlugIns/ + Watch/ is required.
+# (com.spotify.client.<teamID>), breaking the embedded extension/watch ids
+# (IXErrorDomain Code=2) — stripping PlugIns/ + Watch/ is required.
 target:
   bundle_id: "com.spotify.client"
   version:
@@ -21,44 +37,22 @@ patches:
     type: resource_remove
     path: "Watch"
 
-  - id: "stage-eevee-dylib"
+  - id: "stage-hook-dylib"
     type: resource_add
-    path: "Frameworks/EeveeSpotify.dylib"
-    source: "build/EeveeSpotify.dylib"
+    path: "Frameworks/SpotifyHook.dylib"
+    source: "build/SpotifyHook.dylib"
 
-  - id: "stage-shim-dylib"
-    type: resource_add
-    path: "Frameworks/zxPluginsInject.dylib"
-    source: "build/zxPluginsInject.dylib"
-
-  - id: "stage-protobuf-framework"
-    type: resource_add
-    path: "Frameworks/EeveeSwiftProtobuf.framework"
-    source: "build/EeveeSwiftProtobuf.framework"
-
-  - id: "stage-eevee-bundle"
-    type: resource_add
-    path: "EeveeSpotify.bundle"
-    source: "build/EeveeSpotify.bundle"
-
-  - id: "link-eevee-dylib"
+  - id: "link-hook-dylib"
     type: dylib_inject
     executable: "Spotify"
-    install_name: "@rpath/EeveeSpotify.dylib"
+    install_name: "@rpath/SpotifyHook.dylib"
     load_command: "LC_LOAD_DYLIB"
 
-  - id: "link-shim-dylib"
-    type: dylib_inject
-    executable: "Spotify"
-    install_name: "@rpath/zxPluginsInject.dylib"
-    load_command: "LC_LOAD_DYLIB"
-
-# Runtime hooks EeveeSpotify relies on, verified against the 9.1.72 binary
-# (main executable + SpotifyShared.framework) with `forge hooks verify`.
+# Runtime hooks SpotifyHook.dylib relies on, verified against the 9.1.72
+# binary (main executable + SpotifyShared.framework) with `forge hooks verify`.
 # required = the feature dies silently if the app version drops it.
 hooks:
-  # premium unlock — bootstrap response interception (SPTDataLoaderService in
-  # SpotifyShared.framework; SPTCoreURLSessionDataDelegate is the 9.1.x fallback)
+  # premium unlock — bootstrap/customize response interception
   - class: "SPTDataLoaderService"
     selector: "URLSession:dataTask:didReceiveData:"
     required: true
@@ -82,8 +76,6 @@ hooks:
     selector: "callSessionDidLogoutOnDelegateWithReason:"
   - class: "SPTAuthSessionImplementation"
     selector: "logWillLogoutEventWithLogoutReason:"
-  - class: "SPTAuthSessionImplementation"
-    selector: "tryReconnect:toAP:"
   - class: "SPTAuthLegacyLoginControllerImplementation"
     selector: "forgetStoredCredentials"
     required: true
@@ -93,15 +85,11 @@ hooks:
     selector: "destroySession"
   - class: "SPTAuthLegacyLoginControllerImplementation"
     selector: "invalidate"
-  - class: "ARTWebSocketTransport"
-    selector: "webSocket:didReceiveMessage:"
-    required: true
-  - class: "ARTSRWebSocket"
-    selector: "_handleFrameWithData:opCode:"
-  # ad blocking + liked-songs row (HUB JSON filter)
-  - class: "HUBViewModelBuilderImplementation"
-    selector: "addJSONDictionary:"
-    required: true
-  # network-level logout/ad re-delivery blocking
+  # network-level logout/ad re-fetch blocking
   - class: "NSURLSessionTask"
     selector: "resume"
+    required: true
+  # sideload shim (defensive: only fires if the app queries app-group containers)
+  - class: "NSFileManager"
+    selector: "containerURLForSecurityApplicationGroupIdentifier:"
+    required: false
