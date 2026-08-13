@@ -71,3 +71,29 @@ def test_multiple_profiles_with_no_match_raises_actionable_error():
 
     with pytest.raises(ProfileError, match="com.example.app.NotificationService"):
         pool.select_for("com.example.app.NotificationService")
+
+
+def test_duplicate_exact_matches_raise_ambiguity_error():
+    """F5: two profiles authorizing the same bundle id must not silently first-win."""
+    pool = ProfilePool(
+        [
+            (_profile("com.example.app"), Path("a.mobileprovision")),
+            (_profile("com.example.app"), Path("b.mobileprovision")),
+        ]
+    )
+
+    with pytest.raises(ProfileError, match="multiple supplied profiles authorize 'com.example.app'"):
+        pool.select_for("com.example.app")
+
+
+def test_duplicate_wildcard_profiles_raise_ambiguity_error():
+    """F5: more than one wildcard profile is ambiguous too."""
+    pool = ProfilePool(
+        [
+            (_profile("*"), Path("a.mobileprovision")),
+            (_profile("*"), Path("b.mobileprovision")),
+        ]
+    )
+
+    with pytest.raises(ProfileError, match="multiple supplied wildcard profiles"):
+        pool.select_for("com.example.app")

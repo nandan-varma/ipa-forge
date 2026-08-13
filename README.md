@@ -41,9 +41,8 @@ forge inspect path/to/App.ipa
 # Validate structure without touching anything
 forge validate path/to/App.ipa
 
-# Dry-run a patch definition (no mutation, no signing)
+# Dry-run a patch definition (no mutation, no signing; --identity/--profile optional)
 forge patch --ipa path/to/App.ipa --patches patches.yaml \
-  --identity "Apple Development" --profile path/to/profile.mobileprovision \
   --output patched.ipa --dry-run
 
 # Patch and re-sign for real

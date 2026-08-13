@@ -87,10 +87,18 @@ class ProfilePool:
 
     def select_for(self, bundle_id: str) -> tuple[ProvisioningProfile, Path]:
         exact = [e for e in self.entries if e[0].bundle_id_pattern == bundle_id]
+        if len(exact) > 1:
+            # F5: silently picking the first of several equally-valid profiles
+            # would mask a configuration mistake -- fail loudly instead.
+            raise ProfileError(
+                f"multiple supplied profiles authorize '{bundle_id}': " + ", ".join(sorted(e[0].name for e in exact))
+            )
         if exact:
             return exact[0]
 
         wildcard = [e for e in self.entries if e[0].bundle_id_pattern == "*"]
+        if len(wildcard) > 1:
+            raise ProfileError("multiple supplied wildcard profiles: " + ", ".join(sorted(e[0].name for e in wildcard)))
         if wildcard:
             return wildcard[0]
 

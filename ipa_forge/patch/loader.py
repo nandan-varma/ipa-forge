@@ -6,6 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from pydantic import ValidationError
 
 from ipa_forge.patch.base import PatchOperation
 from ipa_forge.patch.binary import BinaryReplaceOp
@@ -24,7 +25,12 @@ from ipa_forge.patch.schema import (
 
 
 class PatchLoadError(Exception):
-    """Raised when the patch-definition file cannot be read or parsed as YAML."""
+    """Raised when the patch-definition file cannot be read, parsed as YAML, or validated."""
+
+
+def _validation_error_details(error: ValidationError) -> str:
+    """Compact single-line summary of a pydantic ValidationError."""
+    return "; ".join(f"{'.'.join(map(str, err['loc'])) or '<root>'}: {err['msg']}" for err in error.errors())
 
 
 def load_patch_definition(path: Path) -> PatchDefinition:
@@ -35,7 +41,13 @@ def load_patch_definition(path: Path) -> PatchDefinition:
         raise PatchLoadError(f"cannot read patch definition '{path}': {e}") from e
     except yaml.YAMLError as e:
         raise PatchLoadError(f"patch definition '{path}' is not valid YAML: {e}") from e
-    return PatchDefinition.model_validate(raw)
+    try:
+        return PatchDefinition.model_validate(raw)
+    except ValidationError as e:
+        # Surface schema violations as a single-line actionable error rather
+        # than letting pydantic's multi-line ValidationError escape as a
+        # traceback (F2).
+        raise PatchLoadError(f"patch definition '{path}' is invalid: {_validation_error_details(e)}") from e
 
 
 def build_operations(definition: PatchDefinition) -> list[PatchOperation]:

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import shutil
+import warnings
 from pathlib import Path
 
 from ipa_forge.bundle.models import AppBundle, MachOTarget
@@ -72,6 +73,15 @@ def sign_bundle(
         if target.kind in _PROFILE_BEARING_KINDS:
             if target.bundle_id:
                 profile, profile_path = profiles.select_for(target.bundle_id)
+                # F6: legacy single-profile mode uses the lone profile for
+                # every target even when it doesn't authorize this one -- warn
+                # so a mismatched extension doesn't silently ship uninstallable.
+                if len(profiles.entries) == 1 and profile.bundle_id_pattern not in ("*", target.bundle_id):
+                    warnings.warn(
+                        f"profile '{profile.name}' does not authorize '{target.bundle_id}' but will be "
+                        "embedded anyway (single-profile mode); supply a matching --profile for it",
+                        stacklevel=2,
+                    )
             else:
                 # This bundle's own Info.plist couldn't be read -- fall back
                 # to the main app's profile rather than leaving it unembedded.

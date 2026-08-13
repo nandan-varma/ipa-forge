@@ -93,4 +93,6 @@ PatchSpec = Annotated[
 
 class PatchDefinition(BaseModel):
     target: TargetSpec
-    patches: list[PatchSpec]
+    patches: list[PatchSpec] = Field(
+        min_length=1, description="At least one operation -- an empty definition is always a mistake."
+    )

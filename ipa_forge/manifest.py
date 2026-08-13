@@ -16,9 +16,12 @@ from ipa_forge.patch.base import PatchResult
 
 def sha256_of(path: Path) -> str:
     h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
+    try:
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+    except OSError as e:
+        raise OSError(f"cannot hash '{path}': {e}") from e
     return h.hexdigest()
 
 
@@ -68,6 +71,3 @@ class Manifest:
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=2, default=str)
-
-    def write(self, path: Path) -> None:
-        path.write_text(self.to_json())

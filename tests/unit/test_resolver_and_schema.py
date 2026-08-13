@@ -1,15 +1,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
 from ipa_forge.bundle.models import AppBundle
+from ipa_forge.patch.loader import PatchLoadError, load_patch_definition
 from ipa_forge.patch.resolver import resolve_definitions, target_matches
-from ipa_forge.patch.schema import PatchDefinition
+from ipa_forge.patch.schema import BinaryReplaceSpec, PatchDefinition
 
 
 def _bundle(bundle_id: str, version: str) -> AppBundle:
     return AppBundle(
-        root=None,  # not needed for resolver-only tests
-        extraction_root=None,
+        root=Path("unused.app"),  # resolver-only tests never touch the filesystem
+        extraction_root=Path("."),
         info_plist={},
         bundle_id=bundle_id,
         version=version,
@@ -74,5 +80,34 @@ def test_binary_replace_spec_defaults():
         }
     )
     spec = definition.patches[0]
+    assert isinstance(spec, BinaryReplaceSpec)
     assert spec.expected_matches == 1
     assert spec.arch is None
+
+
+def test_patch_definition_requires_at_least_one_operation():
+    with pytest.raises(ValidationError):
+        PatchDefinition.model_validate(
+            {"target": {"bundle_id": "com.example.test", "version": {"exact": "1.0.0"}}, "patches": []}
+        )
+
+
+def test_load_patch_definition_empty_file_raises_patch_load_error(tmp_path: Path):
+    """F2: schema violations surface as PatchLoadError, not raw ValidationError."""
+    empty = tmp_path / "empty.yaml"
+    empty.write_text("")
+    with pytest.raises(PatchLoadError, match="is invalid"):
+        load_patch_definition(empty)
+
+
+def test_load_patch_definition_wrong_shape_raises_patch_load_error(tmp_path: Path):
+    """F2: a YAML list instead of a mapping is a clean PatchLoadError too."""
+    bad = tmp_path / "list.yaml"
+    bad.write_text("- a\n- b\n")
+    with pytest.raises(PatchLoadError, match="is invalid"):
+        load_patch_definition(bad)
+
+
+def test_load_patch_definition_missing_file_raises_patch_load_error(tmp_path: Path):
+    with pytest.raises(PatchLoadError, match="cannot read"):
+        load_patch_definition(tmp_path / "nope.yaml")

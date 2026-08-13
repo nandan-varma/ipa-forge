@@ -54,13 +54,17 @@ def validate(ipa: Path = typer.Argument(..., exists=True, help="Path to the .ipa
 def patch(
     ipa: Path = typer.Option(..., "--ipa", exists=True, help="Input .ipa"),
     patches: Path = typer.Option(..., "--patches", exists=True, help="Patch definition YAML/JSON file"),
-    identity: str = typer.Option(..., "--identity", help="Codesigning identity: SHA-1 hash or unique name substring"),
-    profile: list[Path] = typer.Option(
-        ...,
+    identity: str | None = typer.Option(
+        None,
+        "--identity",
+        help="Codesigning identity: SHA-1 hash or unique name substring (not needed for --dry-run)",
+    ),
+    profile: list[Path] | None = typer.Option(
+        None,
         "--profile",
         exists=True,
-        help="Provisioning profile (.mobileprovision). Repeat to supply one per app "
-        "extension/watch app -- each is matched to its own bundle id; a single "
+        help="Provisioning profile (.mobileprovision), repeatable; not needed for --dry-run. Repeat to "
+        "supply one per app extension/watch app -- each is matched to its own bundle id; a single "
         "profile signs everything, as before.",
     ),
     output: Path = typer.Option(..., "--output", help="Output .ipa path"),
@@ -68,8 +72,17 @@ def patch(
     verbose: bool = typer.Option(False, "--verbose", help="Print the full manifest on success"),
 ) -> None:
     """Extract, patch, re-sign, and repackage an IPA for AltStore Classic sideloading."""
+    if not dry_run:
+        if not identity:
+            typer.secho("error: --identity is required unless --dry-run is set", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1) from None
+        if not profile:
+            typer.secho(
+                "error: at least one --profile is required unless --dry-run is set", fg=typer.colors.RED, err=True
+            )
+            raise typer.Exit(code=1) from None
     try:
-        result = run_pipeline(ipa, patches, identity, profile, output, dry_run=dry_run)
+        result = run_pipeline(ipa, patches, identity or "", profile or [], output, dry_run=dry_run)
     except PipelineError as e:
         typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from None

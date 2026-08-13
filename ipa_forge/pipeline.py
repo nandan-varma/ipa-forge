@@ -6,6 +6,7 @@ architecture doc, from raw .ipa in to AltStore-Classic-ready .ipa out.
 from __future__ import annotations
 
 import tempfile
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -71,6 +72,23 @@ def run_pipeline(
             raise PipelineError(str(e)) from e
         matched = resolve_definitions(bundle, [definition])
         ops = [op for d in matched for op in build_operations(d)]
+        if not ops:
+            # F1: a single user-supplied definition that matches nothing is
+            # almost always a mistake (typo'd bundle id or version range).
+            # Warn in dry-run so version-gate checks still work; refuse to
+            # produce an unpatched IPA in a real run.
+            warnings.warn(
+                f"patch definition '{patch_definition_path}' matches 0 patch operations for "
+                f"{bundle.bundle_id} v{bundle.version} (definition targets "
+                f"{definition.target.bundle_id}); nothing will be applied",
+                stacklevel=2,
+            )
+            if not dry_run:
+                raise PipelineError(
+                    f"patch definition '{patch_definition_path}' matches no operations for "
+                    f"{bundle.bundle_id} v{bundle.version} (definition targets "
+                    f"{definition.target.bundle_id}); refusing to produce an unpatched IPA"
+                )
         ctx = PatchContext(bundle=bundle, patch_source_dir=patch_definition_path.parent)
 
         # Stage 5: dry-run gate -- hard fail before anything mutates

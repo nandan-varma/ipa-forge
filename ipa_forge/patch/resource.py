@@ -1,5 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Resource file replace/add/remove operations, sandboxed to the app bundle root."""
+"""Resource file replace/add/remove operations, sandboxed to the app bundle root.
+
+Trusted-input model: `source:` paths resolve relative to the patch definition
+file and are intentionally *not* sandboxed -- the definition, the IPA, and the
+signing credentials are all supplied by the same trusted user, so a definition
+may reference an absolute path or sibling directory (F9). Revisit if the GUI
+ever serves untrusted/multi-user uploads.
+"""
 
 from __future__ import annotations
 
@@ -41,7 +48,10 @@ class ResourceReplaceOp:
         if dry.status != "dry_run_ok":
             return dry
         dest, src = self._resolve(ctx)
-        dest.write_bytes(src.read_bytes())
+        try:
+            dest.write_bytes(src.read_bytes())
+        except OSError as e:
+            return PatchResult(op_id=self.op_id, status="failed", message=f"failed to replace '{dest}': {e}")
         return PatchResult(
             op_id=self.op_id, status="applied", message=f"replaced {dest}", files_touched=[dest], category="modified"
         )
@@ -78,8 +88,11 @@ class ResourceAddOp:
         if dry.status != "dry_run_ok":
             return dry
         dest, src = self._resolve(ctx)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(src.read_bytes())
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(src.read_bytes())
+        except OSError as e:
+            return PatchResult(op_id=self.op_id, status="failed", message=f"failed to add '{dest}': {e}")
         return PatchResult(
             op_id=self.op_id, status="applied", message=f"added {dest}", files_touched=[dest], category="added"
         )
@@ -100,6 +113,12 @@ class ResourceRemoveOp:
             return PatchResult(op_id=self.op_id, status="failed", message=str(e))
         if not dest.exists():
             return PatchResult(op_id=self.op_id, status="failed", message=f"destination '{dest}' does not exist")
+        if not dest.is_file():
+            return PatchResult(
+                op_id=self.op_id,
+                status="failed",
+                message=f"destination '{dest}' is not a file (only files can be removed)",
+            )
         return PatchResult(op_id=self.op_id, status="dry_run_ok")
 
     def apply(self, ctx: PatchContext) -> PatchResult:
@@ -107,7 +126,10 @@ class ResourceRemoveOp:
         if dry.status != "dry_run_ok":
             return dry
         dest = self._resolve(ctx)
-        dest.unlink()
+        try:
+            dest.unlink()
+        except OSError as e:
+            return PatchResult(op_id=self.op_id, status="failed", message=f"failed to remove '{dest}': {e}")
         return PatchResult(
             op_id=self.op_id, status="applied", message=f"removed {dest}", files_touched=[dest], category="removed"
         )

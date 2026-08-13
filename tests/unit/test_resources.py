@@ -76,3 +76,19 @@ def test_resource_path_traversal_is_rejected(tmp_path: Path, fake_ipa: Path):
     result = op.dry_run(ctx)
     assert result.status == "failed"
     assert "escapes" in result.message
+
+
+def test_resource_remove_rejects_directory_in_dry_run(tmp_path: Path, fake_ipa: Path):
+    """F3: a directory passes the old exists() dry-run check but unlink()
+    cannot remove it -- the gate must reject it up front, never crash at apply."""
+    ctx = _bundle_ctx(tmp_path, fake_ipa, tmp_path)
+    (ctx.bundle.root / "subdir").mkdir()
+
+    op = ResourceRemoveOp(op_id="r7", path="subdir")
+    dry = op.dry_run(ctx)
+    assert dry.status == "failed"
+    assert "not a file" in dry.message
+
+    result = op.apply(ctx)
+    assert result.status == "failed"
+    assert (ctx.bundle.root / "subdir").is_dir()

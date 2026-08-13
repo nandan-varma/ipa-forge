@@ -39,8 +39,10 @@ _FORM_HTML = """<!doctype html>
      resource_add: <input type="file" name="patches" required></p>
   <p>Provisioning profile(s) (.mobileprovision) -- select more than one to
      provide a separate profile per app extension/watch app, matched by
-     bundle id: <input type="file" name="profile" multiple required></p>
-  <p>Signing identity (SHA-1 or name substring): <input type="text" name="identity" required></p>
+     bundle id (not needed for dry run):
+     <input type="file" name="profile" multiple></p>
+  <p>Signing identity (SHA-1 or name substring, not needed for dry run):
+     <input type="text" name="identity"></p>
   <p><label><input type="checkbox" name="dry_run" value="1"> Dry run only</label></p>
   <p><button type="submit">Patch</button></p>
 </form>
@@ -58,13 +60,22 @@ def index() -> str:
 async def patch(
     ipa: UploadFile = File(...),
     patches: UploadFile = File(...),
-    profile: list[UploadFile] = File(...),
-    identity: str = Form(...),
+    profile: list[UploadFile] | None = File(None),
+    identity: str | None = Form(None),
     dry_run: bool = Form(False),
 ) -> JSONResponse:
     request_dir = _WORK_DIR / uuid.uuid4().hex
     request_dir.mkdir(parents=True)
     try:
+        # F4: signing inputs are only needed for a real (non-dry-run) run.
+        if not dry_run:
+            if identity is None or not identity.strip():
+                return JSONResponse(status_code=400, content={"error": "identity is required unless dry_run is set"})
+            if not profile:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "at least one provisioning profile is required unless dry_run is set"},
+                )
         # Upload filenames are client-supplied and untrusted -- take only the
         # basename before joining into a filesystem path, or a crafted filename
         # like "../../etc/whatever" could write outside request_dir.
@@ -81,7 +92,7 @@ async def patch(
         profile_dir = request_dir / "profiles"
         profile_dir.mkdir()
         profile_paths = []
-        for i, upload in enumerate(profile):
+        for i, upload in enumerate(profile or []):
             dest = profile_dir / f"{i}_{Path(upload.filename or 'profile.mobileprovision').name}"
             dest.write_bytes(await upload.read())
             profile_paths.append(dest)
@@ -89,7 +100,7 @@ async def patch(
         output_path = request_dir / f"patched_{ipa_path.name}"
 
         try:
-            result = run_pipeline(ipa_path, patches_path, identity, profile_paths, output_path, dry_run=dry_run)
+            result = run_pipeline(ipa_path, patches_path, identity or "", profile_paths, output_path, dry_run=dry_run)
         except PipelineError as e:
             return JSONResponse(status_code=400, content={"error": str(e)})
 
