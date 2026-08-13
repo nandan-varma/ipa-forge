@@ -5,6 +5,7 @@ from pathlib import Path
 
 import typer
 
+from ipa_forge.altstore.source import build_app_entry, write_source_json
 from ipa_forge.bundle.ipa import extract_ipa, load_bundle
 from ipa_forge.pipeline import PipelineError, run_pipeline
 from ipa_forge.validators.bundle_validator import validate_bundle
@@ -60,6 +61,29 @@ def patch(
 
     if verbose:
         typer.echo(result.manifest.to_json())
+
+
+@app.command("export-source")
+def export_source(
+    ipa: Path = typer.Option(..., "--ipa", exists=True, help="Patched, signed .ipa to describe"),
+    download_url: str = typer.Option(..., "--download-url", help="URL this IPA will be hosted at"),
+    output: Path = typer.Option(..., "--output", help="Output source.json path"),
+) -> None:
+    """Emit an AltStore Classic source.json entry for an already-patched IPA."""
+    entry = build_app_entry(ipa, download_url)
+    write_source_json(entry, output)
+    typer.echo(f"Wrote {output}")
+
+
+@app.command()
+def gui(
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8765, "--port"),
+) -> None:
+    """Launch the local web GUI (wraps the same pipeline as `forge patch`)."""
+    import uvicorn
+
+    uvicorn.run("ipa_forge.gui.app:app", host=host, port=port)
 
 
 if __name__ == "__main__":
