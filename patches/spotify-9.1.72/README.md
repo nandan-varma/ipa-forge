@@ -14,6 +14,14 @@ binary — the same load model as the YouTube set.
 
 ## Features (essential, in priority order)
 
+> **v3 crash fix (deduced):** the v2 launch crash was infinite recursion in the
+> keychain shim — `spotAccessGroupID()` called `SecItemCopyMatching`, which had
+> already been rebound to the wrapper, so the wrapper called itself until the
+> stack overflowed at load. The access group is now captured **before**
+> rebinding and wrappers read the cached value. Every feature init is also
+> isolated in `@try` — a failure in one logs (`com.nandan.spotifymod`) and
+> degrades instead of crashing.
+
 1. **Sideload shim** (`SideloadFix.m`) — keychain access-group rebind
    (fishhook on `SecItem*`), never-nil app-group container, CloudKit neuter.
    Required for sign-in to work/persist on a re-signed Spotify.

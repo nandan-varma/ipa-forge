@@ -394,7 +394,8 @@ static void hookURLSessionDelegate(Class cls) {
             NSURL *url = task.currentRequest.URL ?: task.originalRequest.URL;
             if (urlNeedsPatching(url)) {
                 @synchronized (sptBufferCache()) {
-                    NSMutableData *buffer = sptBufferCache()[@(task.taskIdentifier)];
+                    NSData *cached = sptBufferCache()[@(task.taskIdentifier)];
+                    NSMutableData *buffer = (NSMutableData *)cached;
                     if (!buffer) { buffer = [NSMutableData data]; sptBufferCache()[@(task.taskIdentifier)] = buffer; }
                     [buffer appendData:data];
                 }

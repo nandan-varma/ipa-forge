@@ -1,25 +1,29 @@
-// SideloadFix.m — sideload compat shim, ported from EeveeSpotify's
-// zxPluginsInject (GPL). Plain-ObjC equivalent of the YouTube set's
-// SignInFix: makes a re-signed (AltStore) Spotify behave like the original.
+// SideloadFix.m — sideload compat shim (ported from EeveeSpotify's
+// zxPluginsInject). Makes a re-signed (AltStore) Spotify behave like the
+// original.
 //
 //  1. SecItem* rebind — Spotify hard-codes its entitled keychain access
 //     group (e.g. "<TEAMID>.com.spotify.client.X"); after resigning with a
-//     different team that group is invalid and every keychain query fails.
-//     fishhook rebinds SecItemCopyMatching/Add/Update/Delete to rewrite the
+//     different team that group is invalid and keychain queries fail.
+//     fishhook rebinds SecItemCopyMatching/Add/Update/Delete to rewrite
 //     kSecAttrAccessGroup to the group the current profile actually has.
-//  2. App-group container URL never nil — without a real app-groups
-//     entitlement, containerURLForSecurityApplicationGroupIdentifier: returns
-//     nil and Spotify crashes inside `hasPrefix:` of the result. Fall back to
-//     a sandboxed path instead.
-//  3. CloudKit neutered — no iCloud entitlements on a free sideload account;
-//     CKContainer/CKEntitlements lookups would assert. Return nil / strip.
+//  2. App-group container URL never nil — fall back to a sandboxed path.
+//  3. CloudKit neutered — no iCloud entitlements on a free account.
+//
+// CRASH NOTE (root cause of the v2 launch crash): the first version called
+// SecItemCopyMatching() from inside the rebind wrappers (via spotAccessGroupID).
+// After rebind_symbols(), SecItemCopyMatching resolves to the wrapper, so the
+// wrapper called itself -> infinite recursion -> stack overflow at load. The
+// access group is now captured ONCE before rebinding and the wrappers read
+// the cached value only.
 
 #import "SpotifyHook.h"
 #import <Security/Security.h>
-#import <objc/message.h>
 #import "fishhook.h"
 
-static NSString *spotAccessGroupID(void) {
+static NSString *s_realAccessGroup; // captured before rebinding; never re-queried
+
+static NSString *captureAccessGroupID(void) {
     NSDictionary *query = @{
         (__bridge NSString *)kSecClass: (__bridge NSString *)kSecClassGenericPassword,
         (__bridge NSString *)kSecAttrAccount: @"bundleSeedID",
@@ -44,14 +48,12 @@ static OSStatus (*orig_SecItemUpdate)(CFDictionaryRef, CFDictionaryRef);
 static OSStatus (*orig_SecItemDelete)(CFDictionaryRef);
 
 static CFDictionaryRef spotRewriteGroup(CFDictionaryRef query) {
-    NSString *realGroup = spotAccessGroupID();
+    NSString *realGroup = s_realAccessGroup;
     if (!realGroup) return query;
     NSMutableDictionary *mutable = [(__bridge NSDictionary *)query mutableCopy];
-    for (NSString *key in @[ (__bridge NSString *)kSecAttrAccessGroup ]) {
-        id value = mutable[key];
-        if ([value isKindOfClass:[NSString class]] && [value hasPrefix:@"com.spotify.client"])
-            mutable[key] = realGroup;
-    }
+    id value = mutable[(__bridge NSString *)kSecAttrAccessGroup];
+    if ([value isKindOfClass:[NSString class]] && [value hasPrefix:@"com.spotify.client"])
+        mutable[(__bridge NSString *)kSecAttrAccessGroup] = realGroup;
     return (__bridge CFDictionaryRef)mutable;
 }
 
@@ -86,13 +88,15 @@ static OSStatus spot_SecItemDelete(CFDictionaryRef query) {
 }
 
 static void rebindSecItem(void) {
-    rebind_symbols((struct rebinding[4]) {
+    s_realAccessGroup = captureAccessGroupID(); // MUST happen before rebinding
+    int rebound = rebind_symbols((struct rebinding[4]) {
         {"SecItemCopyMatching", (void *)spot_SecItemCopyMatching, (void **)&orig_SecItemCopyMatching},
         {"SecItemAdd", (void *)spot_SecItemAdd, (void **)&orig_SecItemAdd},
         {"SecItemUpdate", (void *)spot_SecItemUpdate, (void **)&orig_SecItemUpdate},
         {"SecItemDelete", (void *)spot_SecItemDelete, (void **)&orig_SecItemDelete},
     }, 4);
-    os_log(spotLog(), "SpotifyMod: SecItem rebound (access group -> %@)", spotAccessGroupID() ?: @"?");
+    os_log(spotLog(), "SpotifyMod: SecItem rebound (%d symbols, group %@)", rebound,
+           s_realAccessGroup ?: @"?");
 }
 
 // --- app-group container ----------------------------------------------------
@@ -120,7 +124,6 @@ static void fixAppGroupContainer(void) {
 // --- CloudKit neuter -------------------------------------------------------
 
 static void neuterCloudKit(void) {
-    // CKContainer's initializer path asserts without iCloud entitlements.
     Class container = NSClassFromString(@"CKContainer");
     if (!container) return;
     SEL sel = sel_registerName("initWithContainerIdentifier:");
@@ -130,7 +133,6 @@ static void neuterCloudKit(void) {
             imp_implementationWithBlock(^id(id self, id identifier) { return nil; }),
             method_getTypeEncoding(m));
     }
-    // CKEntitlements/container lookup used by CloudKit internals.
     Class entitlements = NSClassFromString(@"CKEntitlements");
     if (entitlements) {
         for (NSString *selName in @[ @"containerIdentifier", @"applicationContainerIdentifier" ]) {
