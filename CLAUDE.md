@@ -16,8 +16,10 @@ limits; etc).
 Full design rationale lives in `docs/architecture.md` (component map, the
 17-stage pipeline, two real bugs found empirically during implementation)
 and `docs/extensibility.md` (how to add a patch operation type, known v1
-scope limits). Read those before making non-trivial changes to `pipeline.py`
-or `signing/`.
+scope limits). User-facing references: `docs/usage.md` (CLI/GUI workflows),
+`docs/patch-reference.md` (the full YAML patch-definition contract), and
+`docs/troubleshooting.md` (error message -> cause -> fix). Read those before
+making non-trivial changes to `pipeline.py` or `signing/`.
 
 ## Commands
 

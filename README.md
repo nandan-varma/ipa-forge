@@ -12,8 +12,16 @@ refresh on a real iPhone.
 ipa-forge never embeds, ships, or downloads any third-party app content --
 you always supply your own IPA and your own signing credentials.
 
-See [`docs/architecture.md`](docs/architecture.md) for the design and
-[`docs/extensibility.md`](docs/extensibility.md) for how to extend it.
+## Documentation
+
+| Doc | What it covers |
+| --- | --- |
+| [`docs/usage.md`](docs/usage.md) | End-to-end workflow, full CLI + GUI reference, signing identity/profile setup |
+| [`docs/patch-reference.md`](docs/patch-reference.md) | Complete patch-definition reference — every operation type, field, and matching rule, with examples |
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Every error message mapped to its cause and fix |
+| [`docs/architecture.md`](docs/architecture.md) | Design rationale, the 17-stage pipeline, hard constraints (for developers) |
+| [`docs/extensibility.md`](docs/extensibility.md) | How to add new patch operation types (for developers) |
+| [`docs/altstore_device_testing.md`](docs/altstore_device_testing.md) | Manual AltStore Classic device-test checklist |
 
 ## Requirements
 
@@ -111,23 +119,28 @@ See `fixtures/patches/example.yaml` and `fixtures/patches/example_dylib_inject.y
 for complete, working examples run by the test suite against
 `fixtures/synthetic_app.ipa`.
 
+**This is a teaser.** The full reference — every operation type (`binary_replace`,
+`resource_replace`/`add`/`remove`, `dylib_inject`, `plist_edit`), every field,
+version-matching semantics, the dry-run gate, ordering rules, and a
+common-mistakes checklist — is in
+[`docs/patch-reference.md`](docs/patch-reference.md).
+
 ## Getting certificates and provisioning profiles for AltStore
 
 AltStore Classic re-signs and installs apps using **your own** Apple ID's
 development credentials, obtained through AltServer's own pairing flow --
-ipa-forge doesn't manage your Apple account. In practice:
+ipa-forge doesn't manage your Apple account. How to find your codesigning
+identity and a matching `.mobileprovision`, and how ipa-forge selects
+profiles (exact match, wildcard, per-extension), is documented in
+[`docs/usage.md`](docs/usage.md#signing-identity--profile). In short:
 
-1. Pair AltServer with your device and let it manage your Apple ID
-   certificate/App ID the normal way (see AltStore Classic's own setup
-   docs), **or** use a certificate + `.mobileprovision` from your own Xcode
-   account (Xcode → Settings → Accounts → Manage Certificates).
-2. Locate your local identity: `security find-identity -v -p codesigning`.
-3. Locate your profile: profiles Xcode has already installed live under
-   `~/Library/MobileDevice/Provisioning Profiles/*.mobileprovision`. Inspect
-   one with `security cms -D -i <profile>`.
-4. The profile's `Entitlements.application-identifier` must authorize the
-   bundle id of the IPA you're patching (either exactly, or via a wildcard
-   `TEAMID.*` profile).
+1. Pair AltServer with your device (or use a certificate + profile from your
+   own Xcode account).
+2. Locate your identity: `security find-identity -v -p codesigning`.
+3. Locate a profile under
+   `~/Library/MobileDevice/Provisioning Profiles/*.mobileprovision`.
+4. The profile's `application-identifier` must authorize the IPA's bundle id
+   (exactly or via a wildcard `TEAMID.*` profile).
 
 `forge patch` validates the profile up front (expiry, bundle-id match) and
 fails with an actionable error before touching your IPA if it doesn't
