@@ -657,13 +657,40 @@ void ytfConfigurePlayerOverlayInsertion(void) {
         });
     (void)orig_didInsertOverlay;
 
-    // Paid-content promo: never set on the overlay controllers.
-    static IMP orig_setPaidContent;
-    orig_setPaidContent = ytfHookInstance(
-        NSClassFromString(@"YTMainAppVideoPlayerOverlayViewController"),
-        @selector(setPaidContentWithPlayerData:),
-        ^void(id self, id data) {});
-    (void)orig_setPaidContent;
+    // Paid-content promo: the main-player overlay VC has no
+    // setPaidContentWithPlayerData: in 21.32.4 (audited) — the promo is
+    // driven by YTPaidContentController/YTPaidContentViewController.
+    static IMP orig_setPaidContentRenderer;
+    orig_setPaidContentRenderer = ytfHookInstance(NSClassFromString(@"YTPaidContentController"),
+        @selector(setPaidContentRenderer:),
+        ^void(id self, id renderer) {
+            if (!IS_ENABLED(KHidePaidPromoOverlay))
+                ((void(*)(id, SEL, id))orig_setPaidContentRenderer)(
+                    self, @selector(setPaidContentRenderer:), renderer);
+        });
+    (void)orig_setPaidContentRenderer;
+
+    static IMP orig_showPaidContentRenderer;
+    orig_showPaidContentRenderer = ytfHookInstance(NSClassFromString(@"YTPaidContentViewController"),
+        @selector(showPaidContentRenderer:),
+        ^void(id self, id renderer) {
+            if (!IS_ENABLED(KHidePaidPromoOverlay))
+                ((void(*)(id, SEL, id))orig_showPaidContentRenderer)(
+                    self, @selector(showPaidContentRenderer:), renderer);
+        });
+    (void)orig_showPaidContentRenderer;
+
+    static IMP orig_hidePaidContent;
+    orig_hidePaidContent = ytfHookInstance(NSClassFromString(@"YTPaidContentViewController"),
+        @selector(hidePaidContent),
+        ^void(id self) {
+            if (!IS_ENABLED(KHidePaidPromoOverlay))
+                ((void(*)(id, SEL))orig_hidePaidContent)(self, @selector(hidePaidContent));
+        });
+    (void)orig_hidePaidContent;
+
+    // Inline-muted player keeps its setPaidContentWithPlayerData: (verified
+    // on that class in 21.32.4).
     static IMP orig_setPaidContentMuted;
     orig_setPaidContentMuted = ytfHookInstance(
         NSClassFromString(@"YTInlineMutedPlaybackPlayerOverlayViewController"),

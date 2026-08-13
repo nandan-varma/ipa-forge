@@ -291,6 +291,29 @@ Status legend: ✅ done · 🔄 in progress · ⬜ planned · ⛔ verified absen
 - **App extensions** (widgets/share/intents/notifications): deliberately stripped for
   AltStore install (IXErrorDomain Code=2 fix) — do not re-add.
 
+## Audit results (systematic pass, all 148 hooks classified)
+
+`tools/audit_our_hooks.py` classifies every hook our dylib installs against
+the 21.32.4 binary. Results: all hooks attach except two, both fixed:
+
+- **Paid-content promo**: `YTMainAppVideoPlayerOverlayViewController
+  setPaidContentWithPlayerData:` does not exist on that class in 21.32.4 (the
+  old hook no-op'd). The real paths are `YTPaidContentController
+  setPaidContentRenderer:` and `YTPaidContentViewController
+  showPaidContentRenderer:`/`hidePaidContent` — now hooked (gated by
+  HidePaidPromoOverlay).
+- Everything else flagged by the parser (`setHidden:`, `setFrame:`,
+  `titleLabel`, GPBMessage accessors) is either inherited from system classes
+  or strings-verified present; the parser under-reports methods on
+  GPBMessage subclasses and REL-flag method lists.
+
+Additional hardening this pass: `YTIElementRenderer elementData` ad-killer
+(YTLite's strongest feed/watch-next ad hook — element with ad-logging data
+renders nothing; ad-layout descriptions render empty), complementing the
+section-level filter. Config/A-B surfaces (player bar, menu, miniplayer,
+Shorts rail) are server/hot-config driven — hook attachment is verified by
+the `YTFreedom: hooked -[...]` os_log lines at launch.
+
 ## Verification loop (per goal)
 
 1. Extract target selectors from the reference file, verify with

@@ -185,6 +185,34 @@ static void fixPlayerResponseAds(void) {
                     });
 }
 
+// Strongest feed/watch-next ad killer (YTLite's YTIElementRenderer elementData
+// hook): any element carrying ad-logging compatibility data renders nothing;
+// any element whose description matches a known ad layout renders empty.
+// Complements the section-level filtering in ytfFilterAdSections.
+static void fixElementDataAds(void) {
+    static IMP orig_elementData;
+    orig_elementData = ytfHookInstance(NSClassFromString(@"YTIElementRenderer"),
+        @selector(elementData),
+        ^id(id self) {
+            id<YTFreedomAdHooks> renderer = self;
+            if ([renderer respondsToSelector:@selector(hasCompatibilityOptions)]
+                && [renderer hasCompatibilityOptions]) {
+                id<YTFreedomAdHooks> compat = [renderer compatibilityOptions];
+                if (compat && [compat respondsToSelector:@selector(hasAdLoggingData)]
+                    && [compat hasAdLoggingData]) {
+                    return nil;
+                }
+            }
+            NSString *description = [self description];
+            for (NSString *adStr in ytAdStrings()) {
+                if ([description containsString:adStr])
+                    return [NSData data];
+            }
+            return ((id(*)(id, SEL))orig_elementData)(self, @selector(elementData));
+        });
+    (void)orig_elementData;
+}
+
 static void fixReelAds(void) {
     static BOOL (^isAdReel)(id) = ^BOOL(id model) {
         if (!model || ![model respondsToSelector:@selector(isAdVideo)]) return NO;
@@ -217,6 +245,7 @@ static void fixReelAds(void) {
 
 void YTFreedomAdBlockInit(void) {
     fixPlayerResponseAds();
+    fixElementDataAds();
     fixFeedAds();
     fixReelAds();
 }
