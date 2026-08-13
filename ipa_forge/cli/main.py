@@ -91,10 +91,15 @@ def patch(
     ),
     output: Path = typer.Option(..., "--output", help="Output .ipa path"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate patches without mutating or signing anything"),
+    no_sign: bool = typer.Option(
+        False,
+        "--no-sign",
+        help="Apply patches and repackage without codesigning (for AltStore, which signs at install)",
+    ),
     verbose: bool = typer.Option(False, "--verbose", help="Print the full manifest on success"),
 ) -> None:
     """Extract, patch, re-sign, and repackage an IPA for AltStore Classic sideloading."""
-    if not dry_run:
+    if not dry_run and not no_sign:
         if not identity:
             typer.secho("error: --identity is required unless --dry-run is set", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=1) from None
@@ -104,7 +109,9 @@ def patch(
             )
             raise typer.Exit(code=1) from None
     try:
-        result = run_pipeline(ipa, patches, identity or "", profile or [], output, dry_run=dry_run)
+        result = run_pipeline(
+            ipa, patches, identity or "", profile or [], output, dry_run=dry_run, no_sign=no_sign
+        )
     except PipelineError as e:
         typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from None

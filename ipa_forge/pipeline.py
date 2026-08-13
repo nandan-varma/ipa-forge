@@ -45,6 +45,7 @@ def run_pipeline(
     *,
     provider: SigningProvider | None = None,
     dry_run: bool = False,
+    no_sign: bool = False,
 ) -> PipelineResult:
     """profile_paths accepts one or more .mobileprovision files. A single
     profile signs every target, exactly as before per-extension profiles
@@ -118,6 +119,16 @@ def run_pipeline(
 
         # Stage 10: emit manifest, before signing
         manifest = Manifest.from_patch_results(ipa_path, bundle.bundle_id, bundle.version, bundle.build, results)
+
+        if no_sign:
+            # Unsigned output for AltStore-style installers, which perform
+            # their own signing (and profile generation) at install time.
+            # The payload is patched but carries no code signature, matching
+            # what AltStore Classic accepts as input.
+            repack_ipa(bundle.extraction_root, output_path)
+            validate_final_archive(output_path, work_dir / "final_check", expect_profile=False)
+            manifest.output_sha256 = sha256_of(output_path)
+            return PipelineResult(manifest=manifest, output_path=output_path)
 
         try:
             # Stage 11: load + validate provisioning profile(s)

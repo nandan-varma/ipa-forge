@@ -15,11 +15,11 @@ class ArchiveValidationError(Exception):
     pass
 
 
-def validate_final_archive(ipa_path: Path, tmp_dir: Path) -> None:
+def validate_final_archive(ipa_path: Path, tmp_dir: Path, *, expect_profile: bool = True) -> None:
     app_path = extract_ipa(ipa_path, tmp_dir)
     bundle = load_bundle(app_path)
     validate_bundle(bundle)
 
     profile_path = bundle.root / "embedded.mobileprovision"
-    if not profile_path.is_file():
+    if expect_profile and not profile_path.is_file():
         raise ArchiveValidationError(f"final archive is missing embedded.mobileprovision at {profile_path}")
