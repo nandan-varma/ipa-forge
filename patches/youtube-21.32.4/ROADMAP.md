@@ -24,18 +24,20 @@ Status legend: ✅ done · 🔄 in progress · ⬜ planned · ⛔ verified absen
   `LC_LOAD_DYLIB`. Source split per feature area, all compiled by `dylib/build.sh`:
   ```
   dylib/
-    YTFreedom.h      # shared: keys, IS_ENABLED/INTFORVAL macros, hook plumbing, helpers
+    YTFreedom.h      # shared: settings keys, IS_ENABLED/INTFORVAL, hook plumbing, ytfHookConfigBool
     YTFreedom.m      # constructor: registers defaults, calls each area's init
-    SignInFix.m      # SSO/keychain/bundle-identity (done)
-    AdBlock.m        # player+feed+shorts ads (done)
-    SettingsUI.m     # G0: in-app settings section
-    PlayerFeatures.m # G1–G6
-    BackgroundPlayback.m # G7
-    NavbarTabbar.m   # G8, G9
-    FeedShorts.m     # G10, G11
-    MiscFeatures.m   # G12–G14
-    Appearance.m     # G15
-    Downloads.m      # G17 (biggest, last)
+    SignInFix.m      # sideload sign-in: SSO fingerprint strip, keychain, bundle identity
+    AdBlock.m        # ad removal: player/feed/shorts + elementData killer (G19)
+    SettingsUI.m     # G0 settings section + G14 preferences manager (import/export/reset/cache)
+    PlayerFeatures.m # G1–G5, G18: player bar/overlay/behavior, quality, speed, YTLite extras,
+                     #   consolidated overlay insertion, G20 player flags
+    PlayerGestures.m # G6: edge-swipe gestures (brightness/volume/speed) + HUD
+    NavbarTabbar.m   # G8, G9: navbar (logo/buttons/sticky) + tab bar
+    FeedShorts.m     # G10, G11: feed/shorts toggles + consolidated _ASDisplayView/collection
+                     #   hooks + G20 shorts flags + action-bar diagnostic
+    MiscFeatures.m   # G7 background playback, G12 misc/promos/menu removal, G20 rate/HUD/promo
+    Appearance.m     # G13: OLED theme + keyboard + surfaces
+    Downloads.m      # G17 (final milestone — not yet created)
   ```
 - Settings storage: `NSUserDefaults`, key prefix `YTFreedom` (e.g. `YTFreedomBackgroundPlayback`).
   Defaults registered in the constructor; every toggle read via `IS_ENABLED(key)`.

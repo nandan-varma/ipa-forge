@@ -4,6 +4,10 @@ Target: `com.google.ios.youtube` v21.32.4 (arm64, thin binaries — no `arch:`
 needed). All definitions are dry-run validated against the real decrypted IPA
 with `forge patch --dry-run`.
 
+> **New here?** Read [`PLAYBOOK.md`](PLAYBOOK.md) first — it is the complete
+> runbook from a fresh IPA to a working mod, including how to port this set
+> to a future YouTube version.
+
 ## What's here
 
 | File | Effect | Status |

@@ -39,9 +39,11 @@ ipa_forge/
   signing/    Provisioning profile parsing, entitlement reconciliation, codesign backend,
               SigningProvider abstraction, recursive bottom-up signing orchestration
   validators/ IPA / bundle / archive structural validators
+  hooks/      Mach-O ObjC analysis (class table, method lists, selrefs) and
+              hook verification -- the version-drift safety net
   pipeline.py End-to-end stage orchestration (the 17 stages below)
   manifest.py Structured pre-signing manifest for debugging failed installs
-  cli/        Typer CLI: inspect, validate, patch, export-source, gui
+  cli/        Typer CLI: inspect, validate, patch, export-source, gui, hooks
   gui/        FastAPI app wrapping the same pipeline in-process
   altstore/   source.json distribution-metadata export
 ```
@@ -51,7 +53,8 @@ Dependency direction is one-way:
 ```
 patch/  ──depends on──>  bundle/
 signing/ ──depends on──>  bundle/
-pipeline.py ──orchestrates──>  patch/, signing/, validators/, manifest.py
+hooks/  ──depends on──>  (none -- pure stdlib Mach-O parsing)
+pipeline.py ──orchestrates──>  patch/, signing/, hooks/, validators/, manifest.py
 cli/, gui/ ──call──>  pipeline.py
 ```
 
@@ -93,6 +96,19 @@ authorize *more* entitlements than the app claims, never the reverse.
 never a blind copy of either side, with `application-identifier` and
 `com.apple.developer.team-identifier` always taken from the profile (the
 app's original values reference whichever team originally signed it).
+
+### Why hook verification is its own stage
+
+Dylib-injection tweaks depend on ObjC runtime hooks that newer app versions
+silently break: rename or remove a class/selector and the hook no-ops with no
+error. The `hooks:` block in a patch definition declares every hook the tweak
+relies on; `pipeline.py` verifies it against the app's main binary (class
+table + method lists + `__objc_selrefs`, chained-fixup aware) during the
+dry-run gate and fails when a `required` hook cannot attach — before anything
+mutates. `unverified`/`ok-inherited` are soft (parser gaps, system
+superclasses); `missing-class`/`missing-selector`/`elsewhere` are hard. This
+turns "port to a new version" into: bump the version, read the report, fix
+exactly what it flags.
 
 ### Why signing targets bundle directories, not raw files
 

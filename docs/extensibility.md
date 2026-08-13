@@ -64,3 +64,9 @@ The three scope limits listed in earlier revisions of this file are closed in
   everything, exactly as before (see `signing/pipeline.py::sign_bundle`).
 - **`plist_edit`**: a `PatchOperation` (`patch/plist.py`) for set/remove on
   bundle-relative plists -- a compact worked example of steps 1-5 above.
+- **The `hooks:` block**: a patch definition may declare runtime hook targets
+  (class/selector/kind/added/required) that `pipeline.py` verifies against
+  the app's main binary during the dry-run gate (`ipa_forge/hooks/`). No new
+  operation type -- it is a verification surface, driven by the same
+  definition file. `forge hooks verify|extract|audit` expose it on the CLI.
+  `added: true` declares a method the tweak adds itself (logos' %new).

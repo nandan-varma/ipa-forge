@@ -172,6 +172,24 @@ automatically and prints an attach summary; `required: true` hooks that
 can't attach fail the run before anything mutates. See
 `docs/patch-reference.md` → "The `hooks` block".
 
+## Porting a dylib patch set to a new app version
+
+If your patch set injects a hook dylib, declare its hook targets in the
+definition's `hooks:` block (see `docs/patch-reference.md` → "The `hooks`
+block"). Then porting is:
+
+```bash
+# 1. bump target.version in the definition
+# 2. dry-run: reports every hook that would silently no-op on the new binary
+forge patch --ipa New.ipa --patches patch.yaml --output /tmp/x.ipa --dry-run
+# 3. for each flagged hook, find what replaced the class/selector
+forge hooks extract --ipa New.ipa --search "<old class substring>"
+# 4. fix the tweak source, rebuild, re-run the dry-run until required hooks pass
+```
+
+A complete, YouTube-specific runbook lives at
+`patches/youtube-21.32.4/PLAYBOOK.md`.
+
 ## Signing identity & profile
 
 ipa-forge re-signs with **your own** Apple development credentials — it never
