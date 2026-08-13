@@ -319,6 +319,38 @@ static void fixMenuRemoval(void) {
     (void)orig_addAction;
 }
 
+// Hide the "Get YouTube Premium" upsell cell in the You tab (uYouEnhanced
+// gHidePremiumPromos lineage; icon type 117 is the premium promo icon).
+static void hideYouTabPremiumPromo(void) {
+    static IMP orig_loadWithModel;
+    orig_loadWithModel = ytfHookInstance(NSClassFromString(@"YTAppCollectionViewController"),
+        @selector(loadWithModel:),
+        ^void(id self, id model) {
+            NSMutableArray *contents = [model valueForKey:@"contentsArray"];
+            if ([contents isKindOfClass:[NSMutableArray class]]) {
+                for (id supported in contents) {
+                    id itemSection = [supported valueForKey:@"itemSectionRenderer"];
+                    NSMutableArray *subContents = [itemSection valueForKey:@"contentsArray"];
+                    if (![subContents isKindOfClass:[NSMutableArray class]]) continue;
+                    __block id toRemove = nil;
+                    for (id entry in subContents) {
+                        NSNumber *hasLink = [entry valueForKey:@"hasCompactLinkRenderer"];
+                        if (![hasLink boolValue]) continue;
+                        id link = [entry valueForKey:@"compactLinkRenderer"];
+                        NSNumber *hasIcon = [link valueForKey:@"hasIcon"];
+                        if (![hasIcon boolValue]) continue;
+                        id icon = [link valueForKey:@"icon"];
+                        NSNumber *iconType = [icon valueForKey:@"iconType"];
+                        if ([iconType integerValue] == 117) { toRemove = entry; break; }
+                    }
+                    if (toRemove) [subContents removeObject:toRemove];
+                }
+            }
+            ((void(*)(id, SEL, id))orig_loadWithModel)(self, @selector(loadWithModel:), model);
+        });
+    (void)orig_loadWithModel;
+}
+
 // --- New-IPA UX: rate prompts + HUD messages --------------------------------
 
 static void fixUXExtras(void) {
@@ -346,4 +378,5 @@ void YTFreedomMiscInit(void) {
     fixPromos();
     fixMenuRemoval();
     fixUXExtras();
+    hideYouTabPremiumPromo();
 }

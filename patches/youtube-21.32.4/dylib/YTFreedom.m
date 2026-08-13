@@ -24,6 +24,9 @@ static void YTFreedomInit(void) {
         KGestureHUDPosition: @(0),
         KDefaultTab: @(0),
         KDisableRatePrompts: @YES,
+        KPinchToFullscreen: @YES,
+        KReduceOverlays: @YES,
+        KHQAAudio: @YES,
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:defaults];
 

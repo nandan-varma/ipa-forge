@@ -138,6 +138,14 @@
 #define KInlineShortsPlayback      @"YTFreedomInlineShortsPlayback"
 #define KChapterSeek               @"YTFreedomChapterSeek"
 
+// Best-UX batch (restore removed gestures / reveal native settings)
+#define KPinchToFullscreen         @"YTFreedomPinchToFullscreen"
+#define KTapToSeek                 @"YTFreedomTapToSeek"
+#define KReduceOverlays            @"YTFreedomReducePlayerOverlays"
+#define KHQAAudio                  @"YTFreedomHighQualityAudio"
+#define KAnimatedPreviews          @"YTFreedomAnimatedPreviews"
+#define KDisablePullToFull         @"YTFreedomDisablePullToFullscreen"
+
 #define IS_ENABLED(key)   [[NSUserDefaults standardUserDefaults] boolForKey:(key)]
 #define INTFORVAL(key)    (int)[[NSUserDefaults standardUserDefaults] integerForKey:(key)]
 #define SET_BOOL(key, v)  [[NSUserDefaults standardUserDefaults] setBool:(v) forKey:(key)]

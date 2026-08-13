@@ -38,6 +38,9 @@
 - (UILabel *)titleLabel;
 - (BOOL)stickyNavHeaderEnabled;
 - (void)setStickyNavHeaderEnabled:(BOOL)enabled;
+- (double)scrubRangeForScrubX:(CGFloat)x;
+- (double)totalTime;
+- (void)seekToTime:(double)time;
 @end
 
 // Forward declaration for the option-builder used by the varispeed hooks.
@@ -805,6 +808,65 @@ static void fixYTLiteExtras(void) {
         ^BOOL { return IS_ENABLED(KChapterSeek); });
     ytfHookConfigBool(coldConfig, @selector(enableInlinePlayerSegmentSeek),
         ^BOOL { return IS_ENABLED(KChapterSeek); });
+
+    // Restore pinch-to-fullscreen (removed by YouTube; uYouEnhanced lineage).
+    ytfHookConfigBool(coldConfig, @selector(isPinchToEnterFullscreenEnabled),
+        ^BOOL { return IS_ENABLED(KPinchToFullscreen); });
+    ytfHookConfigBool(coldConfig, @selector(deprecateTabletPinchFullscreenGestures),
+        ^BOOL { return IS_ENABLED(KPinchToFullscreen); });
+
+    // Disable pull-to-fullscreen (overscroll) when asked.
+    static IMP orig_shouldRecognizeOverscroll;
+    orig_shouldRecognizeOverscroll = ytfHookInstance(
+        NSClassFromString(@"YTWatchPullToFullController"),
+        @selector(shouldRecognizeOverscrollEventsFromWatchOverscrollController:),
+        ^BOOL(id self, id controller) {
+            return IS_ENABLED(KDisablePullToFull) ? NO
+                : ((BOOL(*)(id, SEL, id))orig_shouldRecognizeOverscroll)(
+                    self, @selector(shouldRecognizeOverscrollEventsFromWatchOverscrollController:), controller);
+        });
+    (void)orig_shouldRecognizeOverscroll;
+
+    // Reveal native settings that server config hides.
+    ytfHookConfigBool(coldConfig, @selector(enableReducePlayerOverlaysSettings),
+        ^BOOL { return IS_ENABLED(KReduceOverlays); });
+    ytfHookConfigBool(coldConfig, @selector(iosEnableHighQualityAudioAppSettings),
+        ^BOOL { return IS_ENABLED(KHQAAudio); });
+    ytfHookConfigBool(coldConfig,
+        @selector(premiumClientSharedConfigEnablePremiumHighQualityAudioSettingOnIos),
+        ^BOOL { return IS_ENABLED(KHQAAudio); });
+    ytfHookConfigBool(coldConfig, @selector(enableAnimatedPreviewsSettings),
+        ^BOOL { return IS_ENABLED(KAnimatedPreviews); });
+
+    // Tap the progress bar to seek (restores removed tap-to-seek).
+    if (IS_ENABLED(KTapToSeek)) {
+        static IMP orig_didPressScrubber;
+        orig_didPressScrubber = ytfHookInstance(
+            NSClassFromString(@"YTInlinePlayerBarContainerView"),
+            @selector(didPressScrubber:),
+            ^void(id self, id arg) {
+                ((void(*)(id, SEL, id))orig_didPressScrubber)(self, @selector(didPressScrubber:), arg);
+                @try {
+                    id mainApp = [[self valueForKey:@"delegate"] valueForKey:@"_delegate"];
+                    id player = [mainApp valueForKey:@"parentViewController"];
+                    if (!mainApp || !player) return;
+                    if (![arg respondsToSelector:@selector(locationInView:)]) return;
+                    CGPoint location = [(UIGestureRecognizer *)arg locationInView:(UIView *)self];
+                    id<YTFreedomMenuHooks> barHooks = self;
+                    if (![barHooks respondsToSelector:@selector(scrubRangeForScrubX:)]) return;
+                    double fraction = [barHooks scrubRangeForScrubX:location.x];
+                    id<YTFreedomMenuHooks> mainHooks = mainApp;
+                    if (![mainHooks respondsToSelector:@selector(totalTime)]) return;
+                    double timestamp = [mainHooks totalTime] * fraction;
+                    id<YTFreedomMenuHooks> playerHooks = player;
+                    if ([playerHooks respondsToSelector:@selector(seekToTime:)])
+                        [playerHooks seekToTime:timestamp];
+                } @catch (NSException *e) {
+                    os_log(ytfLog(), "YTFreedom: tap-to-seek failed: %@", e);
+                }
+            });
+        (void)orig_didPressScrubber;
+    }
 
     if (IS_ENABLED(KHidePlayerHeatmap)) {
         // Heatwave view (popular-segment heatmap) never created; player bar
