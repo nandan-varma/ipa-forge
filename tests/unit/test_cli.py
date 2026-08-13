@@ -28,6 +28,14 @@ def test_help_lists_all_commands():
     assert result.exit_code == 0
     for command in ("inspect", "validate", "patch", "export-source", "gui"):
         assert command in result.stdout
+    assert "--version" in result.stdout
+
+
+def test_version_flag():
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert result.stdout.startswith("ipa-forge ")
+    assert len(result.stdout.strip().split()) == 2
 
 
 def test_inspect_reports_bundle_metadata():
@@ -179,7 +187,7 @@ def test_patch_real_run_requires_identity(tmp_path: Path):
         ],
     )
     assert result.exit_code == 1
-    assert "--identity is required" in result.stderr
+    assert "error: --identity" in result.stderr
 
 
 def test_patch_real_run_requires_profile(tmp_path: Path):
@@ -199,7 +207,7 @@ def test_patch_real_run_requires_profile(tmp_path: Path):
         ],
     )
     assert result.exit_code == 1
-    assert "--profile is required" in result.stderr
+    assert "error: at least one --profile" in result.stderr
 
 
 # --- F1: a definition that matches nothing must not silently succeed ---

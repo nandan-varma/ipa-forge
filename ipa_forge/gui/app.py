@@ -28,24 +28,83 @@ _OUTPUTS_MAX = 20
 
 _FORM_HTML = """<!doctype html>
 <html>
-<head><title>ipa-forge</title></head>
-<body style="font-family: sans-serif; max-width: 640px; margin: 2rem auto;">
+<head>
+<meta charset="utf-8">
+<title>ipa-forge</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+  label { font-weight: 600; }
+  #result { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 6px; white-space: pre-wrap; }
+  #result.ok { background: #e6f4ea; border: 1px solid #34a853; }
+  #result.error { background: #fce8e6; border: 1px solid #d93025; }
+  #result.pending { background: #f1f3f4; border: 1px solid #9aa0a6; }
+  #result a { font-weight: 600; }
+  button[disabled] { opacity: 0.6; }
+</style>
+</head>
+<body>
 <h1>ipa-forge</h1>
 <p>Patch and re-sign an IPA for AltStore Classic sideloading.</p>
-<form action="/patch" method="post" enctype="multipart/form-data">
-  <p>IPA: <input type="file" name="ipa" required></p>
-  <p>Patch definition -- a single .yaml/.yml/.json file, or a .zip of the
-     patch directory (definition + assets/) if it uses resource_replace/
-     resource_add: <input type="file" name="patches" required></p>
-  <p>Provisioning profile(s) (.mobileprovision) -- select more than one to
-     provide a separate profile per app extension/watch app, matched by
-     bundle id (not needed for dry run):
+<form id="patch-form" action="/patch" method="post" enctype="multipart/form-data">
+  <p><label>IPA</label><br>
+     <input type="file" name="ipa" required></p>
+  <p><label>Patch definition</label><br>
+     A single .yaml/.yml/.json file, or a .zip of the patch directory
+     (definition + assets/) if it uses resource_replace/resource_add.<br>
+     <input type="file" name="patches" required></p>
+  <p><label>Provisioning profile(s) (.mobileprovision)</label><br>
+     Select more than one to provide a separate profile per app
+     extension/watch app, matched by bundle id (not needed for dry run).<br>
      <input type="file" name="profile" multiple></p>
-  <p>Signing identity (SHA-1 or name substring, not needed for dry run):
+  <p><label>Signing identity</label><br>
+     SHA-1 or name substring, as shown by
+     <code>security find-identity -v -p codesigning</code> (not needed for dry run).<br>
      <input type="text" name="identity"></p>
-  <p><label><input type="checkbox" name="dry_run" value="1"> Dry run only</label></p>
-  <p><button type="submit">Patch</button></p>
+  <p><label><input type="checkbox" name="dry_run" value="1"> Dry run only (validate patches, no signing)</label></p>
+  <p><button id="submit-btn" type="submit">Patch</button></p>
 </form>
+<div id="result" hidden></div>
+<script>
+  const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
+  const form = document.getElementById("patch-form");
+  const result = document.getElementById("result");
+  const btn = document.getElementById("submit-btn");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    btn.disabled = true;
+    result.hidden = false;
+    result.className = "pending";
+    result.textContent = "Processing…";
+    try {
+      const res = await fetch("/patch", { method: "POST", body: new FormData(form) });
+      const body = await res.json();
+      if (!res.ok) {
+        result.className = "error";
+        result.textContent = "Error: " + (body.error || ("HTTP " + res.status));
+        return;
+      }
+      const m = body.manifest || {};
+      const ops = (m.patches_applied || [])
+        .map((p) => escapeHtml(p.id) + ": " + escapeHtml(p.status))
+        .join("\n");
+      const title = body.download_url ? "Patched" : "Dry run OK";
+      result.className = "ok";
+      result.innerHTML =
+        "<strong>" + title + "</strong>\n" +
+        escapeHtml(m.bundle_id || "") + " v" + escapeHtml(m.version || "") +
+        (ops ? "\n" + ops : "") +
+        (body.download_url
+          ? "\n<a href=\"" + body.download_url + "\">Download patched IPA</a>"
+          : "");
+    } catch (err) {
+      result.className = "error";
+      result.textContent = "Request failed: " + err;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
 </body>
 </html>
 """

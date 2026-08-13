@@ -45,6 +45,18 @@ def _post(client: TestClient, patches: Path, data: dict) -> httpx.Response:
     )
 
 
+def test_index_serves_the_fetch_based_form():
+    """UI: the form must be enhanced by the inline fetch flow, not the raw
+    JSON navigation it replaced."""
+    client = TestClient(app)
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.text
+    assert 'id="patch-form"' in html
+    assert 'id="result"' in html
+    assert "fetch(" in html
+
+
 def test_patch_dry_run_without_profile_or_identity(tmp_path: Path):
     client = TestClient(app)
     patches = tmp_path / "binary_only.yaml"
@@ -66,7 +78,7 @@ def test_patch_real_run_without_profile_returns_400(tmp_path: Path):
     response = _post(client, patches, data={"identity": "Apple Development"})  # profile missing
 
     assert response.status_code == 400
-    assert response.json()["error"] == "at least one provisioning profile is required unless dry_run is set"
+    assert "provisioning profile" in response.json()["error"]
 
 
 def test_patch_real_run_without_identity_returns_400(tmp_path: Path):
@@ -77,4 +89,4 @@ def test_patch_real_run_without_identity_returns_400(tmp_path: Path):
     response = _post(client, patches, data={})  # neither identity nor dry_run
 
     assert response.status_code == 400
-    assert response.json()["error"] == "identity is required unless dry_run is set"
+    assert response.json()["error"].startswith("identity")

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import tempfile
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _installed_version
 from pathlib import Path
 
 import typer
@@ -12,7 +14,27 @@ from ipa_forge.pipeline import PipelineError, run_pipeline
 from ipa_forge.validators.bundle_validator import validate_bundle
 from ipa_forge.validators.ipa_validator import IpaValidationError, validate_ipa_structure
 
-app = typer.Typer(help="Generic, data-driven iOS IPA patcher with AltStore Classic re-signing support.")
+app = typer.Typer()
+
+
+def _package_version() -> str:
+    try:
+        return _installed_version("ipa-forge")
+    except PackageNotFoundError:  # not installed (e.g. run from a source checkout)
+        return "0.1.0"
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"ipa-forge {_package_version()}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(False, "--version", callback=_version_callback, help="Show version and exit."),
+) -> None:
+    """Generic, data-driven iOS IPA patcher with AltStore Classic re-signing support."""
 
 
 def _validated_extract(ipa: Path, dest: Path) -> Path:
@@ -88,9 +110,14 @@ def patch(
         raise typer.Exit(code=1) from None
 
     if dry_run:
-        typer.echo("Dry run OK -- no files were modified.")
+        count = len(result.manifest.patches_applied)
+        typer.echo(f"Dry run OK -- {count} operation(s) would apply.")
     else:
-        typer.echo(f"Wrote {result.output_path}")
+        manifest = result.manifest
+        applied = sum(1 for p in manifest.patches_applied if p["status"] == "applied")
+        typer.echo(
+            f"Applied {applied} operation(s) to {manifest.bundle_id} v{manifest.version} -> {result.output_path}"
+        )
 
     if verbose:
         typer.echo(result.manifest.to_json())

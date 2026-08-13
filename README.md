@@ -1,5 +1,8 @@
 # ipa-forge
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![repo](https://img.shields.io/badge/repo-nandanvarma%2Fipa--forge-555.svg)](https://github.com/nandanvarma/ipa-forge)
+
 A generic, data-driven iOS IPA patcher framework: extract a user-supplied
 `.ipa`, apply version-aware patches from external YAML definitions (binary
 byte patches, resource replacement, dylib injection), and re-sign the result
