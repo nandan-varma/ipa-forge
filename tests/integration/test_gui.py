@@ -26,11 +26,8 @@ def test_index_serves_the_upload_form():
 def test_patch_endpoint_runs_the_real_pipeline(tmp_path: Path, synthetic_profile: Path):
     client = TestClient(app)
 
-    # The GUI accepts a single patch-definition file upload with no sibling
-    # assets directory (unlike the CLI, which reads --patches off a real
-    # filesystem path with its assets/ alongside it) -- a self-contained
-    # binary_replace-only definition exercises the real pipeline without
-    # requiring multi-file asset upload, which is out of scope for v1.
+    # A self-contained binary_replace-only definition, uploaded as a plain
+    # .yaml with no assets -- the simplest supported upload shape.
     binary_only_patches = tmp_path / "binary_only.yaml"
     binary_only_patches.write_text(
         "target:\n"
@@ -69,6 +66,51 @@ def test_patch_endpoint_runs_the_real_pipeline(tmp_path: Path, synthetic_profile
     download = client.get(body["download_url"])
     assert download.status_code == 200
     assert download.content[:2] == b"PK"  # zip magic
+
+
+def test_patch_endpoint_accepts_a_zip_with_resource_assets(tmp_path: Path, synthetic_profile: Path):
+    """The gap this closes: resource_replace/resource_add need an external
+    source file, which a single-file upload has no way to carry. Zipping the
+    definition together with its assets/ directory is how the GUI now
+    supports them."""
+    import zipfile
+
+    client = TestClient(app)
+
+    zip_path = tmp_path / "patches_bundle.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.write(FIXTURES / "patches" / "example.yaml", "example.yaml")
+        zf.write(FIXTURES / "patches" / "assets" / "patched_asset.txt", "assets/patched_asset.txt")
+
+    with (
+        open(FIXTURES / "synthetic_app.ipa", "rb") as ipa_f,
+        open(zip_path, "rb") as zip_f,
+        open(synthetic_profile, "rb") as profile_f,
+    ):
+        response = client.post(
+            "/patch",
+            files={
+                "ipa": ("synthetic_app.ipa", ipa_f, "application/octet-stream"),
+                "patches": ("patches_bundle.zip", zip_f, "application/zip"),
+                "profile": (synthetic_profile.name, profile_f, "application/octet-stream"),
+            },
+            data={"identity": "Apple Development"},
+        )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    patch_status = {p["id"]: p["status"] for p in body["manifest"]["patches_applied"]}
+    assert patch_status == {"zero-marker-bytes": "applied", "swap-asset": "applied"}
+
+    download = client.get(body["download_url"])
+    assert download.status_code == 200
+
+    import io
+    import zipfile as zf_module
+
+    with zf_module.ZipFile(io.BytesIO(download.content)) as out_zip:
+        content = out_zip.read("Payload/TestApp.app/asset.txt")
+    assert content == b"patched synthetic resource\n"
 
 
 def test_patch_endpoint_surfaces_pipeline_errors_as_400(synthetic_profile: Path, tmp_path: Path):

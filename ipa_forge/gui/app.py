@@ -15,6 +15,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
+from ipa_forge.gui.uploads import UploadError, resolve_patch_definition
 from ipa_forge.pipeline import PipelineError, run_pipeline
 
 app = FastAPI(title="ipa-forge")
@@ -30,7 +31,9 @@ _FORM_HTML = """<!doctype html>
 <p>Patch and re-sign an IPA for AltStore Classic sideloading.</p>
 <form action="/patch" method="post" enctype="multipart/form-data">
   <p>IPA: <input type="file" name="ipa" required></p>
-  <p>Patch definition (YAML/JSON): <input type="file" name="patches" required></p>
+  <p>Patch definition -- a single .yaml/.yml/.json file, or a .zip of the
+     patch directory (definition + assets/) if it uses resource_replace/
+     resource_add: <input type="file" name="patches" required></p>
   <p>Provisioning profile(s) (.mobileprovision) -- select more than one to
      provide a separate profile per app extension/watch app, matched by
      bundle id: <input type="file" name="profile" multiple required></p>
@@ -59,16 +62,24 @@ async def patch(
     request_dir = _WORK_DIR / uuid.uuid4().hex
     request_dir.mkdir(parents=True)
 
-    ipa_path = request_dir / ipa.filename
-    patches_path = request_dir / patches.filename
+    # Upload filenames are client-supplied and untrusted -- take only the
+    # basename before joining into a filesystem path, or a crafted filename
+    # like "../../etc/whatever" could write outside request_dir.
+    ipa_path = request_dir / Path(ipa.filename or "upload.ipa").name
+    patches_upload_path = request_dir / Path(patches.filename or "patches").name
     ipa_path.write_bytes(await ipa.read())
-    patches_path.write_bytes(await patches.read())
+    patches_upload_path.write_bytes(await patches.read())
+
+    try:
+        patches_path = resolve_patch_definition(patches_upload_path, request_dir)
+    except UploadError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
     profile_dir = request_dir / "profiles"
     profile_dir.mkdir()
     profile_paths = []
     for i, upload in enumerate(profile):
-        dest = profile_dir / f"{i}_{upload.filename}"
+        dest = profile_dir / f"{i}_{Path(upload.filename or 'profile.mobileprovision').name}"
         dest.write_bytes(await upload.read())
         profile_paths.append(dest)
 
