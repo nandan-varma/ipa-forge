@@ -66,7 +66,7 @@ def analyze_bundle(bundle) -> MachOAnalysis:
             continue
         try:
             analysis = analyze_macho(target)
-        except Exception:
+        except (ValueError, OSError, subprocess.CalledProcessError):
             continue  # not a Mach-O or unreadable; skip
         if merged is None:
             merged = analysis
@@ -246,9 +246,11 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
                 break
             if rel and entsize == 12:
                 rel_off = struct.unpack_from("<i", data, eo_i)[0]
-                sel = cstr(resolve_ptr(rd64(e + rel_off)))
+                sel_ptr = resolve_ptr(rd64(e + rel_off))
+                sel = cstr(sel_ptr) if sel_ptr else None
             elif not rel:
-                sel = cstr(resolve_ptr(rd64(e)))
+                sel_ptr = resolve_ptr(rd64(e))
+                sel = cstr(sel_ptr) if sel_ptr else None
             else:
                 continue
             if sel:
