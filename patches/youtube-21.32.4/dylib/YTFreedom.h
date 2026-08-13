@@ -129,6 +129,15 @@
 #define KRemoveDontRecommendMenu  @"YTFreedomRemoveDontRecommendMenu"
 #define KRemoveReportMenu         @"YTFreedomRemoveReportMenu"
 
+// New-IPA UX toggles (uYouEnhanced lineage + 21.32.4 config flags)
+#define KDisableRatePrompts        @"YTFreedomDisableRatePrompts"
+#define KHideHUDMessages           @"YTFreedomHideHUDMessages"
+#define KHidePlayerHeatmap         @"YTFreedomHidePlayerHeatmap"
+#define KShortsPlaybackSpeed       @"YTFreedomShortsPlaybackSpeed"
+#define KMuteButtonPlayer          @"YTFreedomMuteButtonPlayer"
+#define KInlineShortsPlayback      @"YTFreedomInlineShortsPlayback"
+#define KChapterSeek               @"YTFreedomChapterSeek"
+
 #define IS_ENABLED(key)   [[NSUserDefaults standardUserDefaults] boolForKey:(key)]
 #define INTFORVAL(key)    (int)[[NSUserDefaults standardUserDefaults] integerForKey:(key)]
 #define SET_BOOL(key, v)  [[NSUserDefaults standardUserDefaults] setBool:(v) forKey:(key)]
@@ -185,6 +194,22 @@ static inline void ytfAddInstanceMethod(Class cls, SEL sel, id block, const char
         class_addMethod(cls, sel, imp_implementationWithBlock(block), encoding);
         os_log(ytfLog(), "YTFreedom: added -[%s %s]", class_getName(cls), sel_getName(sel));
     }
+}
+
+// Hook a YTColdConfig/YTHotConfig BOOL getter; returns the override value
+// when the toggle is on, else chains to the original (server/A-B) value.
+static inline void ytfHookConfigBool(Class cls, SEL sel, BOOL (^override)(void)) {
+    if (!cls) return;
+    Method m = class_getInstanceMethod(cls, sel);
+    if (!m) {
+        os_log(ytfLog(), "YTFreedom: config flag %s not found on %s",
+               sel_getName(sel), class_getName(cls));
+        return;
+    }
+    IMP orig = method_getImplementation(m);
+    class_replaceMethod(cls, sel, imp_implementationWithBlock(^BOOL(id self) {
+        return override() ? YES : ((BOOL(*)(id, SEL))orig)(self, sel);
+    }), method_getTypeEncoding(m));
 }
 
 // ---------------------------------------------------------------------------

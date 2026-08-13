@@ -315,6 +315,9 @@ static void buildYTFreedomSection(id manager) {
             YTFSwitchItem(@"Portrait fullscreen", nil, KPortFull),
             YTFSwitchItem(@"Old quality picker", nil, KOldQualityPicker),
             YTFSwitchItem(@"Extra speeds (0.25x-10x)", nil, KExtraSpeed),
+            YTFSwitchItem(@"Mute button in player", @"Adds a mute control (new-IPA flag)", KMuteButtonPlayer),
+            YTFSwitchItem(@"Hide player heatmap", @"Remove the red popularity heatmap", KHidePlayerHeatmap),
+            YTFSwitchItem(@"Inline chapter seek", @"Tap chapters/segments to seek inline", KChapterSeek),
             YTFSwitchItem(@"Red progress bar", @"Resting bar color becomes red", KRedProgressBar),
             YTFSwitchItem(@"Copy timestamped link on pause", @"Copies watch URL with current time", KCopyTimestampedLink),
             YTFSwitchItem(@"Disable hints", nil, KDisableHints),
@@ -353,6 +356,8 @@ static void buildYTFreedomSection(id manager) {
             YTFSwitchItem(@"Hide 'to video' pill", nil, KHideShortsToVideo),
             YTFSwitchItem(@"Enable quality selector", nil, KEnablesShortsQuality),
             YTFSwitchItem(@"Show seekbar", nil, KShowShortsSeekbar),
+            YTFSwitchItem(@"Playback speed from menu", @"⋯ menu gains speed options (new-IPA flag)", KShortsPlaybackSpeed),
+            YTFSwitchItem(@"Inline playback on Shorts shelf", @"Play Shorts inline in the feed", KInlineShortsPlayback),
         ]);
         return YES;
     });
@@ -391,6 +396,8 @@ static void buildYTFreedomSection(id manager) {
             YTFSwitchItem(@"Hide startup animations", nil, KHideStartupAni),
             YTFSwitchItem(@"Hide 'Play next in queue'", nil, KHidePlayInNextQueue),
             YTFSwitchItem(@"Hide like/dislike votes", @"Silent voting", KHideLikeDislikeVotes),
+            YTFSwitchItem(@"Disable rate prompts", @"Never ask to rate the app", KDisableRatePrompts),
+            YTFSwitchItem(@"Hide HUD/toast messages", @"Suppress like-saved style toasts", KHideHUDMessages),
         ]);
         return YES;
     });

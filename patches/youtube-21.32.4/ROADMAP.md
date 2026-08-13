@@ -291,6 +291,30 @@ Status legend: ✅ done · 🔄 in progress · ⬜ planned · ⛔ verified absen
 - **App extensions** (widgets/share/intents/notifications): deliberately stripped for
   AltStore install (IXErrorDomain Code=2 fix) — do not re-add.
 
+## New-IPA research (G20): what 21.32.4 enables that the references don't know about
+
+Two discovery passes over the binary + current forks:
+
+1. **Config-flag surface (776 YTColdConfig/YTHotConfig getters)** — the A/B
+   switches. Added toggles for the client-side UX wins: `iosEnableMuteButton-
+   PlayerControl` (mute button), `enableInlinePlayerChapterSeek` + `SegmentSeek`
+   (chapter seek), `shortsConsumptionClientGlobalConfigIosEnableShortsPlayback-
+   SpeedFromMenu` (Shorts speed), `iosEnableInlinePlaybackOnShortsShelf`
+   (inline Shorts shelf). All verified present; mechanism identical to the
+   existing `enableIosFloatingMiniplayer` toggle.
+2. **uYouEnhanced diff (157 hooked classes vs ours)** — ported the portable
+   wins: `SKStoreReviewController requestReview` no-op (rate prompts),
+   `YTHUDMessageView initWithMessage:dismissHandler:` -> nil (toasts),
+   `YTPlayerBarHeatwaveView initWithFrame:heatmap:startTime:endTime:` nil +
+   `YTPlayerBarController setHeatmap:` nil (heatmap), `YTFullscreenEngagement-
+   OverlayController relatedVideosPeekingEnabled` NO (fullscreen related-videos
+   peeking, tied to HideSuggestedVideo).
+
+Not ported (documented): LowContrastMode (uYou theme feature), FRPreferences/
+FRPSelectListTable/settingsReorderTable (uYou's own settings UI — we use the
+native YouTube settings), BigYTMiniPlayer (needs the absent YTWatchMiniBarView),
+YTReExplore, alternate-app-icons (no icon set in our build).
+
 ## Audit results (systematic pass, all 148 hooks classified)
 
 `tools/audit_our_hooks.py` classifies every hook our dylib installs against
@@ -343,3 +367,4 @@ the `YTFreedom: hooked -[...]` os_log lines at launch.
 | G17 Downloads | ⬜ final milestone — sub-plan below |
 | G18 YTLite extras | ✅ portable subset done (red progress bar, related-videos hide, timestamped link on pause, menu-item removal, sticky navbar, label fitting, playlist minibar) — on-device pass pending |
 | G19 Adblock polish | ✅ (promo blockers folded into G12) |
+| G20 New-IPA UX batch | ✅ mute button, heatmap removal, chapter seek, Shorts speed, inline Shorts playback, rate-prompt/HUD suppression, fullscreen related-videos peeking — on-device pass pending |

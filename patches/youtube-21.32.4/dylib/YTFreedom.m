@@ -23,6 +23,7 @@ static void YTFreedomInit(void) {
         KGestureHUDSize: @(1),
         KGestureHUDPosition: @(0),
         KDefaultTab: @(0),
+        KDisableRatePrompts: @YES,
     };
     [[NSUserDefaults standardUserDefaults] registerDefaults:defaults];
 

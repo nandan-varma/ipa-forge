@@ -287,6 +287,15 @@ static void fixShorts(void) {
         });
     (void)orig_iosEnableVideoPlayerScrubber;
 
+    // New-IPA Shorts UX: playback speed from the ⋯ menu, inline playback on
+    // the home Shorts shelf.
+    Class coldConfig = NSClassFromString(@"YTColdConfig");
+    ytfHookConfigBool(coldConfig,
+        @selector(shortsConsumptionClientGlobalConfigIosEnableShortsPlaybackSpeedFromMenu),
+        ^BOOL { return IS_ENABLED(KShortsPlaybackSpeed); });
+    ytfHookConfigBool(coldConfig, @selector(iosEnableInlinePlaybackOnShortsShelf),
+        ^BOOL { return IS_ENABLED(KInlineShortsPlayback); });
+
     // Diagnostic (research aid for the "Shorts has no dislike button"
     // report): the Shorts action rail is server-driven — the client renders
     // whatever button entries the renderer's actionBarButtonsArray contains.

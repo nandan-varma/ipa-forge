@@ -319,9 +319,31 @@ static void fixMenuRemoval(void) {
     (void)orig_addAction;
 }
 
+// --- New-IPA UX: rate prompts + HUD messages --------------------------------
+
+static void fixUXExtras(void) {
+    // Never ask "Rate this app" (SKStoreReviewController requestReview).
+    if (IS_ENABLED(KDisableRatePrompts)) {
+        static IMP orig_requestReview;
+        orig_requestReview = ytfHookClass(NSClassFromString(@"SKStoreReviewController"),
+            @selector(requestReview), ^void(id cls) {});
+        (void)orig_requestReview;
+    }
+
+    // Hide "toast" HUD messages (like saved, etc.).
+    if (IS_ENABLED(KHideHUDMessages)) {
+        static IMP orig_initWithMessage;
+        orig_initWithMessage = ytfHookInstance(NSClassFromString(@"YTHUDMessageView"),
+            @selector(initWithMessage:dismissHandler:),
+            ^id(id self, id message, id handler) { return nil; });
+        (void)orig_initWithMessage;
+    }
+}
+
 void YTFreedomMiscInit(void) {
     fixBackgroundPlayback();
     fixMisc();
     fixPromos();
     fixMenuRemoval();
+    fixUXExtras();
 }

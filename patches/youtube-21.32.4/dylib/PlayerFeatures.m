@@ -746,7 +746,7 @@ static void fixYTLiteExtras(void) {
         });
     (void)orig_setVisibleSections;
 
-    // Related videos on the endscreen.
+    // Related videos on the endscreen (incl. fullscreen peeking).
     static IMP orig_setRelatedVideosVisible;
     orig_setRelatedVideosVisible = ytfHookInstance(
         NSClassFromString(@"YTFullscreenEngagementOverlayController"),
@@ -756,6 +756,15 @@ static void fixYTLiteExtras(void) {
                 self, @selector(setRelatedVideosVisible:), IS_ENABLED(KHideSuggestedVideo) ? NO : visible);
         });
     (void)orig_setRelatedVideosVisible;
+    static IMP orig_relatedVideosPeeking;
+    orig_relatedVideosPeeking = ytfHookInstance(
+        NSClassFromString(@"YTFullscreenEngagementOverlayController"),
+        @selector(relatedVideosPeekingEnabled),
+        ^BOOL(id self) {
+            return IS_ENABLED(KHideSuggestedVideo) ? NO
+                : ((BOOL(*)(id, SEL))orig_relatedVideosPeeking)(self, @selector(relatedVideosPeekingEnabled));
+        });
+    (void)orig_relatedVideosPeeking;
 
     // Fit button labels (play-all / shorts) for localizations.
     static IMP orig_qtmTitleLabel;
@@ -787,6 +796,32 @@ static void fixYTLiteExtras(void) {
             ((void(*)(id, SEL, CGRect))orig_playlistMiniBarFrame)(self, @selector(setFrame:), frame);
         });
     (void)orig_playlistMiniBarFrame;
+
+    // New-IPA player UX: mute button, heatmap removal, inline chapter seek.
+    Class coldConfig = NSClassFromString(@"YTColdConfig");
+    ytfHookConfigBool(coldConfig, @selector(iosEnableMuteButtonPlayerControl),
+        ^BOOL { return IS_ENABLED(KMuteButtonPlayer); });
+    ytfHookConfigBool(coldConfig, @selector(enableInlinePlayerChapterSeek),
+        ^BOOL { return IS_ENABLED(KChapterSeek); });
+    ytfHookConfigBool(coldConfig, @selector(enableInlinePlayerSegmentSeek),
+        ^BOOL { return IS_ENABLED(KChapterSeek); });
+
+    if (IS_ENABLED(KHidePlayerHeatmap)) {
+        // Heatwave view (popular-segment heatmap) never created; player bar
+        // heatmap never set (21.32.4 init signature has start/end time).
+        static IMP orig_heatwaveInit;
+        orig_heatwaveInit = ytfHookInstance(NSClassFromString(@"YTPlayerBarHeatwaveView"),
+            @selector(initWithFrame:heatmap:startTime:endTime:),
+            ^id(id self, CGRect frame, id heatmap, id start, id end) { return nil; });
+        (void)orig_heatwaveInit;
+        static IMP orig_setHeatmap;
+        orig_setHeatmap = ytfHookInstance(NSClassFromString(@"YTPlayerBarController"),
+            @selector(setHeatmap:),
+            ^void(id self, id heatmap) {
+                ((void(*)(id, SEL, id))orig_setHeatmap)(self, @selector(setHeatmap:), nil);
+            });
+        (void)orig_setHeatmap;
+    }
 }
 
 void YTFreedomPlayerInit(void) {
