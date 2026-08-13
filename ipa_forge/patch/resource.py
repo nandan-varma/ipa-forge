@@ -6,18 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ipa_forge.patch.base import PatchContext, PatchResult
-
-
-class ResourcePathError(Exception):
-    pass
-
-
-def _resolve_bundle_path(bundle_root: Path, relative: str) -> Path:
-    bundle_root = bundle_root.resolve()
-    candidate = (bundle_root / relative).resolve()
-    if candidate != bundle_root and bundle_root not in candidate.parents:
-        raise ResourcePathError(f"destination '{relative}' escapes the app bundle root")
-    return candidate
+from ipa_forge.patch.paths import BundlePathError, resolve_bundle_path
 
 
 @dataclass
@@ -27,14 +16,14 @@ class ResourceReplaceOp:
     source: str
 
     def _resolve(self, ctx: PatchContext) -> tuple[Path, Path]:
-        dest = _resolve_bundle_path(ctx.bundle.root, self.path)
+        dest = resolve_bundle_path(ctx.bundle.root, self.path)
         src = (ctx.patch_source_dir / self.source).resolve()
         return dest, src
 
     def dry_run(self, ctx: PatchContext) -> PatchResult:
         try:
             dest, src = self._resolve(ctx)
-        except ResourcePathError as e:
+        except BundlePathError as e:
             return PatchResult(op_id=self.op_id, status="failed", message=str(e))
         if not src.is_file():
             return PatchResult(op_id=self.op_id, status="failed", message=f"source '{src}' does not exist")
@@ -62,14 +51,14 @@ class ResourceAddOp:
     source: str
 
     def _resolve(self, ctx: PatchContext) -> tuple[Path, Path]:
-        dest = _resolve_bundle_path(ctx.bundle.root, self.path)
+        dest = resolve_bundle_path(ctx.bundle.root, self.path)
         src = (ctx.patch_source_dir / self.source).resolve()
         return dest, src
 
     def dry_run(self, ctx: PatchContext) -> PatchResult:
         try:
             dest, src = self._resolve(ctx)
-        except ResourcePathError as e:
+        except BundlePathError as e:
             return PatchResult(op_id=self.op_id, status="failed", message=str(e))
         if not src.is_file():
             return PatchResult(op_id=self.op_id, status="failed", message=f"source '{src}' does not exist")
@@ -97,12 +86,12 @@ class ResourceRemoveOp:
     path: str
 
     def _resolve(self, ctx: PatchContext) -> Path:
-        return _resolve_bundle_path(ctx.bundle.root, self.path)
+        return resolve_bundle_path(ctx.bundle.root, self.path)
 
     def dry_run(self, ctx: PatchContext) -> PatchResult:
         try:
             dest = self._resolve(ctx)
-        except ResourcePathError as e:
+        except BundlePathError as e:
             return PatchResult(op_id=self.op_id, status="failed", message=str(e))
         if not dest.exists():
             return PatchResult(op_id=self.op_id, status="failed", message=f"destination '{dest}' does not exist")

@@ -7,9 +7,9 @@ files.
 """
 from __future__ import annotations
 
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class VersionExact(BaseModel):
@@ -69,6 +69,21 @@ class DylibInjectSpec(BaseModel):
     load_command: Literal["LC_LOAD_DYLIB", "LC_LOAD_WEAK_DYLIB"] = "LC_LOAD_DYLIB"
 
 
+class PlistEditSpec(BaseModel):
+    type: Literal["plist_edit"]
+    id: str
+    action: Literal["set", "remove"]
+    key: str
+    value: Any = None
+    path: str = "Info.plist"
+
+    @model_validator(mode="after")
+    def _value_required_for_set(self) -> "PlistEditSpec":
+        if self.action == "set" and self.value is None:
+            raise ValueError("plist_edit with action 'set' requires a non-null 'value'")
+        return self
+
+
 PatchSpec = Annotated[
     Union[
         BinaryReplaceSpec,
@@ -76,6 +91,7 @@ PatchSpec = Annotated[
         ResourceAddSpec,
         ResourceRemoveSpec,
         DylibInjectSpec,
+        PlistEditSpec,
     ],
     Field(discriminator="type"),
 ]

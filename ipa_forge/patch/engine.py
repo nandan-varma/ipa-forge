@@ -2,15 +2,18 @@
 """Dry-run gate + ordered apply for a resolved set of patch operations.
 
 Enforces pipeline stages 5-8: every operation must report dry_run_ok before
-anything mutates, then mutations run resource ops -> binary ops -> dylib
-injection last (LIEF load-command rewrites can shift byte offsets binary
-patches depend on, so injection must never run before binary patching).
+anything mutates, then mutations run resource/plist ops -> binary ops ->
+dylib injection last (LIEF load-command rewrites can shift byte offsets
+binary patches depend on, so injection must never run before binary
+patching). Resource and plist edits share a rank: neither touches Mach-O
+layout, so their relative order carries no correctness constraint.
 """
 from __future__ import annotations
 
 from ipa_forge.patch.base import PatchContext, PatchOperation, PatchResult
 from ipa_forge.patch.binary import BinaryReplaceOp
 from ipa_forge.patch.dylib import DylibInjectOp
+from ipa_forge.patch.plist import PlistEditOp
 from ipa_forge.patch.resource import ResourceAddOp, ResourceRemoveOp, ResourceReplaceOp
 
 
@@ -26,7 +29,7 @@ def dry_run_all(ops: list[PatchOperation], ctx: PatchContext) -> list[PatchResul
 
 
 def _apply_order_rank(op: PatchOperation) -> int:
-    if isinstance(op, (ResourceReplaceOp, ResourceAddOp, ResourceRemoveOp)):
+    if isinstance(op, (ResourceReplaceOp, ResourceAddOp, ResourceRemoveOp, PlistEditOp)):
         return 0
     if isinstance(op, BinaryReplaceOp):
         return 1

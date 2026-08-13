@@ -1,0 +1,19 @@
+# Phase-completion example: edits TestApp's Info.plist directly. Kept
+# separate from example.yaml, which stays the canonical "one binary patch +
+# one resource replacement" example.
+target:
+  bundle_id: "com.example.synthetic"
+  version:
+    exact: "1.0.0"
+
+patches:
+  - id: "bump-min-os"
+    type: plist_edit
+    action: set
+    key: "MinimumOSVersion"
+    value: "14.0"
+
+  - id: "drop-ipad-support"
+    type: plist_edit
+    action: remove
+    key: "UIDeviceFamily"

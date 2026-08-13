@@ -9,11 +9,13 @@ import yaml
 from ipa_forge.patch.base import PatchOperation
 from ipa_forge.patch.binary import BinaryReplaceOp
 from ipa_forge.patch.dylib import DylibInjectOp
+from ipa_forge.patch.plist import PlistEditOp
 from ipa_forge.patch.resource import ResourceAddOp, ResourceRemoveOp, ResourceReplaceOp
 from ipa_forge.patch.schema import (
     BinaryReplaceSpec,
     DylibInjectSpec,
     PatchDefinition,
+    PlistEditSpec,
     ResourceAddSpec,
     ResourceRemoveSpec,
     ResourceReplaceSpec,
@@ -55,6 +57,10 @@ def build_operations(definition: PatchDefinition) -> list[PatchOperation]:
                     arch=spec.arch,
                     load_command=spec.load_command,
                 )
+            )
+        elif isinstance(spec, PlistEditSpec):
+            ops.append(
+                PlistEditOp(op_id=spec.id, action=spec.action, key=spec.key, value=spec.value, path=spec.path)
             )
         else:
             raise ValueError(f"unknown patch spec type: {spec!r}")
