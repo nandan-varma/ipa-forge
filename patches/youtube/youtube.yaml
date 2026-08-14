@@ -395,6 +395,9 @@ hooks:
   - class: "YTVideoQualitySwitchOriginalController"
     selector: "setUserSelectableFormats:"
     kind: instance
+  - class: "YTVideoQualitySwitchRedesignedController"
+    selector: "setUserSelectableFormats:"
+    kind: instance
   - class: "YTVarispeedSwitchController"
     selector: "init"
     kind: instance
@@ -462,6 +465,9 @@ hooks:
     kind: instance
   - class: "YTWatchLayerViewController"
     selector: "watchController:didSetPlayerViewController:"
+    kind: instance
+  - class: "YTMainAppVideoPlayerOverlayViewController"
+    selector: "viewDidLayoutSubviews"
     kind: instance
   - class: "YTSettingsGroupData"
     selector: "orderedCategories"

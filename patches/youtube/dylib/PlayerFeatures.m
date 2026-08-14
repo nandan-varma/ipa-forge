@@ -508,6 +508,22 @@ static void addPlayerViewControllerHelpers(void) {
 
 // --- G4: old quality picker -------------------------------------------------
 
+// Stashed quality state for the Quality&Speed pill (PlayerQuickControls.m):
+// the last selectable formats the quality switch received and the
+// current-quality label it knows about.
+static NSArray *sSelectableFormats = nil;
+static NSString *sCurrentQualityLabel = nil;
+NSArray *ytfSelectableFormats(void) { return sSelectableFormats; }
+NSString *ytfCurrentQualityLabel(void) { return sCurrentQualityLabel; }
+void ytfSetCurrentQualityLabel(NSString *label) { sCurrentQualityLabel = [label copy]; }
+
+static void ytfStashQualityState(id qualitySwitch, NSArray *formats) {
+    sSelectableFormats = [formats copy];
+    NSString *label = [qualitySwitch valueForKey:@"_currentFormatQualityLabel"];
+    if ([label isKindOfClass:[NSString class]] && label.length)
+        sCurrentQualityLabel = label;
+}
+
 static void fixOldQualityPicker(void) {
     ytfAddInstanceMethod(NSClassFromString(@"YTIMediaQualitySettingsHotConfig"),
                          sel_registerName("enableQuickMenuVideoQualitySettings"),
@@ -521,6 +537,7 @@ static void fixOldQualityPicker(void) {
         NSClassFromString(@"YTVideoQualitySwitchOriginalController"),
         @selector(setUserSelectableFormats:),
         ^void(id self, NSArray *formats) {
+            ytfStashQualityState(self, formats);
             id redesigned = objc_getAssociatedObject(self, kRedesignedKey);
             if (!redesigned) {
                 Class rc = NSClassFromString(@"YTVideoQualitySwitchRedesignedController");
@@ -542,6 +559,19 @@ static void fixOldQualityPicker(void) {
                 self, @selector(setUserSelectableFormats:), newFormats);
         });
     (void)orig_setUserSelectableFormats;
+
+    // The redesigned controller also receives the formats when it is the
+    // active quality UI — same stash.
+    static IMP orig_setUserSelectableFormatsRedesigned;
+    orig_setUserSelectableFormatsRedesigned = ytfHookInstance(
+        NSClassFromString(@"YTVideoQualitySwitchRedesignedController"),
+        @selector(setUserSelectableFormats:),
+        ^void(id self, NSArray *formats) {
+            ytfStashQualityState(self, formats);
+            ((void(*)(id, SEL, id))orig_setUserSelectableFormatsRedesigned)(
+                self, @selector(setUserSelectableFormats:), formats);
+        });
+    (void)orig_setUserSelectableFormatsRedesigned;
 }
 
 // --- G5: extra speed + consolidated menu hook -------------------------------

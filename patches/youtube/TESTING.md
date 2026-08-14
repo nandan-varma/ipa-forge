@@ -1,9 +1,29 @@
-# YouTube Pro v0.0.4 — device test sheet
+# YouTube Pro v0.0.5 — device test sheet
 
-Install `/Users/nandan/dev/ytlite-ipa/Youtube_pro_v0.0.4.ipa`. Confirm build:
-Settings → YTFreedom → version row = **v0.8.0**.
+Install `/Users/nandan/dev/ytlite-ipa/Youtube_pro_v0.0.5.ipa`. Confirm build:
+Settings → YTFreedom → version row = **v0.9.0**.
 
-## What changed in v0.0.4 (fixes the three broken items)
+## What changed in v0.0.5 (Quality & Speed pill — our own UI)
+
+The app's ...-menu quality/speed items are ELM-driven and their handler
+selectors (didPressVarispeed:/didPressVideoQuality:) are not implemented in
+21.32.4, so hooks on that path can't produce UI. Per your direction this build
+stops fighting the menu and adds OUR OWN control:
+
+- **A small pill** ("Auto . 1.00x" -> e.g. "1080p . 1.5x") on the fullscreen
+  player controls, bottom-left, shown when controls are shown.
+- **Tap the pill** -> our picker (action sheet): Speed 0.25x-10x, then Quality
+  (the actual selectable formats for the current video, highest first, current
+  marked).
+- **Speed apply**: -[YTPlayerViewController setPlaybackRate:] — the same call
+  the working edge gestures use.
+- **Quality apply**: MLQuickMenuVideoQualitySettingFormatConstraint +
+  didSelectVideoQualityFormatConstraint:forSelectableVideoFormats: — this is
+  the one remaining assumption; it is runtime-guarded and logged
+  ("YTFreedom: applied quality ..." / "quality apply skipped ..."). If quality
+  selection does nothing, the launch/console log line tells us which case hit.
+
+## What changed in v0.0.4 (fixes the three broken items) — superseded by the pill
 
 - **Video quality + Playback speed menu items fixed**: the old code replaced
   their handlers with selectors that don't exist in 21.32.4 and disabled the

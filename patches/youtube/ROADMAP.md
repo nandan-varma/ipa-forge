@@ -397,6 +397,35 @@ the `YTFreedom: hooked -[...]` os_log lines at launch.
 | G19 Adblock polish | ✅ always-on |
 | G20 New-IPA UX batch | ✅ A/B Testing under Advanced with otool-verified flags + restart pills — on-device pass pending |
 
+### v0.0.5 — Quality & Speed pill (our own UI, per user direction)
+
+The ...-menu quality/speed items are ELM-driven in 21.32.4 and their handler
+selectors (didPressVarispeed:/didPressVideoQuality:) are selref-only (no
+implementing class) — hooks on that path cannot produce UI. Instead:
+
+- New `dylib/PlayerQuickControls.m`: a small pill on the fullscreen player
+  overlay (`YTMainAppVideoPlayerOverlayViewController viewDidLayoutSubviews`)
+  showing current quality + rate ("1080p . 1.5x"), always visible with the
+  controls.
+- Tap -> our UIAlertController picker: Speed (13 rates) + Quality (from
+  `YTSingleVideoController selectableVideoFormats`, deduped by label, sorted
+  by height/FPS; current marked).
+- Speed apply: `-[YTPlayerViewController setPlaybackRate:]` (same call the
+  working edge gestures use). Quality apply:
+  `MLQuickMenuVideoQualitySettingFormatConstraint` +
+  `didSelectVideoQualityFormatConstraint:forSelectableVideoFormats:` — the one
+  remaining assumption, runtime-guarded + logged (`quality apply skipped` vs
+  `applied quality`).
+- Quality label tracking: stashed from the quality-switch controllers'
+  `setUserSelectableFormats:` (both Original + Redesigned) via
+  `_currentFormatQualityLabel`; pill updates on its own applies
+  (`ytfSetCurrentQualityLabel:`). Shows "Auto" until first known.
+- PlayerGestures.m exports `ytfPlaybackRateValue()` + the weak current player
+  VC for the pill.
+- Clang note: selectors unknown to the TU are hard errors even on `id`
+  receivers in the Xcode 26.5 clang — dynamic calls need an informal protocol
+  (`YTFreedomQuickControlsHooks`), matching the codebase convention.
+
 ### v0.0.4 — three on-device fixes (menu dead-ends + default tab)
 
 - **Video quality / Playback speed menu items were dead**: the YTMenuController

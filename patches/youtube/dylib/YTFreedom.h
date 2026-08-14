@@ -12,9 +12,11 @@
 #import <objc/runtime.h>
 #import <os/log.h>
 
+@class UIViewController;
+
 #define YT_BUNDLE_ID @"com.google.ios.youtube"
 #define YT_NAME @"YouTube"
-#define YTFREEDOM_VERSION @"0.8.0"
+#define YTFREEDOM_VERSION @"0.9.0"
 
 // ---------------------------------------------------------------------------
 // Settings keys (NSUserDefaults, prefix YTFreedom)
@@ -318,5 +320,15 @@ void YTFreedomNavbarTabbarInit(void);
 void YTFreedomFeedShortsInit(void);
 void YTFreedomMiscInit(void);
 void YTFreedomAppearanceInit(void);
+void YTFreedomPlayerQuickControlsInit(void);
 
+// ---------------------------------------------------------------------------
+// Shared player state (PlayerGestures.m / PlayerFeatures.m own the hooks;
+// PlayerQuickControls.m reads the values).
+// ---------------------------------------------------------------------------
+float ytfPlaybackRateValue(void);                    // current rate, tracked on setPlaybackRate:
+UIViewController *ytfCurrentPlayerViewController(void); // weak ref to the active YTPlayerViewController
+NSArray *ytfSelectableFormats(void);                 // last formats the quality switch received
+NSString *ytfCurrentQualityLabel(void);              // last current-quality label seen ("1080p", ...)
+void ytfSetCurrentQualityLabel(NSString *label);          // set by the pill when it applies a quality
 #endif
