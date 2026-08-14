@@ -22,6 +22,29 @@ def compiled_macho_binary(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def objc_macho_binary(tmp_path: Path) -> Path:
+    """A real thin Mach-O with ObjC classes + methods + selrefs, compiled with
+    clang. Lets the hook analyzer run end-to-end (class walk, method lists,
+    selrefs) against a small deterministic binary."""
+    src = tmp_path / "main.m"
+    src.write_text(
+        "#import <Foundation/Foundation.h>\n"
+        "@interface Foo : NSObject\n"
+        "- (void)doIt:(id)arg;\n"
+        "+ (id)makeIt;\n"
+        "@end\n"
+        "@implementation Foo\n"
+        "- (void)doIt:(id)arg { }\n"
+        "+ (id)makeIt { return nil; }\n"
+        "@end\n"
+        "int main(void) { return 0; }\n"
+    )
+    out = tmp_path / "objc_binary"
+    subprocess.run(["clang", "-fobjc-arc", "-framework", "Foundation", "-o", str(out), str(src)], check=True)
+    return out
+
+
+@pytest.fixture
 def fat_macho_binary(tmp_path: Path) -> Path:
     """A real universal (arm64 + x86_64) Mach-O binary, for arch-selection tests."""
     src = tmp_path / "fat_main.c"

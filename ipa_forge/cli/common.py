@@ -1,19 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Shared CLI helpers (no typer coupling)."""
+"""Shared CLI helpers. The extraction helper lives in the bundle domain
+(ipa_forge.bundle.ipa.validate_and_extract); this module re-exports it so
+CLI code reads cleanly."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from ipa_forge.bundle.ipa import extract_ipa
-from ipa_forge.validators.ipa_validator import IpaValidationError, validate_ipa_structure
-
-
-def validated_extract(ipa: Path, dest: Path) -> Path:
-    """Structure-validate (pipeline stage 1), then extract — surfacing a clean
-    error instead of a traceback for malformed input."""
-    try:
-        validate_ipa_structure(ipa)
-    except IpaValidationError as e:
-        raise ValueError(str(e)) from e
-    return extract_ipa(ipa, dest)
+from ipa_forge.bundle.ipa import validate_and_extract as validated_extract  # noqa: F401

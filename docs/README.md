@@ -1,6 +1,8 @@
 # ipa-forge documentation
 
-Which document to read, for what.
+Which document to read, for what. **New session? Start with
+[`../STATE.md`](../STATE.md)** — the project state & operating knowledge —
+then come back here for the map.
 
 ## For humans adding a new app, feature, or patch
 

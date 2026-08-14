@@ -17,7 +17,8 @@ from pathlib import Path
 from ipa_forge.hooks.verify import HookDecl
 
 _PATTERN = re.compile(
-    r"([A-Za-z_][A-Za-z0-9_]*)Hook(Instance|Class|AddInstanceMethod)\("
+    r"([A-Za-z_][A-Za-z0-9_]*)?(?:Hook(Instance|Class)|AddInstanceMethod)"
+    r"\("
     r"\s*(?:NSClassFromString\(@?\"([^\"]+)\"\)|\[\s*(\w+)\s*class\]|(\w+))"
     r"\s*,\s*(?:@selector\(([^)]+)\)|sel_registerName\(\"([^\"]+)\"\))"
 )
@@ -42,12 +43,13 @@ def scan_hook_sources(dylib_src: Path) -> list[HookDecl]:
 
         for m in _PATTERN.finditer(text):
             _prefix, kind, cls, cls2, clsvar, sel, sel2 = m.groups()
+            is_add = kind is None  # AddInstanceMethod branch
             cls = cls or cls2 or var_class.get(clsvar or "")
             sel = sel or sel2
             if not cls or not sel:
                 continue
             hook_kind = "class" if kind == "Class" else "instance"
-            decls.append(HookDecl(cls, sel, hook_kind, added=(kind == "AddInstanceMethod")))  # type: ignore[arg-type]
+            decls.append(HookDecl(cls, sel, hook_kind, added=is_add))  # type: ignore[arg-type]
 
     # de-duplicate, keep first-seen order
     seen: set[tuple[str, str]] = set()

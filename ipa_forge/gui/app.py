@@ -24,8 +24,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
-from ipa_forge.bundle.ipa import load_bundle
-from ipa_forge.cli.common import validated_extract
+from ipa_forge.bundle.ipa import load_bundle, validate_and_extract
 from ipa_forge.patches import find_patch_sets_for_bundle
 from ipa_forge.pipeline import PipelineError, run_pipeline
 from ipa_forge.validators.ipa_validator import IpaValidationError
@@ -64,7 +63,7 @@ async def detect(ipa: UploadFile = File(...)) -> JSONResponse:
         ipa_path = request_dir / Path(ipa.filename or "upload.ipa").name
         ipa_path.write_bytes(await ipa.read())
         try:
-            app_path = validated_extract(ipa_path, request_dir / "extracted")
+            app_path = validate_and_extract(ipa_path, request_dir / "extracted")
             bundle = load_bundle(app_path)
         except (ValueError, IpaValidationError) as e:
             return JSONResponse(status_code=400, content={"error": str(e)})
@@ -171,8 +170,8 @@ def _evict_outputs() -> None:
         path.unlink(missing_ok=True)
 
 
-@app.get("/download/{token}")
-def download(token: str):
+@app.get("/download/{token}", response_model=None)
+def download(token: str) -> FileResponse | JSONResponse:
     entry = _outputs.get(token)
     if entry is None:
         return JSONResponse(status_code=404, content={"error": "not found"})

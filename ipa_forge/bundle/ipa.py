@@ -52,6 +52,18 @@ def repack_ipa(extraction_root: Path, output_path: Path) -> Path:
     return output_path
 
 
+def validate_and_extract(ipa: Path, dest: Path) -> Path:
+    """Structure-validate (pipeline stage 1), then extract. Raises ValueError
+    on malformed input; the neutral home shared by the GUI and CLI."""
+    from ipa_forge.validators.ipa_validator import IpaValidationError, validate_ipa_structure
+
+    try:
+        validate_ipa_structure(ipa)
+    except IpaValidationError as e:
+        raise ValueError(str(e)) from e
+    return extract_ipa(ipa, dest)
+
+
 def load_bundle(app_path: Path) -> AppBundle:
     """Build an AppBundle model (with full inventory) from an already-extracted .app."""
     info_plist_path = app_path / "Info.plist"

@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ipa_forge.bundle.ipa import extract_ipa, load_bundle, repack_ipa
+from ipa_forge.bundle.models import AppBundle
 from ipa_forge.hooks.binary import analyze_bundle
 from ipa_forge.hooks.verify import HookDecl, verify_hooks
 from ipa_forge.hooks.verify import failing as hook_failures
@@ -19,6 +20,7 @@ from ipa_forge.patch.base import PatchContext
 from ipa_forge.patch.engine import apply_all, dry_run_all
 from ipa_forge.patch.loader import PatchLoadError, build_operations, load_patch_definition
 from ipa_forge.patch.resolver import resolve_definitions
+from ipa_forge.patch.schema import PatchDefinition
 from ipa_forge.signing.backend import SigningBackendError
 from ipa_forge.signing.pipeline import sign_bundle, sign_target_path
 from ipa_forge.signing.profile import ProfileError, load_profile_pool, validate_profile
@@ -39,7 +41,7 @@ class PipelineResult:
     verify_results: list[VerifyResult] = field(default_factory=list)
 
 
-def _hook_decls(definition) -> list[HookDecl]:
+def _hook_decls(definition: PatchDefinition) -> list[HookDecl]:
     return [
         HookDecl(
             class_name=h.class_name,
@@ -52,7 +54,7 @@ def _hook_decls(definition) -> list[HookDecl]:
     ]
 
 
-def _verify_definition_hooks(bundle, definition) -> list:
+def _verify_definition_hooks(bundle: AppBundle, definition: PatchDefinition) -> list[dict[str, object]]:
     """Verify the definition's declared hooks against the app's main binary.
     Returns the hook report (list of dicts). Raises PipelineError when a
     required hook cannot attach."""

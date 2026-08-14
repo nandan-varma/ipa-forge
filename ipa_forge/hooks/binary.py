@@ -18,6 +18,8 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ipa_forge.bundle.models import AppBundle
+
 
 @dataclass
 class MachOClass:
@@ -50,22 +52,22 @@ def analyze_macho(path: Path) -> MachOAnalysis:
         return _analyze_thin(bin_path, original=path)
 
 
-def analyze_bundle(bundle) -> MachOAnalysis:
+def analyze_bundle(bundle: AppBundle) -> MachOAnalysis:
     """Analyze every executable in an AppBundle (main binary + embedded
     frameworks/dylibs) and merge the results. Hook targets routinely live in
     frameworks (Spotify's SPTDataLoaderService is in SpotifyShared.framework),
     so verification must cover all of them, not just the main executable."""
-    targets = [bundle.root / bundle.main_executable_name]
+    paths: list[Path] = [bundle.root / bundle.main_executable_name]
     for target in bundle.executables:
         if target.kind == "framework":
-            targets.append(bundle.extraction_root / target.bundle_relative)
+            paths.append(bundle.extraction_root / Path(target.bundle_relative))
 
     merged: MachOAnalysis | None = None
-    for target in targets:
-        if not target.is_file():
+    for binary_path in paths:
+        if not binary_path.is_file():
             continue
         try:
-            analysis = analyze_macho(target)
+            analysis = analyze_macho(binary_path)
         except (ValueError, OSError, subprocess.CalledProcessError):
             continue  # not a Mach-O or unreadable; skip
         if merged is None:
@@ -142,15 +144,16 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
     def resolve_ptr(raw: int | None) -> int | None:
         """Resolve a (possibly chained) pointer to a vm address.
 
-        Two addressing modes occur in the wild:
-          - PIE executables: chained rebase targets are offsets from the image
-            base (ib) -- add ib.
+        Three addressing modes occur in the wild:
+          - PIE executables: chained rebase targets (and plain small pointers)
+            are offsets from the image base (ib) -- add ib.
           - Mergeable/zero-based dylibs: targets are already absolute vms.
+          - Plain absolute pointers: already complete.
         Try absolute first (cheap section lookup), then offset-from-base.
         """
         kind, val = chained(raw)
         if kind == "plain":
-            return raw
+            val = raw
         if val is None:
             return None
         if vm2off(val) is not None:
