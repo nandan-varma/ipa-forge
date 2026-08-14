@@ -23,7 +23,7 @@ from pathlib import Path
 from ipa_forge.hooks.verify import HookDecl
 
 _PATTERN = re.compile(
-    r"([A-Za-z_][A-Za-z0-9_]*)?(?:Hook(Instance|Class)|AddInstanceMethod)"
+    r"([A-Za-z_][A-Za-z0-9_]*)?(?:Hook(Instance|Class|ConfigBool)|AddInstanceMethod)"
     r"\("
     r"\s*(?:NSClassFromString\(@?\"([^\"]+)\"\)|\[\s*(\w+)\s*class\]|(\w+)|(\w+)\(@?\"([^\"]+)\"\))"
     r"\s*,\s*(?:@selector\(([^)]+)\)|sel_registerName\(\"([^\"]+)\"\))"
@@ -67,7 +67,7 @@ def scan_hook_sources(dylib_src: Path) -> list[HookDecl]:
             sel = sel or sel2
             if not cls or not sel:
                 continue
-            hook_kind = "class" if kind == "Class" else "instance"
+            hook_kind = "class" if kind == "Class" else "instance"  # ConfigBool hooks the getter -> instance
             decls.append(HookDecl(cls, sel, hook_kind, added=is_add))  # type: ignore[arg-type]
 
     # de-duplicate, keep first-seen order

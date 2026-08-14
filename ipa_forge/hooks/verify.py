@@ -33,6 +33,7 @@ HookStatus = Literal[
     "missing-class",
     "missing-selector",
     "elsewhere",
+    "referenced-only",
     "unverified",
 ]
 
@@ -268,15 +269,34 @@ def verify_hooks(analysis: MachOAnalysis, hooks: list[HookDecl]) -> list[HookRes
                         hook.required,
                     )
                 )
-            else:
+            elif sel in analysis.methnames:
+                # Declared as a method name somewhere (a protocol, category or a
+                # method list the walker did not decode) — the hook may well
+                # attach; keep it soft.
                 results.append(
                     HookResult(
                         cls,
                         sel,
                         hook.kind,
                         "unverified",
-                        "selector referenced by the binary but not in any parsed method list "
-                        "(parser may have missed it)",
+                        "selector declared as a method somewhere (protocol/category/undecoded list) "
+                        "but not in any parsed class method list (likely attaches)",
+                        hook.required,
+                    )
+                )
+            else:
+                # Referenced (NSSelectorFromString/performSelector/optional
+                # protocol sends) but declared as NO method anywhere in the
+                # binary — no IMP exists to swizzle, so class_getInstanceMethod
+                # returns NULL and the hook cannot attach.
+                results.append(
+                    HookResult(
+                        cls,
+                        sel,
+                        hook.kind,
+                        "referenced-only",
+                        "selector referenced by the binary but not declared as a method anywhere "
+                        "(no IMP to swizzle; the hook cannot attach unless a system superclass provides it)",
                         hook.required,
                     )
                 )

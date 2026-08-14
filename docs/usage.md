@@ -165,6 +165,14 @@ forge hooks extract --ipa App.ipa --search "AdBreak"
 
 # Scan tweak sources for hook calls and verify each against the binary
 forge hooks audit --ipa App.ipa --dir dylib/
+
+# Reverse lookup: which classes implement a selector?
+forge hooks find didPressVarispeed: --ipa App.ipa
+#   -> -[YTMainAppVideoPlayerOverlayViewController didPressVarispeed:]  (real)
+#   -> REFERENCED-ONLY ... no class declares it (the hook cannot attach)
+
+# Regenerate the `hooks:` block from sources, straight into the definition
+forge hooks manifest --dir dylib/ --inplace patch.yaml
 ```
 
 **Fast iteration with `--app-dir`.** Every command re-extracts the full IPA

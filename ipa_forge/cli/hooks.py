@@ -125,10 +125,13 @@ def hooks_extract(
         targets = targets[:limit]
     for cls in targets:
         typer.echo(f"{cls.name} : {cls.super_name}  (inst={len(cls.inst)} cls={len(cls.cls)})")
+        # Full method lists, not truncated: a `[:40]` slice silently hid real
+        # methods on large config classes (e.g. YTColdConfig's 7k getters) and
+        # sent users greping for selectors that WERE there. Pipe to grep.
         if cls.inst:
-            typer.echo("  inst: " + ", ".join(sorted(cls.inst)[:40]))
+            typer.echo("  inst: " + ", ".join(sorted(cls.inst)))
         if cls.cls:
-            typer.echo("  class: " + ", ".join(sorted(cls.cls)[:12]))
+            typer.echo("  class: " + ", ".join(sorted(cls.cls)))
 
 
 @app.command("audit")
@@ -164,16 +167,85 @@ def hooks_audit(
             )
 
 
+@app.command("find")
+def hooks_find(
+    selector: str = typer.Argument(..., help="Selector to look up, e.g. 'didPressVarispeed:'"),
+    ipa: Path | None = typer.Option(None, "--ipa", exists=True, help="Input .ipa (not needed when --app-dir is given)"),
+    app_dir: Path | None = typer.Option(
+        None,
+        "--app-dir",
+        exists=True,
+        help="Already-extracted Payload/<App>.app directory to analyze instead of re-extracting the IPA",
+    ),
+) -> None:
+    """Reverse lookup: which classes implement a selector? Distinguishes a real
+    method (swizzle-able) from a bare reference (referenced-only — no IMP
+    exists, the hook cannot attach). This is the first check when a hook
+    'attaches per verify' but does nothing on device."""
+    with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
+        app_path = _extract_or_use(ipa, app_dir, Path(tmp))
+        bundle = load_bundle(app_path)
+        analysis = analyze_bundle(bundle)
+
+    inst: list[str] = []
+    cls: list[str] = []
+    for name, c in analysis.classes.items():
+        if selector in c.inst:
+            inst.append(name)
+        if selector in c.cls:
+            cls.append(name)
+
+    if inst:
+        typer.echo(f"instance method on {len(inst)} class(es):")
+        for n in sorted(inst):
+            typer.echo(f"  -[{n} {selector}]")
+    if cls:
+        typer.echo(f"class method on {len(cls)} class(es):")
+        for n in sorted(cls):
+            typer.echo(f"  +[{n} {selector}]")
+
+    if not inst and not cls:
+        if selector in analysis.methnames:
+            typer.secho(
+                f"declared as a method name somewhere (protocol/category) but no parsed class implements "
+                f"{selector} — the hook may attach if a class you did not scan provides it",
+                fg=typer.colors.YELLOW,
+            )
+        elif selector in analysis.selectors:
+            typer.secho(
+                f"REFERENCED-ONLY: the binary references {selector} but no class declares it — "
+                f"there is no IMP to swizzle, so a hook on it cannot attach",
+                fg=typer.colors.RED,
+            )
+        else:
+            typer.secho(f"{selector} not found anywhere in the binary", fg=typer.colors.RED)
+
+    # similar selectors, to catch renames
+    similar = sorted(s for s in analysis.selectors if selector in s and s != selector)[:10]
+    if similar:
+        typer.echo("\nselectors containing the lookup text:")
+        for s in similar:
+            typer.echo(f"  {s}")
+
+
 @app.command("manifest")
 def hooks_manifest(
     dylib_src: Path = typer.Option(..., "--dir", exists=True, help="Directory of tweak sources (*.m)"),
     required: Path | None = typer.Option(
         None, "--required", exists=True, help="Optional file with 'ClassName selector' lines to mark required: true"
     ),
+    inplace: Path | None = typer.Option(
+        None,
+        "--inplace",
+        exists=False,
+        help="Patch definition YAML to update in place: replace its `hooks:` block with the generated one",
+    ),
 ) -> None:
     """Emit a `hooks:` YAML block from the hook calls in tweak sources — the
     block goes into the patch definition's `hooks:` section so dry-run
-    verifies every hook against the real binary."""
+    verifies every hook against the real binary. With --inplace the block is
+    written straight into the patch definition (replacing the old hooks).
+    Covers ytfHookInstance/ytfHookClass/ytfHookConfigBool/ytfAddInstanceMethod."""
     decls = scan_hook_sources(dylib_src)
     if not decls:
         typer.echo("No hook calls found in the sources.")
@@ -189,15 +261,25 @@ def hooks_manifest(
             if len(parts) == 2:
                 required_set.add((parts[0], parts[1]))
 
-    typer.echo("hooks:")
+    lines = ["hooks:"]
     for d in decls:
-        typer.echo(f'  - class: "{d.class_name}"')
-        typer.echo(f'    selector: "{d.selector}"')
-        typer.echo(f"    kind: {d.kind}")
+        lines.append(f'  - class: "{d.class_name}"')
+        lines.append(f'    selector: "{d.selector}"')
+        lines.append(f"    kind: {d.kind}")
         if d.added:
-            typer.echo("    added: true")
+            lines.append("    added: true")
         if (d.class_name, d.selector) in required_set:
-            typer.echo("    required: true")
+            lines.append("    required: true")
+    block = "\n".join(lines) + "\n"
+
+    if inplace:
+        text = inplace.read_text()
+        head = text.split("\nhooks:\n", 1)[0]
+        inplace.write_text(head + "\n" + block)
+        typer.echo(f"wrote {len(decls)} hooks into {inplace}")
+        raise typer.Exit(code=0)
+
+    typer.echo(block.rstrip("\n"))
     typer.secho(f"# {len(decls)} hooks ({len(required_set)} required)", fg=typer.colors.BRIGHT_BLACK)
 
 

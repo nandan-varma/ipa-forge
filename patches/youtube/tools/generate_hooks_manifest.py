@@ -11,9 +11,10 @@ Usage:
     python3 tools/generate_hooks_manifest.py  # prints YAML (copy into youtube.yaml)
 """
 
-import re
 import sys
 from pathlib import Path
+
+from ipa_forge.hooks.scan import scan_hook_sources
 
 HERE = Path(__file__).resolve().parent
 SRC = HERE.parent / "dylib"
@@ -46,47 +47,47 @@ REQUIRED = {
     ("YTSettingsSectionItemManager", "updateSectionForCategory:withEntry:"),
 }
 
-CALL_RE = re.compile(
-    r"(ytfHookInstance|ytfHookClass|ytfAddInstanceMethod)\(\s*"
-    r"NSClassFromString\(\@\"([^\"]+)\"\)\s*,\s*"
-    r"(?:@selector\(([^)]+)\)|sel_registerName\(\"([^\"]+)\"\))"
-)
-KIND_FOR = {"ytfHookInstance": "instance", "ytfHookClass": "class", "ytfAddInstanceMethod": "instance"}
-
 
 def main() -> None:
-    hooks: list[tuple[str, str, str, bool]] = []  # (class, selector, kind, added)
-    for f in sorted(SRC.glob("*.m")):
-        text = f.read_text(errors="replace")
-        for m in CALL_RE.finditer(text):
-            fn, cls, sel1, sel2 = m.groups()
-            sel = sel1 or sel2
-            added = fn == "ytfAddInstanceMethod"
-            hooks.append((cls, sel, KIND_FOR[fn], added))
+    """Generate the `hooks:` manifest from dylib sources.
 
-    # de-duplicate, keep insertion order
-    seen: set[tuple[str, str]] = set()
-    rows = []
-    for cls, sel, kind, added in hooks:
-        if (cls, sel) in seen:
-            continue
-        seen.add((cls, sel))
-        rows.append((cls, sel, kind, added))
+    Uses ipa_forge's scanner, which understands inline NSClassFromString,
+    local-variable classes, resolver helpers, sel_registerName, and
+    ytfHookConfigBool. --inplace <yaml> writes the block into the patch
+    definition instead of printing it.
+    """
+    decls = scan_hook_sources(SRC)
+    if not decls:
+        print("no hooks found", file=sys.stderr)
+        return
 
     out = ["hooks:"]
-    for cls, sel, kind, added in rows:
-        required = (cls, sel) in REQUIRED
-        flags = f"    kind: {kind}"
-        if added:
-            flags += "\n    added: true"
-        if required:
-            flags += "\n    required: true"
-        out.append(f'  - class: "{cls}"')
-        out.append(f'    selector: "{sel}"')
-        out.append(flags)
+    for d in decls:
+        out.append(f'  - class: "{d.class_name}"')
+        out.append(f'    selector: "{d.selector}"')
+        out.append(f"    kind: {d.kind}")
+        if d.added:
+            out.append("    added: true")
+        if (d.class_name, d.selector) in REQUIRED:
+            out.append("    required: true")
+
+    if "--inplace" in sys.argv:
+        idx = sys.argv.index("--inplace")
+        target = Path(sys.argv[idx + 1])
+        text = target.read_text()
+        head = text.split("\nhooks:\n", 1)[0]
+        target.write_text(head + "\n" + "\n".join(out) + "\n")
+        print(f"wrote {len(decls)} hooks into {target}", file=sys.stderr)
+        return
+
     print("\n".join(out))
-    print(f"\n# {len(rows)} hooks ({sum(1 for r in rows if (r[0], r[1]) in REQUIRED)} required)", file=sys.stderr)
+    print(
+        f"\n# {len(decls)} hooks ({sum(1 for d in decls if (d.class_name, d.selector) in REQUIRED)} required)",
+        file=sys.stderr,
+    )
 
 
+if __name__ == "__main__":
+    main()
 if __name__ == "__main__":
     main()

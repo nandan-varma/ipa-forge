@@ -839,8 +839,6 @@ static void fixYTLiteExtras(void) {
     ytfHookConfigBool(coldConfig,
         @selector(premiumClientSharedConfigEnablePremiumHighQualityAudioSettingOnIos),
         ^BOOL { return IS_ENABLED(KHQAAudio); });
-    ytfHookConfigBool(coldConfig, @selector(enableAnimatedPreviewsSettings),
-        ^BOOL { return IS_ENABLED(KAnimatedPreviews); });
 
     // Tap the progress bar to seek (restores removed tap-to-seek).
     if (IS_ENABLED(KTapToSeek)) {

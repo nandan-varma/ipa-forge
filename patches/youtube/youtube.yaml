@@ -50,6 +50,16 @@ patches:
     load_command: "LC_LOAD_DYLIB"
 
 hooks:
+  - class: "YTPlayerResponse"
+    selector: "playerAdsArray"
+    kind: instance
+    added: true
+    required: true
+  - class: "YTPlayerResponse"
+    selector: "adSlotsArray"
+    kind: instance
+    added: true
+    required: true
   - class: "YTIClientMdxGlobalConfig"
     selector: "enableSkippableAd"
     kind: instance
@@ -117,6 +127,14 @@ hooks:
   - class: "UIKBVisualEffectView"
     selector: "layoutSubviews"
     kind: instance
+  - class: "YTInnerTubeCollectionViewController"
+    selector: "displaySectionsWithReloadingSectionControllerByRenderer:"
+    kind: instance
+    required: true
+  - class: "YTInnerTubeCollectionViewController"
+    selector: "addSectionsFromArray:"
+    kind: instance
+    required: true
   - class: "_ASDisplayView"
     selector: "didMoveToWindow"
     kind: instance
@@ -147,6 +165,12 @@ hooks:
     kind: instance
   - class: "YTColdConfig"
     selector: "iosEnableVideoPlayerScrubber"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "shortsConsumptionClientGlobalConfigIosEnableShortsPlaybackSpeedFromMenu"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "iosEnableInlinePlaybackOnShortsShelf"
     kind: instance
   - class: "YTReelWatchPlaybackOverlayView"
     selector: "setActionBarElementRenderer:"
@@ -385,6 +409,14 @@ hooks:
   - class: "YTPlayerViewController"
     selector: "prepareToLoadWithPlayerTransition:expectedLayout:"
     kind: instance
+  - class: "YTPlayerViewController"
+    selector: "YTFreedomTurnOffCaptions"
+    kind: instance
+    added: true
+  - class: "YTPlayerViewController"
+    selector: "YTFreedomAutoFullscreen"
+    kind: instance
+    added: true
   - class: "YTIMediaQualitySettingsHotConfig"
     selector: "enableQuickMenuVideoQualitySettings"
     kind: instance
@@ -451,8 +483,32 @@ hooks:
   - class: "YTPlaylistMiniBarView"
     selector: "setFrame:"
     kind: instance
+  - class: "YTColdConfig"
+    selector: "iosEnableMuteButtonPlayerControl"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "enableInlinePlayerChapterSeek"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "enableInlinePlayerSegmentSeek"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "isPinchToEnterFullscreenEnabled"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "deprecateTabletPinchFullscreenGestures"
+    kind: instance
   - class: "YTWatchPullToFullController"
     selector: "shouldRecognizeOverscrollEventsFromWatchOverscrollController:"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "enableReducePlayerOverlaysSettings"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "iosEnableHighQualityAudioAppSettings"
+    kind: instance
+  - class: "YTColdConfig"
+    selector: "premiumClientSharedConfigEnablePremiumHighQualityAudioSettingOnIos"
     kind: instance
   - class: "YTInlinePlayerBarContainerView"
     selector: "didPressScrubber:"
@@ -493,9 +549,16 @@ hooks:
   - class: "YTOverflowMenuViewController"
     selector: "selectedVideoQualityLabelText"
     kind: instance
+  - class: "YTPlayerViewController"
+    selector: "setPlaybackRate:"
+    kind: instance
   - class: "YTWatchLayerViewController"
     selector: "watchController:didSetPlayerViewController:"
     kind: instance
+  - class: "YTPlayerViewController"
+    selector: "YTFreedomHandlePanGesture:"
+    kind: instance
+    added: true
   - class: "YTSettingsSectionItemManager"
     selector: "updateAccountSwitcherSectionWithEntry:"
     kind: instance
@@ -577,6 +640,20 @@ hooks:
     selector: "initWithClientID:supportedAccountServices:"
     kind: instance
     required: true
+  - class: "NSBundle"
+    selector: "bundleWithIdentifier:"
+    kind: class
+  - class: "NSBundle"
+    selector: "bundleIdentifier"
+    kind: instance
+    required: true
+  - class: "NSBundle"
+    selector: "infoDictionary"
+    kind: instance
+    required: true
+  - class: "NSBundle"
+    selector: "objectForInfoDictionaryKey:"
+    kind: instance
   - class: "SSOFolsomKeychainUtils"
     selector: "sharedAccessGroup"
     kind: instance
@@ -613,6 +690,10 @@ hooks:
   - class: "CHMConfiguration"
     selector: "keychainAccessGroup"
     kind: instance
+  - class: "NSFileManager"
+    selector: "containerURLForSecurityApplicationGroupIdentifier:"
+    kind: instance
+    required: true
   - class: "YTInlinePlayerBarContainerView"
     selector: "layoutSubviews"
     kind: instance

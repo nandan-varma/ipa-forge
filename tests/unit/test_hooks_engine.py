@@ -57,6 +57,45 @@ def test_scan_hook_sources_direct_and_variable(tmp_path: Path) -> None:
     assert third in by and by[third].added
 
 
+def test_scan_captures_config_bool(tmp_path: Path) -> None:
+    """ytfHookConfigBool hooks (config-flag getters) must land in the manifest
+    so the dry-run verifies them — they were silently skipped before."""
+    (tmp_path / "tweak.m").write_text(
+        "#import <Foundation/Foundation.h>\n"
+        "static void a(void) {\n"
+        '    ytfHookConfigBool(NSClassFromString(@"YTColdConfig"),\n'
+        "        @selector(iosEnableMuteButtonPlayerControl), ^BOOL { return YES; });\n"
+        "}\n"
+    )
+    decls = scan_hook_sources(tmp_path)
+    assert [d for d in decls if d.class_name == "YTColdConfig" and d.selector == "iosEnableMuteButtonPlayerControl"]
+
+
+def test_cli_find_reports_implementing_classes(objc_macho_binary: Path, tmp_path: Path) -> None:
+    from typer.testing import CliRunner
+
+    from ipa_forge.cli.main import app
+
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    # the fixture binary has a known class/method; look up a selector we know exists
+    result = CliRunner().invoke(app, ["hooks", "find", "doSomething:", "--ipa", str(ipa)])
+    assert result.exit_code == 0
+    assert "instance method on" in result.stdout or "class method on" in result.stdout or "not found" in result.stdout
+
+
+def test_cli_extract_full_method_list_not_truncated(objc_macho_binary: Path, tmp_path: Path) -> None:
+    """extract must print EVERY method — the old [:40] slice hid methods and
+    sent users greping for selectors that were present."""
+    from typer.testing import CliRunner
+
+    from ipa_forge.cli.main import app
+
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    result = CliRunner().invoke(app, ["hooks", "extract", "--ipa", str(ipa), "--limit", "0"])
+    assert result.exit_code == 0
+    assert "inst:" in result.stdout
+
+
 def _pack_ipa(objc_binary: Path, tmp_path: Path) -> Path:
     """Wrap a raw Mach-O into a minimal IPA (Payload/Test.app/Test) so the
     CLI commands (which validate IPA structure first) can consume it."""

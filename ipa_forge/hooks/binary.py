@@ -35,6 +35,7 @@ class MachOAnalysis:
     classnames: set[str]  # every class-name string defined in the image
     selectors: set[str]  # every selector the image references (selrefs + method lists)
     main_executable: Path | None
+    methnames: set[str] = field(default_factory=set)  # every selector DECLARED as a method name (__objc_methname)
     # Raw bytes of every analyzed binary, kept so the verifier can cross-check
     # a missing class/selector against the actual string table (a class name or
     # selector present as a cstring but absent from the parsed method lists is
@@ -209,10 +210,10 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
             p = class_ptr(raw)
             if p is None:
                 continue
-            _dk, dp = chained(rd64(p + 32))
+            dp = resolve_ptr(rd64(p + 32))
             if not dp:
                 continue
-            _nk, np = chained(rd64(dp + 24))
+            np = resolve_ptr(rd64(dp + 24))
             if not np:
                 continue
             name = cstr(np)
@@ -226,6 +227,12 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
                     snp = resolve_ptr(rd64(sdp + 24))
                     if snp:
                         super_name = cstr(snp)
+                if super_name is None:
+                    # Superclass pointer exists but the name could not be
+                    # resolved (external bind, chained-fixup variant we do not
+                    # decode) — the class still inherits from SOMETHING, so
+                    # mark it external rather than pretending it is a root.
+                    super_name = "«external»"
             else:
                 # a NULL/absent superclass pointer means it binds to an external
                 # superclass (defined in another image)
@@ -290,10 +297,22 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
     for cls in classes.values():
         selectors |= cls.inst | cls.cls
 
+    # ---- pass 4: methname (every selector DECLARED as a method name) ----
+    # Distinct from selrefs: a selector can be *referenced* (NSSelectorFromString,
+    # performSelector, optional protocol sends) without being declared as a
+    # method anywhere. A hook on such a selector cannot attach (no IMP exists to
+    # swizzle) — the verifier uses methnames to distinguish that dead case from
+    # a parser gap on a real method.
+    methnames: set[str] = set()
+    if "__objc_methname" in sections:
+        _a, sz, o = sections["__objc_methname"]
+        methnames.update(s.decode("utf-8", "replace") for s in data[o : o + sz].split(b"\x00") if s)
+
     return MachOAnalysis(
         classes=classes,
         classnames=classnames,
         selectors=selectors,
+        methnames=methnames,
         main_executable=original,
         raw_data=[data],
     )

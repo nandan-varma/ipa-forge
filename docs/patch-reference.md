@@ -297,23 +297,42 @@ the parser couldn't fully confirm — treat as a soft warning), `missing-class` 
 `missing-selector` / `elsewhere` (the hook would silently no-op — these fail
 the run when `required`).
 
+`referenced-only` is the dead-hook detector: the binary *references* the
+selector (selrefs / `NSSelectorFromString` / optional protocol sends) but does
+not declare it as a method anywhere (`__objc_methname` has no such name), so
+there is no IMP to swizzle and `class_getInstanceMethod` returns NULL — the
+hook cannot attach. This is the classic "the verify says it attaches but the
+feature does nothing" trap (selectors like `didPressVarispeed:` in some builds
+are referenced by the app but implemented by nothing). Distinguish it from
+`unverified`, which means the selector *is* declared as a method somewhere (a
+protocol, a category, or a method list the walker did not decode) — the hook
+may well attach.
+
 The `unverified` bucket is where parser *gaps* land rather than real drift:
 when a class or selector the walk missed is still present as a string in some
 binary image (the old manual `strings <binary> | grep` cross-check), the
 report says so — "class-name string present … the walk missed it (likely
-attaches)" / "selector string present … parser may have missed it". The parser
-under-reports GPBMessage methods and large Swift class tables this way;
-Swift-mangled (`_TtC…`) classes absent from the parsed table are always
+attaches)" / "selector declared as a method somewhere … (likely attaches)".
+The parser under-reports GPBMessage methods and large Swift class tables this
+way; Swift-mangled (`_TtC…`) classes absent from the parsed table are always
 reported `unverified`, never mislabeled as system classes.
 
 Porting to a new app version becomes: bump `target.version`, run
 `--dry-run`, read the hook report, and fix exactly the hooks the report flags.
 `forge hooks manifest --dir <dylib-sources>` regenerates the `hooks:` block
 from the tweak sources (inline `NSClassFromString` calls, unambiguous
-variable assignments, and class names passed through a local resolver helper
-— a function whose body calls `NSClassFromString` invoked as `resolver("X")`
-at the hook call site); `forge hooks diff --old A.ipa --new B.ipa
---patches patch.yaml` shows which hooks regressed between two versions.
+variable assignments, class names passed through a local resolver helper — a
+function whose body calls `NSClassFromString` invoked as `resolver("X")` at
+the hook call site — and `ytfHookConfigBool` config-flag getters); pass
+`--inplace patch.yaml` to write the block straight into the patch definition.
+`forge hooks diff --old A.ipa --new B.ipa --patches patch.yaml` shows which
+hooks regressed between two versions.
+
+`forge hooks find <selector> --ipa App.ipa` is the reverse lookup — which
+classes implement a selector, plus the `referenced-only` warning when nothing
+does. Check it first when a hook "attaches per verify" but does nothing on
+device. `forge hooks extract --ipa App.ipa --class <name>` prints the FULL
+method list (no truncation) — pipe large config classes through `grep`.
 
 ## The manifest
 

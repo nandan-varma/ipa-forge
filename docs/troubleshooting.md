@@ -6,7 +6,11 @@ Errors are reported as single-line `error:` messages (CLI) or a red banner
 ## Hook verification reports "missing" / "elsewhere"
 
 **Symptom:** `forge patch --dry-run` or `forge hooks verify` reports a hook
-with `missing-class`, `missing-selector`, or `elsewhere`.
+with `missing-class`, `missing-selector`, or `elsewhere`. A
+`referenced-only` status means the selector is referenced by the binary but
+not declared as a method anywhere — there is no IMP to swizzle, so the hook
+cannot attach no matter what class you point it at (double-check with
+`forge hooks find <selector> --ipa App.ipa` before porting it).
 
 **Cause:** the app version doesn't have the class/selector the tweak targets —
 a silent no-op on device (feature stops working, no crash). This is exactly

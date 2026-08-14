@@ -103,12 +103,25 @@ Dylib-injection tweaks depend on ObjC runtime hooks that newer app versions
 silently break: rename or remove a class/selector and the hook no-ops with no
 error. The `hooks:` block in a patch definition declares every hook the tweak
 relies on; `pipeline.py` verifies it against the app's main binary (class
-table + method lists + `__objc_selrefs`, chained-fixup aware) during the
-dry-run gate and fails when a `required` hook cannot attach — before anything
-mutates. `unverified`/`ok-inherited` are soft (parser gaps, system
-superclasses); `missing-class`/`missing-selector`/`elsewhere` are hard. This
-turns "port to a new version" into: bump the version, read the report, fix
-exactly what it flags.
+table + method lists + `__objc_selrefs` + `__objc_methname`, chained-fixup
+aware) during the dry-run gate and fails when a `required` hook cannot attach
+— before anything mutates. The verifier distinguishes three soft cases from
+the hard ones: `unverified` (selector *declared* as a method somewhere — a
+protocol, category, or an undecoded method list — but not in any parsed class
+method list; likely attaches), `referenced-only` (selector *referenced* but
+declared as no method anywhere, so there is no IMP to swizzle and the hook
+cannot attach — the dead-hook detector), and `ok-inherited` (system
+superclass method). `missing-class`/`missing-selector`/`elsewhere` are hard.
+This turns "port to a new version" into: bump the version, read the report,
+fix exactly what it flags.
+
+The analyzer also resolves class **superclass** pointers (so a plain-UIView
+view class is distinguishable from an `_ASDisplayView` one — the difference
+between an id-hook that fires and one that never sees the view) and parses
+relative (REL-flag) method lists, which carry the bulk of modern app config
+classes (e.g. a 7,000-getter `YTColdConfig` facade). `forge hooks find
+<selector>` is the reverse lookup used when a hook attaches per verify but
+does nothing on device.
 
 ### Why signing targets bundle directories, not raw files
 

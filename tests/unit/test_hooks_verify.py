@@ -16,7 +16,18 @@ def _analysis() -> MachOAnalysis:
             "YTView": MachOClass(name="YTView", super_name="«external»", inst={"setHidden:"}),
         },
         classnames={"YTThing", "YTChild", "YTGone", "YTWalkMissed"},
-        selectors={"doIt:", "makeIt", "setHidden:", "playerAdsArray", "orphan:", "externalOnly:"},
+        selectors={
+            "doIt:",
+            "makeIt",
+            "setHidden:",
+            "playerAdsArray",
+            "orphan:",
+            "externalOnly:",
+            "declaredButUnparsed:",
+        },
+        # methnames = selectors DECLARED as methods somewhere (protocols etc.);
+        # a selector referenced but absent here is dead (no IMP to swizzle).
+        methnames={"doIt:", "makeIt", "setHidden:", "playerAdsArray", "declaredButUnparsed:"},
         main_executable=None,
         # raw bytes: the name/selector cstrings the verifier cross-checks
         raw_data=[b"\x00YTBytePresent\x00\x00YTByteSelector:\x00\x00other\x00"],
@@ -230,3 +241,21 @@ hooks:
         p.write_text(yaml_text)
         with pytest.raises(PatchLoadError):
             load_patch_definition(p)
+
+
+def test_referenced_only_selector_is_dead():
+    """A selector in selrefs but NOT declared as any method name cannot be
+    swizzled (no IMP exists) — the hook cannot attach. This is the
+    didPressVarispeed:/selectItemWithPivotIdentifier: class of bug."""
+    a = _analysis()  # "orphan:" is referenced but absent from methnames
+    r = verify_hooks(a, [HookDecl("YTThing", "orphan:")])
+    assert r[0].status == "referenced-only"
+    assert not r[0].ok
+
+
+def test_methname_declared_selector_stays_unverified():
+    """Declared as a method somewhere (protocol/category/undecoded list) but
+    not in any parsed class method list — a parser gap, kept soft."""
+    a = _analysis()  # "declaredButUnparsed:" is in methnames but no class has it
+    r = verify_hooks(a, [HookDecl("YTThing", "declaredButUnparsed:")])
+    assert r[0].status == "unverified"
