@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from ipa_forge.hooks.binary import MachOAnalysis
+from ipa_forge.hooks.binary import MachOAnalysis, contains_string
 
 HookStatus = Literal[
     "ok",
@@ -154,6 +154,21 @@ def verify_hooks(analysis: MachOAnalysis, hooks: list[HookDecl]) -> list[HookRes
                         hook.required,
                     )
                 )
+            elif cls.startswith("_Tt"):
+                # Swift-mangled class absent from the parsed table. Not a
+                # system class — labelling it ok-system would hide drift. The
+                # hook may well attach (the walk misses Swift classes too), so
+                # report honestly instead.
+                results.append(
+                    HookResult(
+                        cls,
+                        sel,
+                        hook.kind,
+                        "unverified",
+                        "Swift class not in the parsed class table (mangled name; the walk missed it)",
+                        hook.required,
+                    )
+                )
             elif _is_system_class(cls):
                 if sel in analysis.selectors or sel in _SYSTEM_SELECTORS:
                     results.append(
@@ -178,9 +193,25 @@ def verify_hooks(analysis: MachOAnalysis, hooks: list[HookDecl]) -> list[HookRes
                         )
                     )
             else:
-                results.append(
-                    HookResult(cls, sel, hook.kind, "missing-class", "class not found in the binary", hook.required)
-                )
+                if contains_string(analysis, cls):
+                    # The name exists as a standalone cstring in some image but
+                    # the class-table walk missed it — a parser gap, not a
+                    # rename. Soft-fail instead of calling it missing.
+                    results.append(
+                        HookResult(
+                            cls,
+                            sel,
+                            hook.kind,
+                            "unverified",
+                            "class-name string present in a binary image but the class-table walk missed "
+                            "it (likely attaches)",
+                            hook.required,
+                        )
+                    )
+                else:
+                    results.append(
+                        HookResult(cls, sel, hook.kind, "missing-class", "class not found in the binary", hook.required)
+                    )
             continue
 
         # class present — walk the ancestry for the selector
@@ -250,11 +281,29 @@ def verify_hooks(analysis: MachOAnalysis, hooks: list[HookDecl]) -> list[HookRes
                     )
                 )
         else:
-            results.append(
-                HookResult(
-                    cls, sel, hook.kind, "missing-selector", "selector not found anywhere in the binary", hook.required
+            if contains_string(analysis, sel):
+                results.append(
+                    HookResult(
+                        cls,
+                        sel,
+                        hook.kind,
+                        "unverified",
+                        "selector string present in a binary image but not in any parsed method list "
+                        "(parser may have missed it)",
+                        hook.required,
+                    )
                 )
-            )
+            else:
+                results.append(
+                    HookResult(
+                        cls,
+                        sel,
+                        hook.kind,
+                        "missing-selector",
+                        "selector not found anywhere in the binary",
+                        hook.required,
+                    )
+                )
     return results
 
 

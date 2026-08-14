@@ -35,6 +35,12 @@ class MachOAnalysis:
     classnames: set[str]  # every class-name string defined in the image
     selectors: set[str]  # every selector the image references (selrefs + method lists)
     main_executable: Path | None
+    # Raw bytes of every analyzed binary, kept so the verifier can cross-check
+    # a missing class/selector against the actual string table (a class name or
+    # selector present as a cstring but absent from the parsed method lists is
+    # a parser gap, not a rename — see verify.py). Short-lived per-command
+    # data; held in memory only for the duration of the analysis.
+    raw_data: list[bytes] = field(default_factory=list)
 
 
 def _run(*args: str) -> str:
@@ -76,6 +82,7 @@ def analyze_bundle(bundle: AppBundle) -> MachOAnalysis:
             merged.classes.update(analysis.classes)
             merged.classnames |= analysis.classnames
             merged.selectors |= analysis.selectors
+            merged.raw_data.extend(analysis.raw_data)
     if merged is None:
         raise ValueError("no analyzable Mach-O found in the app bundle")
     return merged
@@ -283,4 +290,22 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
     for cls in classes.values():
         selectors |= cls.inst | cls.cls
 
-    return MachOAnalysis(classes=classes, classnames=classnames, selectors=selectors, main_executable=original)
+    return MachOAnalysis(
+        classes=classes,
+        classnames=classnames,
+        selectors=selectors,
+        main_executable=original,
+        raw_data=[data],
+    )
+
+
+def contains_string(analysis: MachOAnalysis, s: str) -> bool:
+    """True when ``s`` appears as a standalone cstring (\0-delimited) in any
+    analyzed image — i.e. the string is *present* in the binary even if the
+    class-table/method-list walk missed it. The \0-preceded, \0-terminated
+    pattern matches how string tables lay consecutive cstrings out, so a match
+    means the string exists on its own rather than inside a longer name."""
+    if not s:
+        return False
+    target = b"\x00" + s.encode("utf-8") + b"\x00"
+    return any(target in data for data in analysis.raw_data)

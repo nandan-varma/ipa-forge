@@ -297,3 +297,66 @@ def test_cli_diff_no_hooks_declared(objc_macho_binary: Path, tmp_path: Path) -> 
     )
     assert result.exit_code == 0
     assert "No hooks declared" in result.stdout
+
+
+def test_scan_resolves_class_through_resolver_helper(tmp_path: Path) -> None:
+    # class name passed through a local resolver helper (body calls
+    # NSClassFromString) must resolve at the hook call site
+    (tmp_path / "tweak.m").write_text(
+        "#import <Foundation/Foundation.h>\n"
+        "static Class clsOf(const char *name) { return NSClassFromString(@(name)); }\n"
+        "static void a(void) {\n"
+        '    ytfHookInstance(clsOf("Thing"), @selector(doIt:), ^void(id self) {});\n'
+        "}\n"
+    )
+    decls = scan_hook_sources(tmp_path)
+    assert {d.class_name for d in decls} == {"Thing"}
+    assert decls[0].selector == "doIt:"
+
+
+def test_scan_ignores_calls_to_non_resolver_functions(tmp_path: Path) -> None:
+    # a function call with a string literal is only a class source when the
+    # function's body actually resolves classes (calls NSClassFromString)
+    (tmp_path / "tweak.m").write_text(
+        "#import <Foundation/Foundation.h>\n"
+        "static void a(void) {\n"
+        '    ytfHookInstance(moduleFor("Thing"), @selector(doIt:), ^void(id self) {});\n'
+        "}\n"
+    )
+    decls = scan_hook_sources(tmp_path)
+    assert decls == []
+
+
+def test_cli_verify_app_dir_skips_ipa(objc_macho_binary: Path, tmp_path: Path) -> None:
+    # --app-dir analyzes an already-extracted bundle without the IPA: same
+    # report, and the --ipa flag is optional
+    import plistlib
+
+    app_dir = tmp_path / "Payload" / "Test.app"
+    app_dir.mkdir(parents=True)
+    (app_dir / "Test").write_bytes(objc_macho_binary.read_bytes())
+    info = {
+        "CFBundleIdentifier": "com.example.testapp",
+        "CFBundleShortVersionString": "1.0.0",
+        "CFBundleVersion": "1",
+        "CFBundleExecutable": "Test",
+    }
+    (app_dir / "Info.plist").write_bytes(plistlib.dumps(info))
+    hooks = _hooks_yaml(tmp_path, "Foo", "doIt:")
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["verify", "--app-dir", str(app_dir), "--patches", str(hooks)],
+    )
+    assert result.exit_code == 0
+    assert "1/1 hooks attach" in result.stdout
+
+
+def test_cli_verify_app_dir_and_ipa_conflict(objc_macho_binary: Path, tmp_path: Path) -> None:
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    hooks = _hooks_yaml(tmp_path, "Foo", "doIt:")
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["verify", "--ipa", str(ipa), "--app-dir", str(tmp_path), "--patches", str(hooks)],
+    )
+    assert result.exit_code == 1
+    assert "either --ipa or --app-dir" in result.stderr

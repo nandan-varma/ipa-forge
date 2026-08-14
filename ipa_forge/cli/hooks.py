@@ -5,6 +5,12 @@ Hook verification catches the silent no-ops that version drift causes: a
 class/selector rename in a newer app build and the dylib hook just stops
 firing. These commands turn that into a checkable report against the actual
 binary (main executable + every embedded framework).
+
+Every command accepts ``--app-dir`` in place of the IPA: point it at an
+already-extracted ``Payload/<App>.app`` directory to skip the (potentially
+slow) re-extraction when iterating on the same app — e.g. after one
+``forge patch`` run the working bundle can be reused for the whole
+verify/fix/verify loop.
 """
 
 from __future__ import annotations
@@ -16,7 +22,7 @@ from pathlib import Path
 import typer
 
 from ipa_forge.bundle.ipa import load_bundle
-from ipa_forge.cli.common import validated_extract
+from ipa_forge.cli.common import resolve_app_path
 from ipa_forge.hooks.binary import analyze_bundle
 from ipa_forge.hooks.scan import scan_hook_sources
 from ipa_forge.hooks.verify import HookDecl, verify_hooks
@@ -25,17 +31,33 @@ from ipa_forge.patch.loader import load_patch_definition
 app = typer.Typer(help="Mach-O Objective-C hook verification (catches silent no-ops on version drift).")
 
 
+def _extract_or_use(ipa: Path | None, app_dir: Path | None, tmp: Path) -> Path:
+    """Resolve the app bundle to analyze: the --app-dir if given, else extract
+    the IPA into tmp. Raises a clean CLI error when neither is usable."""
+    try:
+        return resolve_app_path(ipa, app_dir, tmp)
+    except ValueError as e:
+        typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
+
+
 @app.command("verify")
 def hooks_verify(
-    ipa: Path = typer.Option(..., "--ipa", exists=True, help="Input .ipa"),
+    ipa: Path | None = typer.Option(None, "--ipa", exists=True, help="Input .ipa (not needed when --app-dir is given)"),
     patches: Path = typer.Option(..., "--patches", exists=True, help="Patch definition with a `hooks:` section"),
+    app_dir: Path | None = typer.Option(
+        None,
+        "--app-dir",
+        exists=True,
+        help="Already-extracted Payload/<App>.app directory to analyze instead of re-extracting the IPA",
+    ),
     required_only: bool = typer.Option(False, "--required-only", help="Only print hooks that fail to attach"),
 ) -> None:
     """Verify every declared hook in the patch definition against the app binary.
     Exit code 0 = all required hooks attach; 1 = a required hook is missing."""
     with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
+        app_path = _extract_or_use(ipa, app_dir, Path(tmp))
         try:
-            app_path = validated_extract(ipa, Path(tmp))
             bundle = load_bundle(app_path)
             definition = load_patch_definition(patches)
         except ValueError as e:
@@ -63,7 +85,13 @@ def hooks_verify(
 
 @app.command("extract")
 def hooks_extract(
-    ipa: Path = typer.Option(..., "--ipa", exists=True, help="Input .ipa"),
+    ipa: Path | None = typer.Option(None, "--ipa", exists=True, help="Input .ipa (not needed when --app-dir is given)"),
+    app_dir: Path | None = typer.Option(
+        None,
+        "--app-dir",
+        exists=True,
+        help="Already-extracted Payload/<App>.app directory to analyze instead of re-extracting the IPA",
+    ),
     class_name: str | None = typer.Option(None, "--class", help="Restrict to one class"),
     search: str | None = typer.Option(None, "--search", help="Only classes whose name matches this regex"),
     limit: int = typer.Option(60, "--limit", help="Max classes to print (0 = no limit)"),
@@ -73,14 +101,18 @@ def hooks_extract(
     import re as _re
 
     with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
-        app_path = validated_extract(ipa, Path(tmp))
+        app_path = _extract_or_use(ipa, app_dir, Path(tmp))
         bundle = load_bundle(app_path)
         analysis = analyze_bundle(bundle)
     if class_name:
         cls = analysis.classes.get(class_name)
         if not cls:
             in_names = class_name in analysis.classnames
-            typer.secho(f"class '{class_name}' not parsed (classname string: {in_names})", fg=typer.colors.YELLOW)
+            present = any((b"\x00" + class_name.encode("utf-8") + b"\x00") in data for data in analysis.raw_data)
+            typer.secho(
+                f"class '{class_name}' not parsed (classname string: {in_names}; raw string present: {present})",
+                fg=typer.colors.YELLOW,
+            )
             raise typer.Exit(code=1)
         targets = [cls]
     elif search:
@@ -101,8 +133,14 @@ def hooks_extract(
 
 @app.command("audit")
 def hooks_audit(
-    ipa: Path = typer.Option(..., "--ipa", exists=True, help="Input .ipa"),
+    ipa: Path | None = typer.Option(None, "--ipa", exists=True, help="Input .ipa (not needed when --app-dir is given)"),
     dylib_src: Path = typer.Option(..., "--dir", exists=True, help="Directory of tweak sources (*.m/*.h) to scan"),
+    app_dir: Path | None = typer.Option(
+        None,
+        "--app-dir",
+        exists=True,
+        help="Already-extracted Payload/<App>.app directory to analyze instead of re-extracting the IPA",
+    ),
 ) -> None:
     """Scan ObjC tweak sources for hook calls and verify each target against
     the app binary. Catches hooks the author wrote but a newer app version
@@ -112,7 +150,7 @@ def hooks_audit(
         typer.echo("No hook calls found in the sources.")
         raise typer.Exit(code=0)
     with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
-        app_path = validated_extract(ipa, Path(tmp))
+        app_path = _extract_or_use(ipa, app_dir, Path(tmp))
         bundle = load_bundle(app_path)
         analysis = analyze_bundle(bundle)
     results = verify_hooks(analysis, decls)
@@ -165,16 +203,30 @@ def hooks_manifest(
 
 @app.command("diff")
 def hooks_diff(
-    old_ipa: Path = typer.Option(..., "--old", exists=True, help="Previously-working .ipa"),
-    new_ipa: Path = typer.Option(..., "--new", exists=True, help="New .ipa"),
+    old_ipa: Path | None = typer.Option(
+        None, "--old", exists=True, help="Previously-working .ipa (not needed with --old-app-dir)"
+    ),
+    new_ipa: Path | None = typer.Option(None, "--new", exists=True, help="New .ipa (not needed with --new-app-dir)"),
     patches: Path = typer.Option(..., "--patches", exists=True, help="Patch definition with a `hooks:` section"),
+    old_app_dir: Path | None = typer.Option(
+        None, "--old-app-dir", exists=True, help="Extracted Payload/<App>.app of the old build"
+    ),
+    new_app_dir: Path | None = typer.Option(
+        None, "--new-app-dir", exists=True, help="Extracted Payload/<App>.app of the new build"
+    ),
 ) -> None:
     """Compare hook attachment between two IPAs — the porting aid. Shows every
     hook whose status changed, highlighting ones that regressed (would no-op
     on the new version). Exit 1 if a required hook regressed."""
     with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
-        bundle_old = load_bundle(validated_extract(old_ipa, Path(tmp) / "old"))
-        bundle_new = load_bundle(validated_extract(new_ipa, Path(tmp) / "new"))
+        try:
+            old_path = resolve_app_path(old_ipa, old_app_dir, Path(tmp) / "old")
+            new_path = resolve_app_path(new_ipa, new_app_dir, Path(tmp) / "new")
+        except ValueError as e:
+            typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1) from None
+        bundle_old = load_bundle(old_path)
+        bundle_new = load_bundle(new_path)
         definition = load_patch_definition(patches)
         decls = [HookDecl(h.class_name, h.selector, h.kind, h.added, h.required) for h in (definition.hooks or [])]
         if not decls:

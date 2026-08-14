@@ -18,6 +18,8 @@ def _analysis() -> MachOAnalysis:
         classnames={"YTThing", "YTChild", "YTGone", "YTWalkMissed"},
         selectors={"doIt:", "makeIt", "setHidden:", "playerAdsArray", "orphan:", "externalOnly:"},
         main_executable=None,
+        # raw bytes: the name/selector cstrings the verifier cross-checks
+        raw_data=[b"\x00YTBytePresent\x00\x00YTByteSelector:\x00\x00other\x00"],
     )
 
 
@@ -49,6 +51,43 @@ def test_absent_class_fails():
     a = _analysis()
     r = verify_hooks(a, [HookDecl("YTMissing", "x")])
     assert r[0].status == "missing-class" and not r[0].ok
+
+
+def test_absent_class_with_raw_string_is_unverified():
+    # the class name exists as a cstring in the binary but the class-table
+    # walk missed it: a parser gap, so soft-fail instead of missing-class
+    a = _analysis()
+    r = verify_hooks(a, [HookDecl("YTBytePresent", "doIt:")])
+    assert r[0].status == "unverified" and not r[0].ok
+    assert "string present" in r[0].detail
+
+
+def test_absent_class_without_raw_string_is_missing():
+    a = _analysis()
+    r = verify_hooks(a, [HookDecl("YTAbsentEverywhere", "doIt:")])
+    assert r[0].status == "missing-class"
+
+
+def test_missing_selector_with_raw_string_is_unverified():
+    # the selector string exists in the binary but in no parsed method list
+    a = _analysis()
+    r = verify_hooks(a, [HookDecl("YTThing", "YTByteSelector:")])
+    assert r[0].status == "unverified" and not r[0].ok
+    assert "string present" in r[0].detail
+
+
+def test_swift_class_absent_is_unverified_not_ok_system():
+    # a Swift-mangled class the walk missed must not be labelled a system
+    # class — that would hide drift
+    a = _analysis()
+    r = verify_hooks(a, [HookDecl("_TtC12SomeModule15SomeView", "doIt:")])
+    assert r[0].status == "unverified" and not r[0].ok
+
+
+def test_system_class_with_referenced_selector_still_ok_system():
+    a = _analysis()
+    r = verify_hooks(a, [HookDecl("UIView", "setHidden:")])
+    assert r[0].status == "ok-system" and r[0].ok
 
 
 def test_classname_only_is_unverified_not_missing():
