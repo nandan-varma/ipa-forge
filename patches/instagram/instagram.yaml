@@ -1,0 +1,166 @@
+# Instagram 442.0.0 — essential mod via a from-scratch plain-ObjC dylib.
+#
+# No Swift, no substrate, no third-party tweak binary: IGModHook.dylib is
+# built from dylib/*.m (see dylib/build.sh) and loaded via LC_LOAD_WEAK_DYLIB
+# — the same pattern as the YouTube/Spotify sets, which cannot crash at
+# launch the way a Swift/Orion dylib loaded this early does.
+#
+# Features (in priority order):
+#   1. Ad removal — feed list filter + kill every *AdsResponseParser at the
+#      source (AdBlock.m). Verified against the 442.0.0 binary; the SCInsta
+#      lineage targets ~418.x, so several of its classes (IGSundialFeed-
+#      DataSource, IGFeedPhotoView, IGMainStoryTrayDataSource, IGFeedItem)
+#      are gone here and the hooks were re-derived from the 442.0.0 class
+#      table (see SOURCES.md).
+#   2. Story privacy — no seen receipt (IGStorySeenStateUploader), no typing
+#      indicator (IGDirectTypingStatusService), no screenshot alerts
+#      (StoryPrivacy.m).
+#   3. Media save — long-press feed posts, stories, and profile pictures to
+#      share/save (MediaDownload.m); long-press captions to copy (CopyText.m).
+#   4. Safe mode disable (IGSafeModeChecker) + a settings screen reachable
+#      by long-pressing the home tab or a 4-finger hold (SettingsUI.m).
+#
+# AltStore appends the Team ID to the main bundle id at install
+# (com.burbn.instagram.<teamID>), breaking the embedded extension ids
+# (IXErrorDomain Code=2) — stripping Extensions/ + PlugIns/ is required.
+target:
+  bundle_id: "com.burbn.instagram"
+  version:
+    exact: "442.0.0"
+
+patches:
+  - id: "remove-app-extensions"
+    type: resource_remove
+    path: "Extensions"
+
+  - id: "remove-app-plugins"
+    type: resource_remove
+    path: "PlugIns"
+
+  - id: "stage-hook-dylib"
+    type: resource_add
+    path: "Frameworks/IGModHook.dylib"
+    source: "build/IGModHook.dylib"
+
+  - id: "link-hook-dylib"
+    type: dylib_inject
+    executable: "Instagram"
+    install_name: "@rpath/IGModHook.dylib"
+    # weak, like the community Spotify mods — a load failure degrades
+    # instead of aborting.
+    load_command: "LC_LOAD_WEAK_DYLIB"
+
+# Runtime hooks IGModHook.dylib relies on, verified against the 442.0.0
+# binary (main executable) with `forge hooks verify`.
+# required = the feature dies silently if the app version drops it.
+hooks:
+  # --- ad removal (feed list filter + response parsers) ---
+  - class: "IGMainFeedListAdapterDataSource"
+    selector: "objectsForListAdapter:"
+    kind: instance
+    required: true
+  - class: "IGStoryAdsResponseParser"
+    selector: "parsedObjectFromResponse:"
+    kind: instance
+    required: true
+  - class: "IGSundialAdsResponseParser"
+    selector: "parsedObjectFromResponse:"
+    kind: instance
+    required: true
+  - class: "IGIntentAwareFeedAdsResponseParser"
+    selector: "parsedObjectFromResponse:"
+    kind: instance
+  - class: "IGIntentAwareStoryAdsResponseParser"
+    selector: "parsedObjectFromResponse:"
+    kind: instance
+  - class: "IGIntentAwareSundialAdsResponseParser"
+    selector: "parsedObjectFromResponse:"
+    kind: instance
+  - class: "IGExploreAdsResponseParser"
+    selector: "parsedObjectFromResponse:"
+    kind: instance
+  - class: "IGSearchFeedAdsResponseParser"
+    selector: "parsedObjectFromResponse:"
+    kind: instance
+  - class: "IGProfileAdsResponseParser"
+    selector: "parsedObjectFromResponse:"
+    kind: instance
+  - class: "IGHighIntentDiscoveryStoryAdsResponseParser"
+    selector: "parsedObjectFromResponse:"
+    kind: instance
+
+  # --- story privacy ---
+  - class: "IGStorySeenStateUploader"
+    selector: "initWithUserSessionPK:networker:"
+    kind: instance
+  - class: "IGStorySeenStateUploader"
+    selector: "networker"
+    kind: instance
+  - class: "IGDirectTypingStatusService"
+    selector: "updateOutgoingStatusIsActive:threadKey:threadMetadata:typingStatusType:"
+    kind: instance
+  - class: "IGViewController"
+    selector: "screenshotObserver"
+    kind: instance
+  - class: "IGScreenshotObserver"
+    selector: "initForController:"
+    kind: instance
+  - class: "IGDirectVisualMessageScreenshotSafetyLogger"
+    selector: "initWithUserSession:entryPoint:"
+    kind: instance
+  - class: "IGStoryViewerContainerView"
+    selector: "setShouldBlockScreenshot:viewModel:"
+    kind: instance
+  - class: "IGStoryViewerViewController"
+    selector: "screenshotObserverDidSeeScreenshotTaken:"
+    kind: instance
+  - class: "IGStoryViewerViewController"
+    selector: "screenshotObserverDidSeeActiveScreenCapture:event:"
+    kind: instance
+  - class: "IGDirectVisualMessageViewerController"
+    selector: "screenshotObserverDidSeeScreenshotTaken:"
+    kind: instance
+  - class: "IGDirectVisualMessageViewerController"
+    selector: "screenshotObserverDidSeeActiveScreenCapture:event:"
+    kind: instance
+  - class: "IGDirectAggregatedMediaViewerViewController"
+    selector: "screenshotObserverDidSeeScreenshotTaken:"
+    kind: instance
+  - class: "IGDirectAggregatedMediaViewerViewController"
+    selector: "screenshotObserverDidSeeActiveScreenCapture:event:"
+    kind: instance
+
+  # --- media save (long-press attach points; UIView-descendants) ---
+  - class: "IGFeedItemMediaCell"
+    selector: "didMoveToSuperview"
+    kind: instance
+  - class: "IGStoryPhotoView"
+    selector: "didMoveToSuperview"
+    kind: instance
+  - class: "IGStoryVideoView"
+    selector: "didMoveToSuperview"
+    kind: instance
+  - class: "IGProfilePictureImageView"
+    selector: "didMoveToSuperview"
+    kind: instance
+
+  # --- copy captions ---
+  - class: "IGCoreTextView"
+    selector: "didMoveToSuperview"
+    kind: instance
+
+  # --- safe mode disable ---
+  - class: "IGSafeModeChecker"
+    selector: "initWithInstacrashCounterProvider:crashThreshold:"
+    kind: instance
+  - class: "IGSafeModeChecker"
+    selector: "crashCount"
+    kind: instance
+
+  # --- settings entry points ---
+  - class: "IGTabBarButton"
+    selector: "didMoveToSuperview"
+    kind: instance
+  - class: "IGRootViewController"
+    selector: "viewDidLoad"
+    kind: instance
