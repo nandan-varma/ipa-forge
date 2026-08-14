@@ -218,6 +218,11 @@ static void addGestureDelegateMethods(Class cls) {
         }, "c@:@@");
 }
 
+// Weak ref to the current player VC, exported for SponsorBlock.m (it needs
+// currentVideoID / currentVideoMediaTime / seekToTime:).
+static __weak UIViewController *sCurrentPlayerVC = nil;
+UIViewController *ytfCurrentPlayerViewController(void) { return sCurrentPlayerVC; }
+
 static void fixGestures(void) {
     if (!IS_ENABLED(KGestureControls)) return;
     Class playerVC = NSClassFromString(@"YTPlayerViewController");
@@ -238,6 +243,7 @@ static void fixGestures(void) {
     orig_didSetPlayerVC = ytfHookInstance(NSClassFromString(@"YTWatchLayerViewController"),
         @selector(watchController:didSetPlayerViewController:),
         ^void(id self, id watchController, id playerViewController) {
+            sCurrentPlayerVC = playerViewController;
             if (playerViewController) {
                 UIPanGestureRecognizer *pan = objc_getAssociatedObject(playerViewController, kPanGestureKey);
                 if (!pan) {

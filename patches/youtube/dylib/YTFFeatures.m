@@ -110,12 +110,14 @@ static NSArray<YTFFeatureSpec *> *kFeatures(void) {
             [YTFFeatureSpec switchSpec:KBackgroundPlayback title:@"Background playback"
                                 detail:@"Audio continues with screen off"
                                  group:@"player" defaultValue:YES restart:YES beta:NO],
-            [YTFFeatureSpec switchSpec:KOldQualityPicker title:@"Old quality picker"
-                                detail:@"Classic grid quality menu"
-                                 group:@"player" defaultValue:YES restart:YES beta:NO],
-            [YTFFeatureSpec switchSpec:KExtraSpeed title:@"Extra speeds"
-                                detail:@"Speed menu from 0.25x to 10x"
-                                 group:@"player" defaultValue:YES restart:YES beta:NO],
+            // Old quality picker + Extra speeds are NOT working on 21.32.4 (the app
+            // version-gates them and the menu rows never render) - moved to Beta.
+            [YTFFeatureSpec switchSpec:KExtraSpeed title:@"Extra speeds (beta)"
+                                detail:@"Speed menu from 0.25x to 10x - does not work on 21.32.4"
+                                 group:@"beta" defaultValue:NO restart:YES beta:YES],
+            [YTFFeatureSpec switchSpec:KOldQualityPicker title:@"Old quality picker (beta)"
+                                detail:@"Classic grid quality menu - does not work on 21.32.4"
+                                 group:@"beta" defaultValue:NO restart:YES beta:YES],
             [YTFFeatureSpec switchSpec:KMuteButtonPlayer title:@"Mute button"
                                 detail:@"Mute control in the player bar"
                                  group:@"player" defaultValue:YES restart:YES beta:NO],
@@ -319,6 +321,12 @@ static NSArray<YTFFeatureSpec *> *kFeatures(void) {
                                 detail:nil group:@"system" defaultValue:YES restart:YES beta:NO],
             [YTFFeatureSpec switchSpec:KHideHUDMessages title:@"Hide HUD messages"
                                 detail:nil group:@"system" defaultValue:NO restart:YES beta:NO],
+            [YTFFeatureSpec switchSpec:KSponsorBlock title:@"SponsorBlock"
+                                detail:@"Skip sponsor segments (sends video IDs to api.sponsor.ajay.app)"
+                                 group:@"system" defaultValue:NO restart:NO beta:NO],
+            [YTFFeatureSpec switchSpec:KKeepScreenOn title:@"Keep screen on"
+                                detail:@"Prevent auto-lock/dimming while a video plays (DEMC-style)"
+                                 group:@"system" defaultValue:NO restart:NO beta:NO],
 
             // ---- Beta (targets absent from 21.32.4 - unverified) ----
             [YTFFeatureSpec switchSpec:KHideGenMusicShelf title:@"Hide music playlists shelf"

@@ -12,10 +12,12 @@
 #import <objc/runtime.h>
 #import <os/log.h>
 
+@class UIViewController;
+
 
 #define YT_BUNDLE_ID @"com.google.ios.youtube"
 #define YT_NAME @"YouTube"
-#define YTFREEDOM_VERSION @"0.6.1"
+#define YTFREEDOM_VERSION @"0.6.2"
 
 // ---------------------------------------------------------------------------
 // Settings keys (NSUserDefaults, prefix YTFreedom)
@@ -112,6 +114,8 @@
 #define KOLEDTheme               @"YTFreedomOLEDTheme"
 #define KOLEDKeyboard            @"YTFreedomOLEDKeyboard"
 #define KAutoClearCache          @"YTFreedomAutoClearCache"
+#define KSponsorBlock            @"YTFreedomSponsorBlock"
+#define KKeepScreenOn            @"YTFreedomKeepScreenOn"
 
 // G18 YTLite extras / G6 gestures keys
 #define KRedProgressBar           @"YTFreedomRedProgressBar"
@@ -319,6 +323,9 @@ void YTFreedomNavbarTabbarInit(void);
 void YTFreedomFeedShortsInit(void);
 void YTFreedomMiscInit(void);
 void YTFreedomAppearanceInit(void);
+void YTFreedomSponsorBlockInit(void);
+void YTFreedomKeepScreenOnInit(void);
+UIViewController *ytfCurrentPlayerViewController(void);
 
 // ---------------------------------------------------------------------------
 // Shared player state (PlayerGestures.m / PlayerFeatures.m own the hooks;

@@ -1,29 +1,25 @@
-# YouTube Pro v0.0.6 (r2) — device test sheet
+# YouTube Pro v0.0.7 — device test sheet
 
-Install `/Users/nandan/dev/ytlite-ipa/Youtube_pro_v0.0.6.ipa`. Confirm build:
-Settings → YTFreedom → version row = **v0.6.1**.
+Install `/Users/nandan/dev/ytlite-ipa/Youtube_pro_v0.0.7.ipa`. Confirm build:
+Settings → YTFreedom → version row = **v0.6.2**.
 
-## What changed in r2 (root cause found via reference research)
+## What changed in v0.0.7
 
-Research into YTLite (dayanch96, actively maintained) found its "Temporary Fix
-for Classic Video Quality and Extra Speed Options": **the app version-gates
-these features** — on 21.32.4 (too new) it disables them entirely, which is
-why no amount of availability-flag forcing brought the rows back.
+- **SponsorBlock** (new, from iSponsorBlock reference): auto-skips sponsor
+  segments. Toggle: Advanced → System → SponsorBlock (default OFF — it sends
+  video IDs to api.sponsor.ajay.app). When on: fetches segments for the
+  current video and seeks past them (1s poll; no player-bar UI yet).
+- **Keep screen on** (new, DEMC-style): prevents auto-lock/dimming while a
+  video is playing. Advanced → System → Keep screen on.
+- **Quality + speed moved to Beta**: Old quality picker and Extra speeds are
+  version-gated by the app on 21.32.4 and could not be made to work; their
+  toggles now live in Advanced → Beta (marked beta, default OFF). Their
+  hooks stay installed so they can be flipped for experiments, but treat them
+  as non-functional.
+- RYD (dislike counts) stays deferred: its watch-page hook target
+  (updateLikeButtonWithRenderer:) is absent in 21.32.4.
 
-- **Version spoof**: `+[YTVersionUtils appVersion]` now returns 18.18.2 when
-  Old quality picker or Extra speeds is on (YTLite's exact approach). The
-  sign-in fix already strips `app_version` from SSO URLs, so this cannot leak
-  to Google's risk engine there.
-- **Classic quality picker via the FACTORY**: the app picks the picker through
-  `YTVideoQualitySwitchControllerFactory.videoQualitySwitchControllerWithParentResponder:`
-  (not just the config flag). It now returns the Original (classic) controller
-  when the toggle is on — YTLite's approach.
-- **Speed options re-applied on setDelegate:** — the app overwrites `_options`
-  after init; the option list is now re-applied right before the sheet shows
-  (YTLite's approach), on top of the init hook.
-- Kept: the availability-gate hooks (varispeedAllowed, qualitySwitchAvailable,
-  overflow-VC backstops), the 10x caps.
-
+## 0. Smoke
 ## 0. Smoke
 ## 0. Smoke
 ## 0. Smoke

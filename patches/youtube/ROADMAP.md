@@ -397,6 +397,26 @@ the `YTFreedom: hooked -[...]` os_log lines at launch.
 | G19 Adblock polish | ✅ always-on |
 | G20 New-IPA UX batch | ✅ A/B Testing under Advanced with otool-verified flags + restart pills — on-device pass pending |
 
+### v0.0.7 — SponsorBlock + keep-screen-on; quality/speed demoted to Beta
+
+- **SponsorBlock** (new `dylib/SponsorBlock.m`, port of iSponsorBlock auto-skip
+  onto the 21.32.4 player API): fetches segments from
+  api.sponsor.ajay.app/api/skipSegments for the current video ID and, on a 1s
+  main-queue timer, seeks past a segment when playback enters it via
+  -[YTPlayerViewController seekToTime:]. Toggle KSponsorBlock (System group,
+  default OFF). No player-bar segment UI yet (v2 candidate).
+- **Keep screen on** (new `dylib/KeepScreenOn.m`, DEMC-style): idleTimerDisabled
+  while a player VC is active. Toggle KKeepScreenOn (System group, default OFF).
+- **Old quality picker + Extra speeds -> Beta** (catalog): the app version-gates
+  them on 21.32.4; per user decision they are marked beta and default OFF.
+  Hooks (version spoof, quality factory, varispeed options, gates) remain
+  installed behind the toggles.
+- RYD: still deferred — `updateLikeButtonWithRenderer:` (RYD's watch-page
+  target) is absent in 21.32.4; only reel/rolling-number targets exist.
+- Remaining candidate features documented for later: YTUHD (VP9 unlock), YouLoop
+  (native single-loop is a server-gated overflow element), settings-section
+  hiding, red subscribe button, RYD.
+
 ### v0.0.6 r2 — root cause: the app VERSION-GATES quality/speed (YTLite research)
 
 Reference research (YTLite YTLite.x): "Temporary Fix For 'Classic Video
