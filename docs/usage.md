@@ -167,6 +167,24 @@ forge hooks extract --ipa App.ipa --search "AdBreak"
 forge hooks audit --ipa App.ipa --dir dylib/
 ```
 
+**Fast iteration with `--app-dir`.** Every command re-extracts the full IPA
+(seconds to tens of seconds on a large app) unless you point it at an
+already-extracted bundle instead — pass `--app-dir Payload/<App>.app` (and
+then omit `--ipa`) and the analyze/verify/fix loop becomes instant:
+
+```bash
+forge patch --ipa App.ipa --patches patch.yaml --output /tmp/x.ipa --dry-run
+forge hooks verify --app-dir /tmp/x.app --patches patch.yaml   # no re-extract
+```
+
+A class or selector that the class-table walk *missed* (a parser gap, not a
+rename) is now reported honestly: when the name exists as a string somewhere
+in the binary, `missing-class` / `missing-selector` become `unverified` with
+a "string present … the walk missed it" hint — the old manual
+`strings <binary> | grep` cross-check is automated. Swift-mangled (`_TtC…`)
+classes absent from the parsed table are reported `unverified`, never
+mislabeled as system classes.
+
 `forge patch --dry-run` also verifies the definition's `hooks:` block
 automatically and prints an attach summary; `required: true` hooks that
 can't attach fail the run before anything mutates. See
@@ -205,10 +223,12 @@ forge hooks diff --old prev.ipa --new next.ipa --patches patch.yaml
 
 The scanner recognizes any `<prefix>HookInstance/HookClass/AddInstanceMethod`
 call with an inline `NSClassFromString(@"X")` (or a file-scoped
-`cls = NSClassFromString(@"X")` assignment). Helper/loop-based hooks (a class
-passed as a parameter, or a `for (NSString *sel in @[...])` swizzle loop) are
-not traced and must be declared manually in the definition's `hooks:` block —
-which is what the YouTube/Spotify patch sets do.
+`cls = NSClassFromString(@"X")` assignment), plus class names passed through
+a local resolver helper — any function whose body calls `NSClassFromString`
+and that is invoked as `resolver("X")` at the hook call site. Helper/loop-
+based hooks whose class is *passed into another function* before reaching the
+hook call are not traced and must be declared manually in the definition's
+`hooks:` block — which is what the YouTube/Spotify/Instagram patch sets do.
 
 ## Signing identity & profile
 

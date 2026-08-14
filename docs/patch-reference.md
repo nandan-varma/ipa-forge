@@ -247,7 +247,6 @@ When applying, operations run in a fixed order:
 
 Order within a group follows the order in the YAML file.
 
-
 ## The `hooks` block — verify runtime hooks against the binary
 
 Dylib-injection tweaks live or die on ObjC runtime hooks: the dylib swizzles
@@ -281,7 +280,9 @@ Per hook:
 
 `forge patch --dry-run` verifies every declared hook against the app's main
 binary (class table + method lists + selrefs, chained-fixup aware) and prints
-a summary:
+a summary. The `forge hooks` commands do the same without patching, and every
+one of them accepts `--app-dir Payload/<App>.app` in place of `--ipa` to skip
+re-extraction when iterating on the same app.
 
 ```
 Dry run OK -- 4 operation(s) would apply.
@@ -296,14 +297,25 @@ the parser couldn't fully confirm — treat as a soft warning), `missing-class` 
 `missing-selector` / `elsewhere` (the hook would silently no-op — these fail
 the run when `required`).
 
+The `unverified` bucket is where parser *gaps* land rather than real drift:
+when a class or selector the walk missed is still present as a string in some
+binary image (the old manual `strings <binary> | grep` cross-check), the
+report says so — "class-name string present … the walk missed it (likely
+attaches)" / "selector string present … parser may have missed it". The parser
+under-reports GPBMessage methods and large Swift class tables this way;
+Swift-mangled (`_TtC…`) classes absent from the parsed table are always
+reported `unverified`, never mislabeled as system classes.
+
 Porting to a new app version becomes: bump `target.version`, run
 `--dry-run`, read the hook report, and fix exactly the hooks the report flags.
 `forge hooks manifest --dir <dylib-sources>` regenerates the `hooks:` block
-from the tweak sources; `forge hooks diff --old A.ipa --new B.ipa
+from the tweak sources (inline `NSClassFromString` calls, unambiguous
+variable assignments, and class names passed through a local resolver helper
+— a function whose body calls `NSClassFromString` invoked as `resolver("X")`
+at the hook call site); `forge hooks diff --old A.ipa --new B.ipa
 --patches patch.yaml` shows which hooks regressed between two versions.
 
 ## The manifest
-
 
 Every run produces a structured manifest (`--verbose` prints it; the GUI shows
 it in the result card):

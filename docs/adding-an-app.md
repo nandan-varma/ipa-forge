@@ -13,7 +13,9 @@ generic; the per-app runbooks ([YouTube](../patches/youtube/PLAYBOOK.md),
   extensions/frameworks. Record them.
 - `forge hooks extract --ipa <ipa>.ipa --class <MainClass>` — sanity-check
   that the binary parses (mergeable/zero-based dylibs and frameworks are
-  handled; see `architecture.md`).
+  handled; see `architecture.md`). If you already have an extracted bundle,
+  pass `--app-dir Payload/<App>.app` instead of the IPA to skip
+  re-extraction — every `forge hooks` command accepts it.
 
 ## Phase 1 — create the patch set
 
@@ -74,14 +76,19 @@ hooks:
 
 - Generate the block from sources when possible:
   `forge hooks manifest --dir dylib/ --required hooks-required.txt`
-  (recognizes direct `NSClassFromString` + variable-resolved calls; helper or
-  loop-based hooks are declared manually).
+  (recognizes direct `NSClassFromString` + variable-resolved calls, and
+  class names passed through a local resolver helper like
+  `igClass("X")` — any function whose body calls `NSClassFromString`;
+  helper/loop-based hooks where the class flows through *another* function
+  are declared manually).
 - `forge patch --dry-run` verifies every hook against the **main binary and
   all embedded frameworks** (`analyze_bundle`) and fails on missing
   `required` hooks. Statuses: `ok` / `ok-inherited` / `ok-system` / `added`
   / `unverified` (soft) / `missing-class` / `missing-selector` / `elsewhere`
-  (hard). The parser under-reports GPBMessage methods — cross-check flagged
-  selectors with `strings <binary> | grep -cx "<selector>"`.
+  (hard). A class/selector the walk missed but that is still present as a
+  string in the binary reports `unverified` with a "string present … walk
+  missed it" hint — no more manual `strings <binary> | grep` cross-check.
+  The parser under-reports GPBMessage methods.
 - Porting later: `forge hooks diff --old prev.ipa --new next.ipa --patches Y`
   shows exactly which hooks regressed.
 

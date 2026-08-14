@@ -23,6 +23,7 @@ then come back here for the map.
 | --- | --- |
 | YouTube 21.32.4 (`patches/youtube/`) | [`PLAYBOOK.md`](../patches/youtube/PLAYBOOK.md) (runbook), [`README.md`](../patches/youtube/README.md) (features), [`ROADMAP.md`](../patches/youtube/ROADMAP.md) (goals), [`SOURCES.md`](../patches/youtube/SOURCES.md) (attribution) |
 | Spotify 9.1.72 (`patches/spotify/`) | [`PLAYBOOK.md`](../patches/spotify/PLAYBOOK.md) (runbook), [`README.md`](../patches/spotify/README.md) (features), [`SOURCES.md`](../patches/spotify/SOURCES.md) |
+| Instagram 442.0.0 (`patches/instagram/`) | [`PLAYBOOK.md`](../patches/instagram/PLAYBOOK.md) (runbook), [`README.md`](../patches/instagram/README.md) (features), [`SOURCES.md`](../patches/instagram/SOURCES.md) |
 
 ## The reading order for a new session
 
