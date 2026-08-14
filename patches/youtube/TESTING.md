@@ -1,9 +1,27 @@
-# YouTube Pro v0.0.3 — device test sheet
+# YouTube Pro v0.0.4 — device test sheet
 
-Install `/Users/nandan/dev/ytlite-ipa/Youtube_pro_v0.0.3.ipa`. Confirm build:
-Settings → YTFreedom → version row = **v0.7.0**.
+Install `/Users/nandan/dev/ytlite-ipa/Youtube_pro_v0.0.4.ipa`. Confirm build:
+Settings → YTFreedom → version row = **v0.8.0**.
 
-## What changed in v0.0.3
+## What changed in v0.0.4 (fixes the three broken items)
+
+- **Video quality + Playback speed menu items fixed**: the old code replaced
+  their handlers with selectors that don't exist in 21.32.4 and disabled the
+  items — tapping them did nothing. The replacement hook is removed; the app's
+  own menu actions now open the sheets.
+- **Old quality picker**: forced `enableQuickMenuVideoQualitySettings -> NO`
+  (real dynamic property — the %new installs), so the quality sheet is the
+  classic list, not the thumbnail picker.
+- **Extra speeds**: the varispeed sheet keeps the 13-rate option list
+  (0.25x-10x) + 10x cap; with the menu item working again the sheet actually
+  opens.
+- **Default tab fixed**: `selectItemWithPivotIdentifier:` doesn't exist in
+  21.32.4 (selref-only) — the old call silently no-opped. Now hooked on the
+  app's own `YTAppPivotBarController defaultSelectedPivotIdentifier`
+  getter+setter, so our choice is what the app selects when the bar loads.
+  Library/You still picks whichever the server sent.
+
+## What changed in v0.0.3 (structure)
 
 - **Full audit vs the 21.32.4 IPA**: 159/159 hook targets resolve against the
   binary (otool + strings). Nothing targets an old tweak.
@@ -46,8 +64,8 @@ Settings → YTFreedom → version row = **v0.7.0**.
 | Item | Test | Works = | Broken = |
 | --- | --- | --- | --- |
 | Background playback | Play → lock screen | Audio continues | Stops |
-| Old quality picker | ⋯ → Quality | Classic grid menu | New thumbnail picker |
-| Extra speeds | ⋯ → Playback speed | 0.25×-10× rates | Capped at 2× |
+| Old quality picker | ⋯ → Video quality | Opens the CLASSIC list picker | Thumbnail picker opens / nothing |
+| Extra speeds | ⋯ → Playback speed | Sheet opens with 13 rates up to 10× | Only stock rates / sheet doesn't open |
 | Mute button | Fullscreen | Mute icon in control row | No mute icon |
 | Gesture controls | Fullscreen, swipe left/right edges | Brightness (left) / volume (right) HUD | Nothing |
 | Left/Right edge swipe | Change Right to Speed, swipe right | Speed changes | No effect |
@@ -63,7 +81,8 @@ Settings → YTFreedom → version row = **v0.7.0**.
 - Navigation: hide logo, premium logo (ON), hide notification/search/voice/
   cast (cast ON = hidden), sticky navbar.
 - Tab bar → Default tab: pick Home / Shorts / Subscriptions / Library / You,
-  relaunch, confirm the app opens there. You = the FEaccount tab.
+  relaunch, confirm the app opens there. You = the FEaccount tab. (v0.0.4:
+  selection now goes through the app's own YTAppPivotBarController.)
 
 ## 4. Advanced (power user)
 

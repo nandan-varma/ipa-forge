@@ -551,52 +551,12 @@ static const float kSpeedRates[13] = {0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0
 // One hook for both the playback-speed and video-quality menu items
 // (YouMod splits these across groups; a single hook avoids the collision).
 static void fixSpeedMenu(void) {
-    static IMP orig_actionsForRenderers;
-    orig_actionsForRenderers = ytfHookInstance(NSClassFromString(@"YTMenuController"),
-        @selector(actionsForRenderers:fromView:entry:shouldLogItems:firstResponder:),
-        ^id(id self, NSMutableArray *renderers, id fromView, id entry, BOOL shouldLogItems, id firstResponder) {
-            id actions = ((id(*)(id, SEL, id, id, id, BOOL, id))orig_actionsForRenderers)(
-                self, @selector(actionsForRenderers:fromView:entry:shouldLogItems:firstResponder:),
-                renderers, fromView, entry, shouldLogItems, firstResponder);
-            if (![actions isKindOfClass:[NSArray class]]) return actions;
-
-            BOOL wantSpeed = IS_ENABLED(KExtraSpeed);
-            BOOL wantQuality = IS_ENABLED(KOldQualityPicker);
-            if (!wantSpeed && !wantQuality) return actions;
-
-            NSMutableArray *mutableActions = [actions mutableCopy];
-            [renderers enumerateObjectsUsingBlock:^(id renderer, NSUInteger idx, BOOL *stop) {
-                id<YTFreedomMenuHooks> hooks = renderer;
-                id compat = [hooks respondsToSelector:@selector(compatibilityOptions)]
-                    ? [hooks compatibilityOptions] : nil;
-                if (!compat) return;
-                id<YTFreedomMenuHooks> compatHooks = compat;
-                id ext = [compatHooks respondsToSelector:@selector(messageForFieldNumber:)]
-                    ? [compatHooks messageForFieldNumber:396644439] : nil;
-                NSString *identifier = [ext respondsToSelector:@selector(menuItemIdentifier)]
-                    ? [ext menuItemIdentifier] : nil;
-                if (idx < mutableActions.count) {
-                    id<YTFreedomMenuHooks> action = mutableActions[idx];
-                    if (wantSpeed && [identifier isEqualToString:@"menu_item_playback_speed"]) {
-                        [action setHandler:^{
-                            if ([firstResponder respondsToSelector:@selector(didPressVarispeed:)])
-                                [firstResponder didPressVarispeed:fromView];
-                        }];
-                        id elementView = [[(id)action valueForKey:@"button"] valueForKey:@"_elementView"];
-                        [elementView setValue:@NO forKey:@"userInteractionEnabled"];
-                    } else if (wantQuality && [identifier isEqualToString:@"menu_item_video_quality"]) {
-                        [action setHandler:^{
-                            if ([firstResponder respondsToSelector:@selector(didPressVideoQuality:)])
-                                [firstResponder didPressVideoQuality:fromView];
-                        }];
-                        id elementView = [[(id)action valueForKey:@"button"] valueForKey:@"_elementView"];
-                        [elementView setValue:@NO forKey:@"userInteractionEnabled"];
-                    }
-                }
-            }];
-            return mutableActions;
-        });
-    (void)orig_actionsForRenderers;
+    // NOTE: no YTMenuController actionsForRenderers hook here. The old
+    // approach replaced the menu items' handlers with didPressVarispeed: /
+    // didPressVideoQuality: and disabled the item views — but those two
+    // selectors are NOT implemented by any class in the 21.32.4 binary
+    // (selref-only), so tapping the items did nothing. The app's own menu
+    // actions open the sheets fine; we only extend the sheets themselves.
 
     // Extended rate options on the varispeed sheet.
     static IMP orig_varispeedInit;

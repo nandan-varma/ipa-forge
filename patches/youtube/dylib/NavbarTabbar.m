@@ -140,11 +140,13 @@ static void fixNavbar(void) {
 
 // --- G9: tab bar ------------------------------------------------------------
 
+// Pivot identifiers actually present on this device (the server decides the
+// tab set — e.g. Library vs the newer You tab). Stashed from the renderer;
+// used by the default-tab selection below.
+static NSMutableArray *s_pivotIds = nil;
+static NSString *ytfDefaultTabIdentifier(void);
+
 static void fixTabbar(void) {
-    // Pivot identifiers actually present on this device (the server decides
-    // the tab set — e.g. Library vs the newer You tab). Stashed from the
-    // renderer; used by the startup-tab selection below.
-    static NSMutableArray *s_pivotIds = nil;
     if (!s_pivotIds) s_pivotIds = [NSMutableArray array];
 
     // Remove tabs by pivot identifier.
@@ -223,41 +225,46 @@ static void fixTabbar(void) {
         });
     (void)orig_setPivotItemRenderer;
 
-    // Startup tab. The tab set is server-driven; the same position can be
-    // Library (FElibrary) or the newer You tab (FEaccount) depending on the
-    // device's cohort, so selection is by identifier with a fallback.
-    static IMP orig_pivotViewDidAppear;
-    orig_pivotViewDidAppear = ytfHookInstance(NSClassFromString(@"YTPivotBarViewController"),
-        @selector(viewDidAppear:),
-        ^void(id self, BOOL animated) {
-            ((void(*)(id, SEL, BOOL))orig_pivotViewDidAppear)(self, @selector(viewDidAppear:), animated);
-            static BOOL isTabSelected = NO;
-            if (!isTabSelected) {
-                int tab = INTFORVAL(KDefaultTab);
-                NSString *target = nil;
-                switch (tab) {
-                    case 0: target = @"FEwhat_to_watch"; break;
-                    case 1: target = @"FEshorts"; break;
-                    case 2: target = @"FEsubscriptions"; break;
-                    case 4: target = @"FEaccount"; break;  // You
-                    case 3: default:
-                        // Library / You: pick whichever the server sent.
-                        target = [s_pivotIds containsObject:@"FEaccount"] ? @"FEaccount" : @"FElibrary";
-                        break;
-                }
-                id<YTFreedomNavHooks> hooks = self;
-                if ([hooks respondsToSelector:@selector(selectItemWithPivotIdentifier:)]) {
-                    if ([s_pivotIds containsObject:target])
-                        [hooks selectItemWithPivotIdentifier:target];
-                    else if (s_pivotIds.count > 0)
-                        [hooks selectItemWithPivotIdentifier:s_pivotIds.firstObject];
-                    else
-                        [hooks selectItemWithPivotIdentifier:target];  // ids not stashed yet
-                }
-                isTabSelected = YES;
-            }
+    // Default tab. The app stores its startup tab on
+    // YTAppPivotBarController (defaultSelectedPivotIdentifier) and selects it
+    // once the pivot bar loads — hook both the getter and the setter so OUR
+    // choice wins. The tab set is server-driven; the same position can be
+    // Library (FElibrary) or the newer You tab (FEaccount), so selection is
+    // by identifier with a fallback.
+    static IMP orig_defaultGetter;
+    orig_defaultGetter = ytfHookInstance(NSClassFromString(@"YTAppPivotBarController"),
+        @selector(defaultSelectedPivotIdentifier),
+        ^id(id self) {
+            NSString *target = ytfDefaultTabIdentifier();
+            return target ?: ((id(*)(id, SEL))orig_defaultGetter)(
+                self, @selector(defaultSelectedPivotIdentifier));
         });
-    (void)orig_pivotViewDidAppear;
+    (void)orig_defaultGetter;
+    static IMP orig_defaultSetter;
+    orig_defaultSetter = ytfHookInstance(NSClassFromString(@"YTAppPivotBarController"),
+        @selector(setDefaultSelectedPivotIdentifier:),
+        ^void(id self, id identifier) {
+            NSString *target = ytfDefaultTabIdentifier();
+            ((void(*)(id, SEL, id))orig_defaultSetter)(
+                self, @selector(setDefaultSelectedPivotIdentifier:), target ?: identifier);
+        });
+    (void)orig_defaultSetter;
+}
+
+// Default tab identifier for the current KDefaultTab setting. Uses the
+// identifiers the server actually sent (stashed in s_pivotIds by the
+// YTPivotBarView setRenderer hook).
+static NSString *ytfDefaultTabIdentifier(void) {
+    int tab = INTFORVAL(KDefaultTab);
+    switch (tab) {
+        case 1: return @"FEshorts";
+        case 2: return @"FEsubscriptions";
+        case 4: return @"FEaccount";  // You
+        case 3:  // Library / You: whichever the server sent
+            return [s_pivotIds containsObject:@"FEaccount"] ? @"FEaccount" : @"FElibrary";
+        case 0: default:
+            return @"FEwhat_to_watch";
+    }
 }
 
 void YTFreedomNavbarTabbarInit(void) {

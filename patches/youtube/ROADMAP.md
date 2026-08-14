@@ -397,6 +397,24 @@ the `YTFreedom: hooked -[...]` os_log lines at launch.
 | G19 Adblock polish | ✅ always-on |
 | G20 New-IPA UX batch | ✅ A/B Testing under Advanced with otool-verified flags + restart pills — on-device pass pending |
 
+### v0.0.4 — three on-device fixes (menu dead-ends + default tab)
+
+- **Video quality / Playback speed menu items were dead**: the YTMenuController
+  actionsForRenderers hook replaced their handlers with didPressVarispeed: /
+  didPressVideoQuality: AND disabled the item views. Both selectors are
+  selref-only in 21.32.4 (no implementing class) — tapping did nothing. The
+  hook is removed; the app's own menu actions open the sheets.
+- **Old quality picker**: `enableQuickMenuVideoQualitySettings` is a `TB,D,N`
+  dynamic property on YTIMediaQualitySettingsHotConfig (not an implemented
+  method) — the %new installs and returns NO → app uses the classic picker.
+- **Extra speeds**: varispeed sheet keeps the 13-rate `_options` + 10x caps;
+  only unblocked by the menu fix above.
+- **Default tab**: `selectItemWithPivotIdentifier:` is selref-only (the old
+  call silently no-opped). The app's real mechanism is
+  `YTAppPivotBarController defaultSelectedPivotIdentifier` (getter+setter,
+  backed by `_defaultSelectedPivotIdentifier`) — hooked both; the app selects
+  our identifier when the bar loads. You/Library picks FEaccount if present.
+
 ### v0.0.3 — settings restructure + two bug fixes
 
 - **Single source of truth**: `dylib/YTFFeatures.m` is the catalog (one row per

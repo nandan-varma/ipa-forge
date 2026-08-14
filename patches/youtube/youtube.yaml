@@ -251,8 +251,11 @@ hooks:
   - class: "YTPivotBarItemView"
     selector: "setRenderer:"
     kind: instance
-  - class: "YTPivotBarViewController"
-    selector: "viewDidAppear:"
+  - class: "YTAppPivotBarController"
+    selector: "defaultSelectedPivotIdentifier"
+    kind: instance
+  - class: "YTAppPivotBarController"
+    selector: "setDefaultSelectedPivotIdentifier:"
     kind: instance
   - class: "YTMainAppControlsOverlayView"
     selector: "setAutoplaySwitchButtonRenderer:"
@@ -391,9 +394,6 @@ hooks:
     added: true
   - class: "YTVideoQualitySwitchOriginalController"
     selector: "setUserSelectableFormats:"
-    kind: instance
-  - class: "YTMenuController"
-    selector: "actionsForRenderers:fromView:entry:shouldLogItems:firstResponder:"
     kind: instance
   - class: "YTVarispeedSwitchController"
     selector: "init"
