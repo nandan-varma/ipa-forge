@@ -83,6 +83,9 @@ forge patch --ipa <new.ipa> --patches youtube.yaml --output /tmp/x.ipa --dry-run
 #    -> "Hooks: N/M attach (K issue(s))" — every issue is a hook that would no-op
 # 4. For each issue, find what replaced the class/selector:
 forge hooks extract --ipa <new.ipa> --search "<substring of old class name>"
+#    reverse lookup: which classes implement a selector (and is it real or
+#    referenced-only - no IMP to swizzle?):
+forge hooks find didPressVarispeed: --ipa <new.ipa>
 # 5. Fix the dylib source (rename/redirect the hook), rebuild, re-run dry-run
 # 6. When required hooks are green, regenerate the manifest and commit:
 python3 tools/generate_hooks_manifest.py   # -> copy `hooks:` into youtube.yaml

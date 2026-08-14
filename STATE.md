@@ -45,6 +45,12 @@ Delivered IPAs live in `/Users/nandan/dev/ytlite-ipa/`:
    `forge hooks diff --old A.ipa --new B.ipa --patches <yaml>` for what broke.
 5. **New feature**: `docs/adding-a-feature.md` (key → default → impl →
    settings row → hooks declaration).
+6. **Hook suspicious**: `forge hooks find <selector> --ipa <ipa>` — real
+   method or `referenced-only` (no IMP to swizzle)? `unverified` = likely
+   attaches (declared as a method somewhere); `referenced-only` = cannot
+   attach. Regenerate the manifest with
+   `tools/generate_hooks_manifest.py --inplace youtube.yaml` (covers
+   ytfHookConfigBool now).
 
 ## Decisions & lessons (do not undo)
 
