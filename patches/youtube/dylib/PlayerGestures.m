@@ -218,12 +218,6 @@ static void addGestureDelegateMethods(Class cls) {
         }, "c@:@@");
 }
 
-// Current player VC (weak) + current rate, exported for PlayerQuickControls.m.
-static __weak UIViewController *sCurrentPlayerVC = nil;
-
-float ytfPlaybackRateValue(void) { return ytfPlaybackRate; }
-UIViewController *ytfCurrentPlayerViewController(void) { return sCurrentPlayerVC; }
-
 static void fixGestures(void) {
     if (!IS_ENABLED(KGestureControls)) return;
     Class playerVC = NSClassFromString(@"YTPlayerViewController");
@@ -244,7 +238,6 @@ static void fixGestures(void) {
     orig_didSetPlayerVC = ytfHookInstance(NSClassFromString(@"YTWatchLayerViewController"),
         @selector(watchController:didSetPlayerViewController:),
         ^void(id self, id watchController, id playerViewController) {
-            sCurrentPlayerVC = playerViewController;
             if (playerViewController) {
                 UIPanGestureRecognizer *pan = objc_getAssociatedObject(playerViewController, kPanGestureKey);
                 if (!pan) {

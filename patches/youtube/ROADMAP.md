@@ -397,6 +397,25 @@ the `YTFreedom: hooked -[...]` os_log lines at launch.
 | G19 Adblock polish | ✅ always-on |
 | G20 New-IPA UX batch | ✅ A/B Testing under Advanced with otool-verified flags + restart pills — on-device pass pending |
 
+### v1.0.0 — native integration (pill removed)
+
+The pill overlay was removed per user feedback (bad UX, always visible).
+Quality + speed now live in YouTube's OWN player UI:
+
+- Native quality row: `YTOverflowMenuViewController` `isVideoQualityAvailable`/
+  `isVideoQualityEnabled` forced YES (the app server-gates the row), and
+  `selectedVideoQualityLabelText` surfaces the tracked current quality. The
+  native tap handler presents the app's sheet, forced to the classic list
+  picker via `enableQuickMenuVideoQualitySettings -> NO`.
+- Speed: the native varispeed sheet keeps the 13-rate `_options` + 10x caps.
+- Default tab: `selectItemWithPivotIdentifier:` (selref-only) and the
+  YTAppPivotBarController default-identifier property were both no-ops; the
+  real selection API is `YTPivotBarViewController pivotBarItemForIdentifier:` +
+  `didTapItemWithRenderer:` — the bar VC now polls after viewDidAppear (the
+  bar loads async) and taps the desired tab.
+- Manifest generator requires inline `ytfHookInstance(NSClassFromString(...))`
+  — keep hook targets inline so the `hooks:` block stays complete.
+
 ### v0.0.5 — Quality & Speed pill (our own UI, per user direction)
 
 The ...-menu quality/speed items are ELM-driven in 21.32.4 and their handler

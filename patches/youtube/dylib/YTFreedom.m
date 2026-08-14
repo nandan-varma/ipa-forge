@@ -28,7 +28,6 @@ static void YTFreedomInit(void) {
     YTFreedomFeedShortsInit();
     YTFreedomMiscInit();
     YTFreedomAppearanceInit();
-    YTFreedomPlayerQuickControlsInit();
 
     os_log(ytfLog(), "YTFreedom v%@ init complete", YTFREEDOM_VERSION);
 }

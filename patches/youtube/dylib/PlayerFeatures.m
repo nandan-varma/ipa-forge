@@ -876,6 +876,37 @@ static void fixYTLiteExtras(void) {
     }
 }
 
+// Native integration: the fullscreen player's ... menu is YTOverflowMenuViewController.
+// Its "Video quality" row is server-gated (isVideoQualityAvailable / isVideoQualityEnabled)
+// and shows the current quality (selectedVideoQualityLabelText). We force the row visible
+// and surface OUR tracked quality label on it, so the native menu is the UI (no overlay).
+static void fixNativeQualityMenu(void) {
+    static IMP orig_available;
+    orig_available = ytfHookInstance(NSClassFromString(@"YTOverflowMenuViewController"), @selector(isVideoQualityAvailable),
+        ^BOOL(id self) {
+            return IS_ENABLED(KOldQualityPicker) ? YES
+                : ((BOOL(*)(id, SEL))orig_available)(self, @selector(isVideoQualityAvailable));
+        });
+    (void)orig_available;
+
+    static IMP orig_enabled;
+    orig_enabled = ytfHookInstance(NSClassFromString(@"YTOverflowMenuViewController"), @selector(isVideoQualityEnabled),
+        ^BOOL(id self) {
+            return IS_ENABLED(KOldQualityPicker) ? YES
+                : ((BOOL(*)(id, SEL))orig_enabled)(self, @selector(isVideoQualityEnabled));
+        });
+    (void)orig_enabled;
+
+    static IMP orig_label;
+    orig_label = ytfHookInstance(NSClassFromString(@"YTOverflowMenuViewController"), @selector(selectedVideoQualityLabelText),
+        ^id(id self) {
+            NSString *ours = ytfCurrentQualityLabel();
+            if (ours.length) return ours;
+            return ((id(*)(id, SEL))orig_label)(self, @selector(selectedVideoQualityLabelText));
+        });
+    (void)orig_label;
+}
+
 void YTFreedomPlayerInit(void) {
     fixPlayerBar();
     fixOverlayUI();
@@ -885,6 +916,7 @@ void YTFreedomPlayerInit(void) {
         fixOldQualityPicker();
     if (IS_ENABLED(KExtraSpeed))
         fixSpeedMenu();
+    fixNativeQualityMenu();
     fixYTLiteExtras();
     ytfConfigurePlayerOverlayInsertion();
 }

@@ -1,70 +1,24 @@
-# YouTube Pro v0.0.5 — device test sheet
+# YouTube Pro v1.0.0 — device test sheet
 
-Install `/Users/nandan/dev/ytlite-ipa/Youtube_pro_v0.0.5.ipa`. Confirm build:
-Settings → YTFreedom → version row = **v0.9.0**.
+Install `/Users/nandan/dev/ytlite-ipa/Youtube_pro_v1.0.0.ipa`. Confirm build:
+Settings → YTFreedom → version row = **v1.0.0**.
 
-## What changed in v0.0.5 (Quality & Speed pill — our own UI)
+## What changed in v1.0.0 (native integration — no overlay)
 
-The app's ...-menu quality/speed items are ELM-driven and their handler
-selectors (didPressVarispeed:/didPressVideoQuality:) are not implemented in
-21.32.4, so hooks on that path can't produce UI. Per your direction this build
-stops fighting the menu and adds OUR OWN control:
+The Quality & Speed pill is REMOVED. Quality and speed now live in YouTube's
+own player UI:
 
-- **A small pill** ("Auto . 1.00x" -> e.g. "1080p . 1.5x") on the fullscreen
-  player controls, bottom-left, shown when controls are shown.
-- **Tap the pill** -> our picker (action sheet): Speed 0.25x-10x, then Quality
-  (the actual selectable formats for the current video, highest first, current
-  marked).
-- **Speed apply**: -[YTPlayerViewController setPlaybackRate:] — the same call
-  the working edge gestures use.
-- **Quality apply**: MLQuickMenuVideoQualitySettingFormatConstraint +
-  didSelectVideoQualityFormatConstraint:forSelectableVideoFormats: — this is
-  the one remaining assumption; it is runtime-guarded and logged
-  ("YTFreedom: applied quality ..." / "quality apply skipped ..."). If quality
-  selection does nothing, the launch/console log line tells us which case hit.
+- **Quality**: the native ...-menu "Video quality" row (YTOverflowMenuViewController)
+  is forced visible on every device (the app was server-gating it), shows the
+  current quality (e.g. "1080p"), and opens the app's native quality sheet
+  (forced to the classic list picker via enableQuickMenuVideoQualitySettings=NO).
+- **Speed**: the native "Playback speed" row opens the app's varispeed sheet
+  with the extended 13-rate list (0.25x-10x) and the 10x cap.
+- **Default tab**: selection now taps the desired tab via the app's real APIs
+  (pivotBarItemForIdentifier: + didTapItemWithRenderer:) once the tab bar has
+  loaded (polls briefly — the bar loads async).
 
-## What changed in v0.0.4 (fixes the three broken items) — superseded by the pill
-
-- **Video quality + Playback speed menu items fixed**: the old code replaced
-  their handlers with selectors that don't exist in 21.32.4 and disabled the
-  items — tapping them did nothing. The replacement hook is removed; the app's
-  own menu actions now open the sheets.
-- **Old quality picker**: forced `enableQuickMenuVideoQualitySettings -> NO`
-  (real dynamic property — the %new installs), so the quality sheet is the
-  classic list, not the thumbnail picker.
-- **Extra speeds**: the varispeed sheet keeps the 13-rate option list
-  (0.25x-10x) + 10x cap; with the menu item working again the sheet actually
-  opens.
-- **Default tab fixed**: `selectItemWithPivotIdentifier:` doesn't exist in
-  21.32.4 (selref-only) — the old call silently no-opped. Now hooked on the
-  app's own `YTAppPivotBarController defaultSelectedPivotIdentifier`
-  getter+setter, so our choice is what the app selects when the bar loads.
-  Library/You still picks whichever the server sent.
-
-## What changed in v0.0.3 (structure)
-
-- **Full audit vs the 21.32.4 IPA**: 159/159 hook targets resolve against the
-  binary (otool + strings). Nothing targets an old tweak.
-- **Settings rebuilt from a single source of truth** — the feature catalog in
-  `dylib/YTFFeatures.m` (one row per setting: key, title, group, default,
-  restart, beta). Defaults register from it, the UI renders from it, the
-  restart hints come from it. Adding/removing a feature = one table row.
-- **Curated top sections** (what a regular user touches): Player, Appearance,
-  Shorts, Feed, Navigation, Tab bar.
-- **Player is now minimal**: Background playback, Old quality picker, Extra
-  speeds, Mute button, Gesture controls + HUD, plus two dropdowns for which
-  control each edge swipe adjusts (Brightness / Volume / Speed). All ON by
-  default.
-- **Everything else moved under Advanced** (bottom): Advanced player (beta —
-  may work), A/B Testing, Menu items, System, Beta. Future section shows
-  disabled rows: Downloads, Native share, Dislike counts, SponsorBlock.
-- **Downloads disabled** (was not implemented): section removed from settings,
-  listed under Future.
-- **Fixed a linker bug**: non-ASCII characters (—, …) silently dropped string
-  literals from the dylib (blank row titles). All UI strings are ASCII now.
-- **Not-everything-is-a-toggle**: Default tab and edge-swipe sides are now
-  checkmark pickers (dropdown-style), not switches.
-
+## 0. Smoke
 ## 0. Smoke (1 min)
 
 1. Launch, no crash. Settings → YTFreedom shows rows in order:

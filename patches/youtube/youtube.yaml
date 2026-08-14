@@ -251,11 +251,8 @@ hooks:
   - class: "YTPivotBarItemView"
     selector: "setRenderer:"
     kind: instance
-  - class: "YTAppPivotBarController"
-    selector: "defaultSelectedPivotIdentifier"
-    kind: instance
-  - class: "YTAppPivotBarController"
-    selector: "setDefaultSelectedPivotIdentifier:"
+  - class: "YTPivotBarViewController"
+    selector: "viewDidAppear:"
     kind: instance
   - class: "YTMainAppControlsOverlayView"
     selector: "setAutoplaySwitchButtonRenderer:"
@@ -463,11 +460,17 @@ hooks:
   - class: "YTPlayerBarController"
     selector: "setHeatmap:"
     kind: instance
+  - class: "YTOverflowMenuViewController"
+    selector: "isVideoQualityAvailable"
+    kind: instance
+  - class: "YTOverflowMenuViewController"
+    selector: "isVideoQualityEnabled"
+    kind: instance
+  - class: "YTOverflowMenuViewController"
+    selector: "selectedVideoQualityLabelText"
+    kind: instance
   - class: "YTWatchLayerViewController"
     selector: "watchController:didSetPlayerViewController:"
-    kind: instance
-  - class: "YTMainAppVideoPlayerOverlayViewController"
-    selector: "viewDidLayoutSubviews"
     kind: instance
   - class: "YTSettingsGroupData"
     selector: "orderedCategories"

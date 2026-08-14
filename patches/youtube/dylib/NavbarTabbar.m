@@ -17,6 +17,8 @@
 - (void)setSizeWithPaddingAndInsets:(BOOL)flag;
 - (id)navigationButton;
 - (void)selectItemWithPivotIdentifier:(NSString *)identifier;
+- (id)pivotBarItemForIdentifier:(NSString *)identifier;
+- (void)didTapItemWithRenderer:(id)renderer;
 - (id)pivotBarItemRenderer;
 - (id)pivotBarIconOnlyItemRenderer;
 - (NSString *)pivotIdentifier;
@@ -145,6 +147,7 @@ static void fixNavbar(void) {
 // used by the default-tab selection below.
 static NSMutableArray *s_pivotIds = nil;
 static NSString *ytfDefaultTabIdentifier(void);
+static void ytfTapDefaultTab(id pivotBarVC);
 
 static void fixTabbar(void) {
     if (!s_pivotIds) s_pivotIds = [NSMutableArray array];
@@ -225,30 +228,49 @@ static void fixTabbar(void) {
         });
     (void)orig_setPivotItemRenderer;
 
-    // Default tab. The app stores its startup tab on
-    // YTAppPivotBarController (defaultSelectedPivotIdentifier) and selects it
-    // once the pivot bar loads — hook both the getter and the setter so OUR
-    // choice wins. The tab set is server-driven; the same position can be
-    // Library (FElibrary) or the newer You tab (FEaccount), so selection is
-    // by identifier with a fallback.
-    static IMP orig_defaultGetter;
-    orig_defaultGetter = ytfHookInstance(NSClassFromString(@"YTAppPivotBarController"),
-        @selector(defaultSelectedPivotIdentifier),
-        ^id(id self) {
-            NSString *target = ytfDefaultTabIdentifier();
-            return target ?: ((id(*)(id, SEL))orig_defaultGetter)(
-                self, @selector(defaultSelectedPivotIdentifier));
+    // Default tab. The app selects the startup tab itself, but
+    // selectItemWithPivotIdentifier: is selref-only in 21.32.4 (no
+    // implementation) and the YTAppPivotBarController default-identifier
+    // property is never consulted on some builds. The REAL selection API on
+    // YTPivotBarViewController is pivotBarItemForIdentifier: +
+    // didTapItemWithRenderer: — tap the desired tab once the items exist
+    // (the bar loads async, so poll briefly).
+    static IMP orig_pivotViewDidAppear;
+    orig_pivotViewDidAppear = ytfHookInstance(NSClassFromString(@"YTPivotBarViewController"),
+        @selector(viewDidAppear:),
+        ^void(id self, BOOL animated) {
+            ((void(*)(id, SEL, BOOL))orig_pivotViewDidAppear)(self, @selector(viewDidAppear:), animated);
+            static BOOL s_tapped = NO;
+            if (!s_tapped) {
+                s_tapped = YES;
+                ytfTapDefaultTab(self);
+            }
         });
-    (void)orig_defaultGetter;
-    static IMP orig_defaultSetter;
-    orig_defaultSetter = ytfHookInstance(NSClassFromString(@"YTAppPivotBarController"),
-        @selector(setDefaultSelectedPivotIdentifier:),
-        ^void(id self, id identifier) {
+    (void)orig_pivotViewDidAppear;
+}
+
+// Poll until the pivot items are loaded, then tap the default tab.
+static void ytfTapDefaultTab(id pivotBarVC) {
+    __block int tries = 0;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        void (^attempt)(void) = ^{
             NSString *target = ytfDefaultTabIdentifier();
-            ((void(*)(id, SEL, id))orig_defaultSetter)(
-                self, @selector(setDefaultSelectedPivotIdentifier:), target ?: identifier);
-        });
-    (void)orig_defaultSetter;
+            id<YTFreedomNavHooks> hooks = pivotBarVC;
+            if (![hooks respondsToSelector:@selector(pivotBarItemForIdentifier:)]) return;
+            id item = [hooks pivotBarItemForIdentifier:target];
+            if (!item && ![s_pivotIds containsObject:target] && s_pivotIds.count)
+                item = [hooks pivotBarItemForIdentifier:s_pivotIds.firstObject];
+            if (item) {
+                if ([hooks respondsToSelector:@selector(didTapItemWithRenderer:)])
+                    [hooks didTapItemWithRenderer:item];
+                os_log(ytfLog(), "YTFreedom: default tab -> %@", target);
+                return;
+            }
+            if (++tries < 40) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)),
+                                             dispatch_get_main_queue(), attempt);
+        };
+        attempt();
+    });
 }
 
 // Default tab identifier for the current KDefaultTab setting. Uses the
