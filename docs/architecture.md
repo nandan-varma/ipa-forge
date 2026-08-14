@@ -180,3 +180,10 @@ macOS dependency). Everything in `signing/` requires `codesign`/`security`
 and therefore macOS -- this boundary is enforced by which module a caller
 imports, not by a runtime OS check, matching the project's constraint that
 Apple's signing internals are never reimplemented anywhere, on any platform.
+
+## Related
+
+- [`extensibility.md`](extensibility.md) — extending the engine
+- [`patch-reference.md`](patch-reference.md) — the YAML contract
+- [`usage.md`](usage.md) — CLI
+- [`README.md`](README.md) — docs index

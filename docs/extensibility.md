@@ -70,3 +70,9 @@ The three scope limits listed in earlier revisions of this file are closed in
   operation type -- it is a verification surface, driven by the same
   definition file. `forge hooks verify|extract|audit` expose it on the CLI.
   `added: true` declares a method the tweak adds itself (logos' %new).
+
+## Related
+
+- [`architecture.md`](architecture.md) — how the engine works
+- [`patch-reference.md`](patch-reference.md) — the YAML contract
+- [`README.md`](README.md) — docs index

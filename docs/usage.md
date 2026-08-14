@@ -267,3 +267,11 @@ a hosted multi-user service.
 file added/modified/removed, the Mach-O files touched, the profile used, and
 the output SHA-256 — use it to confirm the patch did what you expected before
 installing.
+
+## Related
+
+- [`adding-an-app.md`](adding-an-app.md) — port a new app
+- [`adding-a-feature.md`](adding-a-feature.md) — add a feature
+- [`patch-reference.md`](patch-reference.md) — the YAML contract
+- [`troubleshooting.md`](troubleshooting.md) — errors
+- [`README.md`](README.md) — docs index

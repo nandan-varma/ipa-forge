@@ -17,6 +17,15 @@ scope limits). User-facing references: `docs/usage.md` (CLI/GUI workflows),
 `docs/troubleshooting.md` (error message -> cause -> fix). Read those before
 making non-trivial changes to `pipeline.py` or `signing/`.
 
+## Documentation map
+
+- `docs/README.md` — the index (which doc for what).
+- `docs/adding-an-app.md` — port a new app end-to-end.
+- `docs/adding-a-feature.md` — add a feature to a hook dylib (conventions).
+- `docs/patch-reference.md` / `docs/usage.md` — YAML + CLI reference.
+- The patch sets (`patches/youtube-21.32.4/`, `patches/spotify-9.1.72/`) each
+  have a `PLAYBOOK.md` runbook with the app-specific commands and gotchas.
+
 ## Commands
 
 ```bash

@@ -343,3 +343,11 @@ Use it to verify exactly what changed (and what didn't) before installing.
   (see above); the load will fail at runtime if the file isn't in the bundle.
 - **Forgetting the dylib must also be signed** — it is: flat dylibs are signed
   individually and frameworks via their bundle directory.
+
+## Related
+
+- [`adding-an-app.md`](adding-an-app.md) — end-to-end porting
+- [`adding-a-feature.md`](adding-a-feature.md) — per-feature conventions
+- [`usage.md`](usage.md) — CLI
+- [`troubleshooting.md`](troubleshooting.md) — errors
+- [`README.md`](README.md) — docs index

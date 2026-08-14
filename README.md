@@ -11,14 +11,25 @@ refresh on a real iPhone.
 
 ## Documentation
 
+Start at [`docs/README.md`](docs/README.md) — the index.
+
 | Doc | What it covers |
 | --- | --- |
+| [`docs/adding-an-app.md`](docs/adding-an-app.md) | **Port a new app** end-to-end (the "give me an IPA" playbook) |
+| [`docs/adding-a-feature.md`](docs/adding-a-feature.md) | **Add a feature** to a hook dylib (conventions) |
 | [`docs/usage.md`](docs/usage.md) | End-to-end workflow, full CLI + GUI reference, signing identity/profile setup |
-| [`docs/patch-reference.md`](docs/patch-reference.md) | Complete patch-definition reference — every operation type, field, and matching rule, with examples |
+| [`docs/patch-reference.md`](docs/patch-reference.md) | Complete patch-definition reference — every operation type, field, matching rule, and the `hooks:` block |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Every error message mapped to its cause and fix |
-| [`docs/architecture.md`](docs/architecture.md) | Design rationale, the 17-stage pipeline, hard constraints (for developers) |
+| [`docs/architecture.md`](docs/architecture.md) | Design rationale, the 17-stage pipeline, hard constraints, hook verification (for developers) |
 | [`docs/extensibility.md`](docs/extensibility.md) | How to add new patch operation types (for developers) |
 | [`docs/altstore_device_testing.md`](docs/altstore_device_testing.md) | Manual AltStore Classic device-test checklist |
+
+### Worked patch sets
+
+| Set | Runbook | Features |
+| --- | --- | --- |
+| YouTube 21.32.4 | [`patches/youtube-21.32.4/PLAYBOOK.md`](patches/youtube-21.32.4/PLAYBOOK.md) | [`patches/youtube-21.32.4/README.md`](patches/youtube-21.32.4/README.md) |
+| Spotify 9.1.72 | [`patches/spotify-9.1.72/PLAYBOOK.md`](patches/spotify-9.1.72/PLAYBOOK.md) | [`patches/spotify-9.1.72/README.md`](patches/spotify-9.1.72/README.md) |
 
 ## Requirements
 

@@ -1,5 +1,9 @@
 # Spotify 9.1.72 — SpotifyMod (from-scratch)
 
+> **New here?** Read [`PLAYBOOK.md`](PLAYBOOK.md) for the runbook, then the
+> generic guides: [`adding-an-app.md`](../../docs/adding-an-app.md) and
+> [`adding-a-feature.md`](../../docs/adding-a-feature.md).
+
 Target: `com.spotify.client` v9.1.72 (decrypted, thin arm64). Injects a
 **from-scratch plain-ObjC hook dylib** (`SpotifyHook.dylib`, built by
 `dylib/build.sh`) via ipa-forge. No Swift, no substrate, no third-party tweak

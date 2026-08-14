@@ -1,5 +1,11 @@
 # Playbook — from a new YouTube IPA to a working mod
 
+> The generic "port a new app" procedure lives in
+> [`ipa-forge/docs/adding-an-app.md`](../../docs/adding-an-app.md) and the
+> per-feature conventions in
+> [`ipa-forge/docs/adding-a-feature.md`](../../docs/adding-a-feature.md).
+> This file is the YouTube-specific application.
+
 This is the complete runbook for future sessions. Given any YouTube IPA, this
 is the loop to follow — no prior knowledge required. Everything referenced
 here lives in this repo and is kept up to date.

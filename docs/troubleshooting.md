@@ -152,3 +152,10 @@ The input isn't a standard-structure IPA. ipa-forge requires exactly one
    `security cms -D -i <profile>` to confirm the signing inputs themselves.
 5. For device-install failures, follow the manual checklist in
    [`docs/altstore_device_testing.md`](altstore_device_testing.md).
+
+## Related
+
+- [`usage.md`](usage.md) — CLI
+- [`patch-reference.md`](patch-reference.md) — the YAML contract
+- [`adding-an-app.md`](adding-an-app.md) — porting
+- [`README.md`](README.md) — docs index

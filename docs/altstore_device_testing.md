@@ -39,3 +39,8 @@ real iPhone. This is a manual procedure to run by hand.
 If any step fails, capture `forge patch --verbose` output (the manifest) and
 the on-device error text -- both are needed to tell a patcher bug apart from
 an AltStore/account-limit issue.
+
+## Related
+
+- [`usage.md`](usage.md) — signing identity & profile setup
+- [`README.md`](README.md) — docs index
