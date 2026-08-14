@@ -3,7 +3,8 @@
 // assigned feature values -> ads off), and replay the patched bytes. Also
 // answers the premium-plan/DAC endpoints with canned responses.
 //
-// Ported from EeveeSpotify (GPL) with a from-scratch generic protobuf editor
+// From-scratch implementation: the wire schema was derived by analyzing
+// the Spotify binary's protobuf responses; editing uses our generic editor
 // (PBProto) so the whole dylib stays plain ObjC — no Swift runtime, no
 // SwiftProtobuf dependency (the Swift/Orion build was the launch-crash cause).
 
@@ -368,8 +369,8 @@ static NSData *spotPatchUcsData(NSData *data) {
 // PremiumPlanRow: {3: planName, 18: planIdentifier, 4: colorCode}
 static NSData *spotPlanRowData(void) {
     NSArray *fields = @[
-        [PBProto stringField:3 value:@"EeveeSpotify"],
-        [PBProto stringField:18 value:@"Eevee"],
+        [PBProto stringField:3 value:@"SpotifyMod"],
+        [PBProto stringField:18 value:@"SpotifyMod"],
         [PBProto stringField:4 value:@"#FFD2D7"],
     ];
     return [PBProto serialize:fields];
@@ -378,7 +379,7 @@ static NSData *spotPlanRowData(void) {
 // YourPremiumBadge: {1: name, 2: version, 3: colorCode}
 static NSData *spotPlanBadgeData(void) {
     NSArray *fields = @[
-        [PBProto stringField:1 value:@"Eevee"],
+        [PBProto stringField:1 value:@"SpotifyMod"],
         [PBProto varintField:2 value:2],
         [PBProto stringField:3 value:@"#FFD2D7"],
     ];
@@ -406,12 +407,12 @@ static NSData *spotPlanOverviewData(void) {
     ];
     NSArray *subscription = @[
         [PBProto varintField:2 value:2],
-        [PBProto stringField:3 value:@"EeveeSpotify"],
-        [PBProto stringField:4 value:@"Eevee"],
+        [PBProto stringField:3 value:@"SpotifyMod"],
+        [PBProto stringField:4 value:@"SpotifyMod"],
         [PBProto stringField:5 value:@"#FFD2D7"],
     ];
     NSArray *notice = @[
-        [PBProto stringField:1 value:@"You are on the EeveeSpotify plan"],
+        [PBProto stringField:1 value:@"You are on the SpotifyMod plan"],
         [PBProto varintField:7 value:2], // subscription status
     ];
     NSArray *top = @[
@@ -512,6 +513,7 @@ static void hookURLSessionDelegate(Class cls) {
 }
 
 void SpotifyPremiumPatchInit(void) {
+    if (!smEnabled(kSMPremium)) { os_log(spotLog(), "SpotifyMod: premium patch disabled"); return; }
     // The bootstrap/customize traffic flows through one of these (SPTDataLoaderService
     // lives in SpotifyShared.framework; SPTCoreURLSessionDataDelegate is the
     // 9.1.x core path). Hook both — the active one wins.

@@ -35,5 +35,6 @@ static void fixAppGroupContainer(void) {
 }
 
 void SpotifySideloadFixInit(void) {
+    if (!smEnabled(kSMAppGroup)) { os_log(spotLog(), "SpotifyMod: app-group fix disabled"); return; }
     fixAppGroupContainer();
 }

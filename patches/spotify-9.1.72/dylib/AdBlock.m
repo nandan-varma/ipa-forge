@@ -1,5 +1,5 @@
-// AdBlock.m — HUB JSON ad-component filter. Ported from EeveeSpotify's
-// HubsAdBlocker (GPL). HUB (HubFramework) pages are JSON trees; ad cards
+// AdBlock.m — HUB JSON ad-component filter. HUB (HubFramework) pages
+// are JSON trees; ad cards
 // (display-ad-card, sponsored shelves, marquee, etc.) are components whose
 // namespace/name/id/type/metadata match ad keywords. Hook
 // HUBViewModelBuilderImplementation addJSONDictionary: to strip them before
@@ -116,5 +116,6 @@ static void fixHUBAdFilter(void) {
 }
 
 void SpotifyAdBlockInit(void) {
+    if (!smEnabled(kSMAdBlock)) { os_log(spotLog(), "SpotifyMod: ad block disabled"); return; }
     fixHUBAdFilter();
 }

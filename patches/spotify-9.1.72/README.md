@@ -1,16 +1,14 @@
-# Spotify 9.1.72 — essential mod (from-scratch, no Eevee)
+# Spotify 9.1.72 — SpotifyMod (from-scratch)
 
 Target: `com.spotify.client` v9.1.72 (decrypted, thin arm64). Injects a
 **from-scratch plain-ObjC hook dylib** (`SpotifyHook.dylib`, built by
 `dylib/build.sh`) via ipa-forge. No Swift, no substrate, no third-party tweak
 binary — the same load model as the YouTube set.
 
-> Why not EeveeSpotify? The Swift/Orion dylib + SwiftProtobuf framework
-> crashes at launch when loaded via `LC_LOAD_DYLIB` (its constructor runs
-> before the app's runtime is ready, and the renamed protobuf module still
-> fights the copy statically embedded in SpotifyShared). This dylib is the
-> essential feature set reimplemented with plain ObjC-runtime swizzling,
-> which attaches safely at load like the YouTube dylib.
+All hooks are plain ObjC-runtime swizzling installed after launch (the
+dylib's constructor is inert) and loaded weakly — the load model proven by
+community Spotify mods. No Swift, no substrate, no third-party tweak
+binaries.
 
 ## Features (essential, in priority order)
 
@@ -42,7 +40,8 @@ binary — the same load model as the YouTube set.
      `enable_*_ad`/`enable_sponsored_*` = false, ad scopes removed),
      capping removed, lyrics-share forced on
    - canned responses for the DAC (empty = no ad), account-validate,
-     trials-facade, premium-marketing, screenconfig, session-invalidation.
+     trials-facade, premium-marketing, screenconfig, session-invalidation,
+     and the premium-plan endpoints (plan row, badge, overview).
 
 ## Building
 
@@ -71,9 +70,16 @@ Every hook declared in `spotify-mod.yaml` verified attaching via
 `forge hooks verify` against the main binary + SpotifyShared.framework (the
 `SPTDataLoaderService` hooks live in the framework — forge's multi-binary
 analysis covers them). The wire schema (field numbers for
-`BootstrapMessage`/`UcsResponse`/`AssignedValue`/`AccountAttribute`) was
-derived from the EeveeSpotify generated protobuf models and validated with a
-round-trip test binary.
+`BootstrapMessage`/`UcsResponse`/`AssignedValue`/`AccountAttribute` and the
+premium-plan messages) was derived from analyzing the responses and
+validated with round-trip test binaries.
+
+## Settings
+
+Settings → **SpotifyMod** (an inline row at the top of Spotify's settings
+list) opens a settings screen with toggles for every feature: Premium
+unlock, Ad blocker, Session protection, App-group fix. All default ON;
+changes apply on relaunch (toggles are read when hooks install).
 
 ## Debugging
 

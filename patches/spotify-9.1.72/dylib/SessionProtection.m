@@ -1,6 +1,6 @@
 // SessionProtection.m — stop Spotify from detecting and logging out the
 // non-premium account, and block the network calls that drive it. Ported
-// from EeveeSpotify's SessionProtection (GPL) with the same essential
+// from-scratch: blocks forced logout and the network calls that drive it
 // targets, verified present in the 9.1.72 binary.
 
 #import "SpotifyHook.h"
@@ -142,6 +142,7 @@ static void fixURLSessionTaskResume(void) {
 }
 
 void SpotifySessionProtectionInit(void) {
+    if (!smEnabled(kSMSession)) { os_log(spotLog(), "SpotifyMod: session protection disabled"); return; }
     fixAuthSession();
     fixLegacyLogin();
     fixURLSessionTaskResume();

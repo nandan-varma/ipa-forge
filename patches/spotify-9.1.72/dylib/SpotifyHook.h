@@ -50,5 +50,17 @@ void SpotifySideloadFixInit(void);
 void SpotifySessionProtectionInit(void);
 void SpotifyPremiumPatchInit(void);
 void SpotifyAdBlockInit(void);
+void SpotifySettingsInit(void);
+
+// --- settings keys (NSUserDefaults, all default ON) ------------------------
+#define kSMPremium  @"SpotifyModPremium"
+#define kSMAdBlock  @"SpotifyModAdBlock"
+#define kSMSession  @"SpotifyModSessionProtection"
+#define kSMAppGroup @"SpotifyModAppGroup"
+
+static inline BOOL smEnabled(NSString *key) {
+    NSNumber *v = [[NSUserDefaults standardUserDefaults] objectForKey:key];
+    return v ? [v boolValue] : YES; // default ON
+}
 
 #endif
