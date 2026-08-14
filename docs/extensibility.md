@@ -75,4 +75,4 @@ The three scope limits listed in earlier revisions of this file are closed in
 
 - [`architecture.md`](architecture.md) — how the engine works
 - [`patch-reference.md`](patch-reference.md) — the YAML contract
-- [`README.md`](README.md) — docs index
+- [`README.md`](./README.md) — docs index

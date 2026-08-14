@@ -14,7 +14,7 @@ from ipa_forge.hooks.scan import scan_hook_sources
 runner = CliRunner()
 
 
-def test_analyze_objc_binary_class_methods(objc_macho_binary: Path):
+def test_analyze_objc_binary_class_methods(objc_macho_binary: Path) -> None:
     analysis = analyze_macho(objc_macho_binary)
     foo = analysis.classes.get("Foo")
     assert foo is not None
@@ -22,17 +22,17 @@ def test_analyze_objc_binary_class_methods(objc_macho_binary: Path):
     assert "makeIt" in foo.cls
     # Foo's superclass (NSObject) lives in Foundation — external to this
     # binary, so it either stays None or resolves to the external marker
-    assert foo.super_name in (None, "«external»")
+    assert foo.super_name in {None, "«external»"}
     assert "doIt:" in analysis.selectors  # selrefs ground truth
 
 
-def test_analyze_fat_binary_thins_to_arm64(fat_macho_binary: Path):
+def test_analyze_fat_binary_thins_to_arm64(fat_macho_binary: Path) -> None:
     # lipo thinning must not crash; a C-only binary has no classes but parses
     analysis = analyze_macho(fat_macho_binary)
     assert analysis.main_executable is not None
 
 
-def test_scan_hook_sources_direct_and_variable(tmp_path: Path):
+def test_scan_hook_sources_direct_and_variable(tmp_path: Path) -> None:
     (tmp_path / "tweak.m").write_text(
         "#import <Foundation/Foundation.h>\n"
         "static void a(void) {\n"
@@ -49,9 +49,12 @@ def test_scan_hook_sources_direct_and_variable(tmp_path: Path):
     )
     decls = scan_hook_sources(tmp_path)
     by = {(d.class_name, d.selector): d for d in decls}
-    assert ("Thing", "doIt:") in by
-    assert ("Other", "makeIt") in by and by[("Other", "makeIt")].kind == "class"
-    assert ("Third", "addedThing") in by and by[("Third", "addedThing")].added
+    thing = ("Thing", "doIt:")
+    other = ("Other", "makeIt")
+    third = ("Third", "addedThing")
+    assert thing in by
+    assert other in by and by[other].kind == "class"
+    assert third in by and by[third].added
 
 
 def _pack_ipa(objc_binary: Path, tmp_path: Path) -> Path:
@@ -77,7 +80,7 @@ def _pack_ipa(objc_binary: Path, tmp_path: Path) -> Path:
     return ipa
 
 
-def _hooks_yaml(tmp_path: Path, target: str, selector: str, **extra) -> Path:
+def _hooks_yaml(tmp_path: Path, target: str, selector: str, **extra: object) -> Path:
     lines = [
         "target:",
         "  bundle_id: com.example.testapp",
@@ -99,7 +102,7 @@ def _hooks_yaml(tmp_path: Path, target: str, selector: str, **extra) -> Path:
     return p
 
 
-def test_cli_extract_dumps_class(objc_macho_binary: Path, tmp_path: Path):
+def test_cli_extract_dumps_class(objc_macho_binary: Path, tmp_path: Path) -> None:
     ipa = _pack_ipa(objc_macho_binary, tmp_path)
     result = runner.invoke(
         __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
@@ -110,7 +113,7 @@ def test_cli_extract_dumps_class(objc_macho_binary: Path, tmp_path: Path):
     assert "doIt:" in result.stdout
 
 
-def test_cli_verify_reports_ok(objc_macho_binary: Path, tmp_path: Path):
+def test_cli_verify_reports_ok(objc_macho_binary: Path, tmp_path: Path) -> None:
     ipa = _pack_ipa(objc_macho_binary, tmp_path)
     hooks = _hooks_yaml(tmp_path, "Foo", "doIt:")
     result = runner.invoke(
@@ -121,7 +124,7 @@ def test_cli_verify_reports_ok(objc_macho_binary: Path, tmp_path: Path):
     assert "1/1 hooks attach" in result.stdout
 
 
-def test_cli_verify_required_missing_fails(objc_macho_binary: Path, tmp_path: Path):
+def test_cli_verify_required_missing_fails(objc_macho_binary: Path, tmp_path: Path) -> None:
     ipa = _pack_ipa(objc_macho_binary, tmp_path)
     hooks = _hooks_yaml(tmp_path, "Gone", "nope:", required="true")
     result = runner.invoke(
@@ -132,7 +135,7 @@ def test_cli_verify_required_missing_fails(objc_macho_binary: Path, tmp_path: Pa
     assert "missing-class" in result.stdout
 
 
-def test_cli_diff_identical_no_regressions(objc_macho_binary: Path, tmp_path: Path):
+def test_cli_diff_identical_no_regressions(objc_macho_binary: Path, tmp_path: Path) -> None:
     ipa = _pack_ipa(objc_macho_binary, tmp_path)
     hooks = _hooks_yaml(tmp_path, "Foo", "doIt:")
     result = runner.invoke(
@@ -143,7 +146,7 @@ def test_cli_diff_identical_no_regressions(objc_macho_binary: Path, tmp_path: Pa
     assert "0 hook(s) regressed" in result.stdout
 
 
-def test_cli_manifest_emits_block(tmp_path: Path):
+def test_cli_manifest_emits_block(tmp_path: Path) -> None:
     (tmp_path / "tweak.m").write_text(
         'static void a(void) { ytfHookInstance(NSClassFromString(@"Thing"), @selector(doIt:), ^void(id self) {}); }\n'
     )
@@ -154,3 +157,143 @@ def test_cli_manifest_emits_block(tmp_path: Path):
     assert result.exit_code == 0
     assert 'class: "Thing"' in result.stdout
     assert 'selector: "doIt:"' in result.stdout
+
+
+def test_cli_extract_class_not_found(objc_macho_binary: Path, tmp_path: Path) -> None:
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["extract", "--ipa", str(ipa), "--class", "Nope"],
+    )
+    assert result.exit_code == 1
+    assert "not parsed" in result.stdout
+
+
+def test_cli_extract_search_regex(objc_macho_binary: Path, tmp_path: Path) -> None:
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["extract", "--ipa", str(ipa), "--search", "^Foo"],
+    )
+    assert result.exit_code == 0
+    assert "Foo" in result.stdout
+
+
+def test_cli_verify_no_hooks_declared(objc_macho_binary: Path, tmp_path: Path) -> None:
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    hooks = tmp_path / "nohooks.yaml"
+    hooks.write_text(
+        "target:\n"
+        "  bundle_id: com.example.testapp\n"
+        "  version: { exact: 1.0.0 }\n"
+        "patches:\n"
+        "  - id: p\n"
+        "    type: plist_edit\n"
+        "    action: set\n"
+        "    key: CFBundleDisplayName\n"
+        "    value: X\n"
+    )
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["verify", "--ipa", str(ipa), "--patches", str(hooks)],
+    )
+    assert result.exit_code == 0
+    assert "No hooks declared" in result.stdout
+
+
+def test_cli_verify_bad_ipa_clean_error(tmp_path: Path) -> None:
+    bad = tmp_path / "bad.ipa"
+    bad.write_text("not a zip")
+    hooks = _hooks_yaml(tmp_path, "Foo", "doIt:")
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["verify", "--ipa", str(bad), "--patches", str(hooks)],
+    )
+    assert result.exit_code == 1
+    assert "error:" in result.stderr
+
+
+def test_cli_audit_reports_statuses(objc_macho_binary: Path, tmp_path: Path) -> None:
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    (tmp_path / "tweak.m").write_text(
+        'static void a(void) { ytfHookInstance(NSClassFromString(@"Foo"), @selector(doIt:), ^void(id self) {}); }\n'
+    )
+    src_dir = tmp_path / "tweak_src"
+    src_dir.mkdir()
+    (src_dir / "tweak.m").write_text((tmp_path / "tweak.m").read_text())
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["audit", "--ipa", str(ipa), "--dir", str(src_dir)],
+    )
+    assert result.exit_code == 0
+    assert "1 hooks found in sources: ok=1" in result.stdout
+
+
+def test_cli_audit_no_hook_calls(objc_macho_binary: Path, tmp_path: Path) -> None:
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    src_dir = tmp_path / "empty_src"
+    src_dir.mkdir()
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["audit", "--ipa", str(ipa), "--dir", str(src_dir)],
+    )
+    assert result.exit_code == 0
+    assert "No hook calls found" in result.stdout
+
+
+def test_cli_manifest_marks_required(tmp_path: Path) -> None:
+    (tmp_path / "tweak.m").write_text(
+        'static void a(void) { ytfHookInstance(NSClassFromString(@"Thing"), @selector(doIt:), ^void(id self) {}); }\n'
+    )
+    required = tmp_path / "required.txt"
+    required.write_text("# comment\nThing doIt:\n\nOther makeIt\n")
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["manifest", "--dir", str(tmp_path), "--required", str(required)],
+    )
+    assert result.exit_code == 0
+    assert "required: true" in result.stdout
+
+
+def test_cli_manifest_no_hook_calls(tmp_path: Path) -> None:
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["manifest", "--dir", str(tmp_path)],
+    )
+    assert result.exit_code == 0
+    assert "No hook calls found" in result.stdout
+
+
+def test_cli_diff_regression_fails(objc_macho_binary: Path, tmp_path: Path, fake_ipa: Path) -> None:
+    objc_ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    hooks = _hooks_yaml(tmp_path, "Foo", "doIt:", required="true")
+    # old attaches the hook, new (plain C binary) does not -> required regression
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["diff", "--old", str(objc_ipa), "--new", str(fake_ipa), "--patches", str(hooks)],
+    )
+    assert result.exit_code == 1
+    assert "REGRESSED" in result.stdout
+    assert "1 hook(s) regressed" in result.stdout
+
+
+def test_cli_diff_no_hooks_declared(objc_macho_binary: Path, tmp_path: Path) -> None:
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    hooks = tmp_path / "nohooks.yaml"
+    hooks.write_text(
+        "target:\n"
+        "  bundle_id: com.example.testapp\n"
+        "  version: { exact: 1.0.0 }\n"
+        "patches:\n"
+        "  - id: p\n"
+        "    type: plist_edit\n"
+        "    action: set\n"
+        "    key: CFBundleDisplayName\n"
+        "    value: X\n"
+    )
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["diff", "--old", str(ipa), "--new", str(ipa), "--patches", str(hooks)],
+    )
+    assert result.exit_code == 0
+    assert "No hooks declared" in result.stdout

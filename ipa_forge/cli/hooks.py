@@ -25,17 +25,6 @@ from ipa_forge.patch.loader import load_patch_definition
 app = typer.Typer(help="Mach-O Objective-C hook verification (catches silent no-ops on version drift).")
 
 
-def _analysis_for(ipa: Path) -> tuple[object, object]:
-    """Return (bundle, analysis) for an IPA."""
-    with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
-        try:
-            app_path = validated_extract(ipa, Path(tmp))
-            bundle = load_bundle(app_path)
-        except ValueError as e:
-            raise typer.BadParameter(str(e)) from None
-        return bundle, analyze_bundle(bundle)
-
-
 @app.command("verify")
 def hooks_verify(
     ipa: Path = typer.Option(..., "--ipa", exists=True, help="Input .ipa"),

@@ -34,7 +34,7 @@ class MachOAnalysis:
     classes: dict[str, MachOClass]
     classnames: set[str]  # every class-name string defined in the image
     selectors: set[str]  # every selector the image references (selrefs + method lists)
-    main_executable: Path
+    main_executable: Path | None
 
 
 def _run(*args: str) -> str:

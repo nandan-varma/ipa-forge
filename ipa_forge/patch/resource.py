@@ -19,7 +19,11 @@ from ipa_forge.patch.paths import BundlePathError, resolve_bundle_path
 
 
 @dataclass
-class ResourceReplaceOp:
+class _SourceCopyOp:
+    """Shared fields + resolution for ops that copy a patch-source-relative
+    file/dir into the bundle. `path` is sandboxed to the bundle root; `source`
+    resolves against the patch set dir (trusted-input model, see F9)."""
+
     op_id: str
     path: str
     source: str
@@ -29,6 +33,9 @@ class ResourceReplaceOp:
         src = (ctx.patch_source_dir / self.source).resolve()
         return dest, src
 
+
+@dataclass
+class ResourceReplaceOp(_SourceCopyOp):
     def dry_run(self, ctx: PatchContext) -> PatchResult:
         try:
             dest, src = self._resolve(ctx)
@@ -59,16 +66,7 @@ class ResourceReplaceOp:
 
 
 @dataclass
-class ResourceAddOp:
-    op_id: str
-    path: str
-    source: str
-
-    def _resolve(self, ctx: PatchContext) -> tuple[Path, Path]:
-        dest = resolve_bundle_path(ctx.bundle.root, self.path)
-        src = (ctx.patch_source_dir / self.source).resolve()
-        return dest, src
-
+class ResourceAddOp(_SourceCopyOp):
     def dry_run(self, ctx: PatchContext) -> PatchResult:
         try:
             dest, src = self._resolve(ctx)

@@ -7,11 +7,13 @@ from pathlib import Path
 
 import lief
 
+# Enum members are hashable at runtime (mypy agrees); Pyright's reportUnhashable
+# does not special-case enum members as dict keys (false positive).
 _ARCH_NAMES: dict[lief.MachO.Header.CPU_TYPE, str] = {
-    lief.MachO.Header.CPU_TYPE.ARM64: "arm64",
-    lief.MachO.Header.CPU_TYPE.ARM: "armv7",
-    lief.MachO.Header.CPU_TYPE.X86_64: "x86_64",
-    lief.MachO.Header.CPU_TYPE.X86: "i386",
+    lief.MachO.Header.CPU_TYPE.ARM64: "arm64",  # pyright: ignore[reportUnhashable]
+    lief.MachO.Header.CPU_TYPE.ARM: "armv7",  # pyright: ignore[reportUnhashable]
+    lief.MachO.Header.CPU_TYPE.X86_64: "x86_64",  # pyright: ignore[reportUnhashable]
+    lief.MachO.Header.CPU_TYPE.X86: "i386",  # pyright: ignore[reportUnhashable]
 }
 
 

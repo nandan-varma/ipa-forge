@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ipa_forge.patch.loader import PatchLoadError, load_patch_definition
+from ipa_forge.patch.schema import VersionExact
 
 _DEFAULT_PATCHES_DIR = Path(__file__).resolve().parent.parent / "patches"
 
@@ -57,7 +58,9 @@ def discover_patch_sets(patches_dir: Path | None = None) -> list[PatchSet]:
         except PatchLoadError:
             continue  # not a definition we can parse; skip
         version = definition.target.version
-        spec = f"exact: {version.exact}" if hasattr(version, "exact") else f"min: {version.min} max: {version.max}"
+        spec = (
+            f"exact: {version.exact}" if isinstance(version, VersionExact) else f"min: {version.min} max: {version.max}"
+        )
         sets.append(
             PatchSet(
                 name=app_dir.name,
