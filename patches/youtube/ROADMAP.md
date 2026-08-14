@@ -397,6 +397,27 @@ the `YTFreedom: hooked -[...]` os_log lines at launch.
 | G19 Adblock polish | ✅ always-on |
 | G20 New-IPA UX batch | ✅ A/B Testing under Advanced with otool-verified flags + restart pills — on-device pass pending |
 
+### v0.0.6 r2 — root cause: the app VERSION-GATES quality/speed (YTLite research)
+
+Reference research (YTLite YTLite.x): "Temporary Fix For 'Classic Video
+Quality' and 'Extra Speed Options'" spoofs `+[YTVersionUtils appVersion]` to
+18.18.2 — the app disables these features on versions it considers too new
+(21.32.4 is). That is why availability-flag forcing alone never showed the
+rows. Changes:
+
+- `+[YTVersionUtils appVersion]` -> 18.18.2 when KOldQualityPicker/KExtraSpeed
+  on (YTLite's exact logic; sign-in fingerprint strip keeps it off Google's
+  risk engine).
+- `YTVideoQualitySwitchControllerFactory videoQualitySwitchControllerWithParentResponder:`
+  -> OriginalController when KOldQualityPicker on (the factory, not the config
+  flag, decides the picker class).
+- `YTVarispeedSwitchController setDelegate:` re-applies the 13-rate `_options`
+  (the app overwrites _options after init; delegate is set right before the
+  sheet shows).
+- Kept the availability gates from v0.0.6 + overflow-VC backstops + 10x caps.
+- hooks manifest 169 -> 172; dry-run 157/172 attach (the 2 new flags are the
+  known parser-gap "unverified" pattern, classes strings-confirmed).
+
 ### v0.0.6 — menu rows fixed (real availability gates found)
 
 The overflow-menu rows are ADDED by YTPlayerOverflowMenuController

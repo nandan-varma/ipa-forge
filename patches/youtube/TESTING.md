@@ -1,26 +1,30 @@
-# YouTube Pro v0.0.6 — device test sheet
+# YouTube Pro v0.0.6 (r2) — device test sheet
 
 Install `/Users/nandan/dev/ytlite-ipa/Youtube_pro_v0.0.6.ipa`. Confirm build:
-Settings → YTFreedom → version row = **v0.6.0**. (Version scheme back to 0.0.x.)
+Settings → YTFreedom → version row = **v0.6.1**.
 
-## What changed in v0.0.6 (the menu rows are back — real gates found)
+## What changed in r2 (root cause found via reference research)
 
-The previous builds hooked the wrong availability checks, so the ... menu rows
-never rendered. Research on the decrypted IPA found the REAL gates the app's
-overflow-menu builder checks when it adds the rows:
+Research into YTLite (dayanch96, actively maintained) found its "Temporary Fix
+for Classic Video Quality and Extra Speed Options": **the app version-gates
+these features** — on 21.32.4 (too new) it disables them entirely, which is
+why no amount of availability-flag forcing brought the rows back.
 
-- **Playback speed row**: gated by `MLInnerTubePlayerConfig.varispeedAllowed`
-  (readonly TB,R,N property) — now forced YES.
-- **Video quality row**: gated by `isQualitySwitchAvailable` /
-  `isQualitySwitchEnabled` on BOTH quality-switch controllers (Original +
-  Redesigned, readonly properties) — now forced YES.
-- The app's own `maybeAddVarispeedItemForOverflowMenuRenderer` + quality-item
-  logic then constructs the native menu rows (no protobuf work on our side).
-- Classic quality sheet: `enableQuickMenuVideoQualitySettings -> NO` (kept).
-- Extra speeds: varispeed sheet `_options` 13 rates + 10x caps (kept).
-- Default tab: taps the tab via `pivotBarItemForIdentifier:` +
-  `didTapItemWithRenderer:` after the bar loads (kept from v1.0.0).
+- **Version spoof**: `+[YTVersionUtils appVersion]` now returns 18.18.2 when
+  Old quality picker or Extra speeds is on (YTLite's exact approach). The
+  sign-in fix already strips `app_version` from SSO URLs, so this cannot leak
+  to Google's risk engine there.
+- **Classic quality picker via the FACTORY**: the app picks the picker through
+  `YTVideoQualitySwitchControllerFactory.videoQualitySwitchControllerWithParentResponder:`
+  (not just the config flag). It now returns the Original (classic) controller
+  when the toggle is on — YTLite's approach.
+- **Speed options re-applied on setDelegate:** — the app overwrites `_options`
+  after init; the option list is now re-applied right before the sheet shows
+  (YTLite's approach), on top of the init hook.
+- Kept: the availability-gate hooks (varispeedAllowed, qualitySwitchAvailable,
+  overflow-VC backstops), the 10x caps.
 
+## 0. Smoke
 ## 0. Smoke
 ## 0. Smoke
 ## 0. Smoke (1 min)

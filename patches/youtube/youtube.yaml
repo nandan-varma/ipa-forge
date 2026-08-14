@@ -409,6 +409,9 @@ hooks:
     selector: "maximumPlaybackRate"
     kind: instance
     added: true
+  - class: "YTVarispeedSwitchController"
+    selector: "setDelegate:"
+    kind: instance
   - class: "YTMainAppVideoPlayerOverlayViewController"
     selector: "playerOverlayProvider:didInsertPlayerOverlay:"
     kind: instance
@@ -459,6 +462,12 @@ hooks:
     kind: instance
   - class: "YTPlayerBarController"
     selector: "setHeatmap:"
+    kind: instance
+  - class: "YTVersionUtils"
+    selector: "appVersion"
+    kind: class
+  - class: "YTVideoQualitySwitchControllerFactory"
+    selector: "videoQualitySwitchControllerWithParentResponder:"
     kind: instance
   - class: "MLInnerTubePlayerConfig"
     selector: "varispeedAllowed"

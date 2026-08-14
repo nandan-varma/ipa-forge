@@ -27,6 +27,7 @@
 - (NSString *)overlayIdentifier;
 - (void)setShouldDisplayTimeRemaining:(BOOL)value;
 - (id)initWithServiceRegistryScope:(id)scope parentResponder:(id)responder;
+- (id)initWithParentResponder:(id)responder;
 - (id)addRestrictedFormats:(id)formats;
 - (void)setPaused:(BOOL)paused;
 - (double)mediaTime;
@@ -615,6 +616,19 @@ static void fixSpeedMenu(void) {
     ytfAddInstanceMethod(NSClassFromString(@"YTIGranularVariableSpeedConfig"),
                          sel_registerName("maximumPlaybackRate"),
                          ^double(id self) { return 1000.0; }, "d@:");
+
+    // YTLite re-applies the option list when the DELEGATE is set (right
+    // before the sheet shows) — the app may have replaced _options after
+    // init. Same belt-and-suspenders here.
+    static IMP orig_varispeedSetDelegate;
+    orig_varispeedSetDelegate = ytfHookInstance(NSClassFromString(@"YTVarispeedSwitchController"),
+        @selector(setDelegate:),
+        ^void(id self, id delegate) {
+            if (IS_ENABLED(KExtraSpeed)) replaceSpeedOptions(self);
+            ((void(*)(id, SEL, id))orig_varispeedSetDelegate)(
+                self, @selector(setDelegate:), delegate);
+        });
+    (void)orig_varispeedSetDelegate;
 }
 
 static void replaceSpeedOptions(id controller) {
@@ -880,6 +894,43 @@ static void fixYTLiteExtras(void) {
 // Its "Video quality" row is server-gated (isVideoQualityAvailable / isVideoQualityEnabled)
 // and shows the current quality (selectedVideoQualityLabelText). We force the row visible
 // and surface OUR tracked quality label on it, so the native menu is the UI (no overlay).
+// The app version-gates classic quality + extra speeds (YTLite's "temporary
+// fix"): spoof an older app version so the app enables those features. The
+// sign-in fix already strips app_version from SSO URLs, so this cannot leak
+// to Google's risk engine there.
+static void fixVersionSpoof(void) {
+    static IMP orig_appVersion;
+    orig_appVersion = ytfHookClass(NSClassFromString(@"YTVersionUtils"),
+        @selector(appVersion),
+        ^NSString *(id cls) {
+            if (IS_ENABLED(KOldQualityPicker) || IS_ENABLED(KExtraSpeed))
+                return @"18.18.2";
+            return ((NSString *(*)(id, SEL))orig_appVersion)(cls, @selector(appVersion));
+        });
+    (void)orig_appVersion;
+}
+
+// Force the app's quality-switch factory to build the ORIGINAL (classic)
+// controller instead of the redesigned one (YTLite's approach). This is the
+// mechanism that actually picks the picker — the config flag alone was not
+// enough on 21.32.4.
+static void fixQualitySwitchFactory(void) {
+    static IMP orig_factory;
+    orig_factory = ytfHookInstance(NSClassFromString(@"YTVideoQualitySwitchControllerFactory"),
+        @selector(videoQualitySwitchControllerWithParentResponder:),
+        ^id(id self, id responder) {
+            if (!IS_ENABLED(KOldQualityPicker))
+                return ((id(*)(id, SEL, id))orig_factory)(
+                    self, @selector(videoQualitySwitchControllerWithParentResponder:), responder);
+            Class originalCls = NSClassFromString(@"YTVideoQualitySwitchOriginalController");
+            if (originalCls)
+                return [(id)[originalCls alloc] initWithParentResponder:responder];
+            return ((id(*)(id, SEL, id))orig_factory)(
+                self, @selector(videoQualitySwitchControllerWithParentResponder:), responder);
+        });
+    (void)orig_factory;
+}
+
 // Native integration: the player's ... menu (YTPlayerOverflowMenuController) adds
 // the "Playback speed" row via maybeAddVarispeedItemForOverflowMenuRenderer and the
 // "Video quality" row via the quality-switch availability, each gated by a
@@ -972,6 +1023,8 @@ void YTFreedomPlayerInit(void) {
     if (IS_ENABLED(KExtraSpeed))
         fixSpeedMenu();
     fixNativeQualityMenu();
+    fixQualitySwitchFactory();
+    fixVersionSpoof();
     fixYTLiteExtras();
     ytfConfigurePlayerOverlayInsertion();
 }
