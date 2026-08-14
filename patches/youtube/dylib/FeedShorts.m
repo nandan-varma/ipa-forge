@@ -163,6 +163,44 @@ void ytfConfigureASDisplayView(void) {
     (void)orig_didMoveToWindow;
 }
 
+// --- Watch-page action bar (both slim variants) -----------------------------
+// The like/dislike/share/save/download row between the title and comments is
+// rendered by YTSlimVideoDetailsActionView (a plain UIView — the old
+// _ASDisplayView id-hook never saw it). The button's accessibility id is
+// assigned in updateAccessibilityIdentifier; hide there (and on
+// didMoveToWindow as a backstop) so both the slim and scrollable renderer
+// variants are covered.
+static BOOL ytfWatchActionBarHidden(NSString *aid) {
+    if (!aid) return NO;
+    if (IS_ENABLED(KHideLikeButton) && [aid isEqualToString:@"id.video.like.button"]) return YES;
+    if (IS_ENABLED(KHideDisLikeButton) && [aid isEqualToString:@"id.video.dislike.button"]) return YES;
+    if (IS_ENABLED(KHideShareButton) && [aid isEqualToString:@"id.video.share.button"]) return YES;
+    if (IS_ENABLED(KHideSaveButton) && [aid isEqualToString:@"id.video.add_to.button"]) return YES;
+    if (IS_ENABLED(KHideDownloadButton) && [aid isEqualToString:@"id.ui.add_to.offline.button"]) return YES;
+    return NO;
+}
+
+static void fixWatchActionBar(void) {
+    static IMP orig_updateAID;
+    orig_updateAID = ytfHookInstance(NSClassFromString(@"YTSlimVideoDetailsActionView"),
+        @selector(updateAccessibilityIdentifier),
+        ^void(id self) {
+            ((void(*)(id, SEL))orig_updateAID)(self, @selector(updateAccessibilityIdentifier));
+            if (ytfWatchActionBarHidden([(UIView *)self accessibilityIdentifier]))
+                ((UIView *)self).hidden = YES;
+        });
+    (void)orig_updateAID;
+    static IMP orig_didMove;
+    orig_didMove = ytfHookInstance(NSClassFromString(@"YTSlimVideoDetailsActionView"),
+        @selector(didMoveToWindow),
+        ^void(id self) {
+            ((void(*)(id, SEL))orig_didMove)(self, @selector(didMoveToWindow));
+            if (ytfWatchActionBarHidden([(UIView *)self accessibilityIdentifier]))
+                ((UIView *)self).hidden = YES;
+        });
+    (void)orig_didMove;
+}
+
 // --- G10: feed --------------------------------------------------------------
 
 static void fixFeed(void) {
@@ -325,4 +363,5 @@ void YTFreedomFeedShortsInit(void) {
     ytfConfigureCollectionView();
     fixFeed();
     fixShorts();
+    fixWatchActionBar();
 }

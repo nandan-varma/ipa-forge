@@ -63,6 +63,10 @@ static id YTFItem(NSString *title, NSString *desc, BOOL (^select)(id cell, NSUIn
                      selectBlock:select];
 }
 
+static BOOL ytfKeyNeedsRestart(NSString *key);
+static void ytfShowRestartHint(void);
+static void ytfMarkDirtyIfRestartNeeded(NSString *key);
+
 static id YTFSwitchItem(NSString *title, NSString *desc, NSString *key) {
     Class itemCls = NSClassFromString(@"YTSettingsSectionItem");
     if (!itemCls) return nil;
@@ -72,6 +76,7 @@ static id YTFSwitchItem(NSString *title, NSString *desc, NSString *key) {
                               switchOn:IS_ENABLED(key)
                             switchBlock:^BOOL(id cell, BOOL enabled) {
                                 SET_BOOL(key, enabled);
+                                ytfMarkDirtyIfRestartNeeded(key);
                                 return YES;
                             }
                           settingItemId:0];
@@ -87,6 +92,82 @@ static id YTFIcon(int type) {
     id<YTFreedomIconHooks> icon = [iconCls new];
     icon.iconType = type;
     return (id)icon;
+}
+
+// ---------------------------------------------------------------------------
+// Restart-needed hints
+// ---------------------------------------------------------------------------
+// Keys whose hooks are installed (or only meaningful) at launch/init. When
+// one of these flips in Settings, show a small auto-dismissing hint so the
+// tester knows to relaunch instead of reporting a "broken" toggle.
+static BOOL ytfKeyNeedsRestart(NSString *key) {
+    static NSSet *keys;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        keys = [NSSet setWithArray:@[
+            KDefaultTab,             // pivot bar built at launch
+            KOLEDTheme,              // palette singleton
+            KOLEDKeyboard,           // keyboard views
+            KBackgroundPlayback,     // init-gated hook
+            KDisablesShortsPiP,      // init-gated hook
+            KBlockUpgradeDialogs,    // init-gated hook
+            KHideAreYouThereDialog,  // init-gated hook
+            KDisablesSnackBar,       // init-gated hook
+            KHidePlayInNextQueue,    // init-gated hook
+            KHideLikeDislikeVotes,   // init-gated hook
+            KDisableRatePrompts,     // init-gated hook
+            KHideHUDMessages,        // init-gated hook
+            KTapToSeek,              // init-gated hook
+            KHidePlayerHeatmap,      // init-gated hook
+            KOldQualityPicker,       // init-gated hook
+            KExtraSpeed,             // init-gated hook
+            KMuteButtonPlayer,       // config getter — read at config load
+            KChapterSeek,            // config getter
+            KPinchToFullscreen,      // config getter
+            KReduceOverlays,         // config getter
+            KHQAAudio,               // config getter
+            KShowShortsSeekbar,      // config getter
+            KShortsPlaybackSpeed,    // config getter
+            KInlineShortsPlayback,   // config getter
+            KDisablesNewMiniPlayer,  // config getter
+            KHideStartupAni,         // launch-only
+            KAutoClearCache,         // launch-only
+        ]];
+    });
+    return [keys containsObject:key];
+}
+
+static void ytfShowRestartHint(void) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
+        if (!window) return;
+        UIView *existing = [window viewWithTag:0x59F0];
+        if (existing) [existing removeFromSuperview];
+        UILabel *label = [[UILabel alloc] initWithFrame:CGRectZero];
+        label.tag = 0x59F0;
+        label.text = @"Restart to apply";
+        label.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
+        label.textColor = [UIColor whiteColor];
+        label.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.85];
+        label.layer.cornerRadius = 14.0;
+        label.clipsToBounds = YES;
+        label.textAlignment = NSTextAlignmentCenter;
+        CGSize size = [label.text sizeWithAttributes:@{NSFontAttributeName: label.font}];
+        CGFloat width = size.width + 32.0;
+        label.frame = CGRectMake((window.bounds.size.width - width) / 2.0, 60.0, width, 30.0);
+        label.alpha = 0.0;
+        [window addSubview:label];
+        [UIView animateWithDuration:0.25 animations:^{ label.alpha = 1.0; }];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [UIView animateWithDuration:0.35 animations:^{ label.alpha = 0.0; }
+                             completion:^(BOOL finished) { [label removeFromSuperview]; }];
+        });
+    });
+}
+
+static void ytfMarkDirtyIfRestartNeeded(NSString *key) {
+    if (ytfKeyNeedsRestart(key)) ytfShowRestartHint();
 }
 
 static void YTFPushPicker(id manager, id settingsVC, NSString *title, NSArray *rows) {
@@ -271,14 +352,9 @@ static void buildYTFreedomSection(id manager) {
         YTFPushPicker(manager, settingsVC, @"Feed", @[
             YTFHeaderItem(@"Feed"),
             YTFSwitchItem(@"Hide sub bar", @"Hide the channel filter bar", KHideSubbar),
-            YTFSwitchItem(@"Hide music playlists shelf", nil, KHideGenMusicShelf),
-            YTFSwitchItem(@"Hide feed posts", nil, KHideFeedPost),
             YTFSwitchItem(@"Hide Shorts shelf", nil, KHideShortsShelf),
             YTFSwitchItem(@"Hide search history", nil, KHideSearchHis),
             YTFSwitchItem(@"Hide related videos", @"Hide related videos on watch page", KNoRelatedVideos),
-            YTFSwitchItem(@"Hide subscribe button", nil, KHideSubButton),
-            YTFSwitchItem(@"Hide shop button", nil, KHideShoppingButton),
-            YTFSwitchItem(@"Hide memberships button", nil, KHideMemberButton),
         ]);
         return YES;
     });
@@ -315,14 +391,8 @@ static void buildYTFreedomSection(id manager) {
             YTFSwitchItem(@"Portrait fullscreen", nil, KPortFull),
             YTFSwitchItem(@"Old quality picker", nil, KOldQualityPicker),
             YTFSwitchItem(@"Extra speeds (0.25x-10x)", nil, KExtraSpeed),
-            YTFSwitchItem(@"Mute button in player", @"Adds a mute control (new-IPA flag)", KMuteButtonPlayer),
-            YTFSwitchItem(@"Pinch to fullscreen", @"Restore the pinch-to-fullscreen gesture", KPinchToFullscreen),
             YTFSwitchItem(@"Tap progress bar to seek", @"Restore tap-to-seek on the scrubber", KTapToSeek),
             YTFSwitchItem(@"Hide player heatmap", @"Remove the red popularity heatmap", KHidePlayerHeatmap),
-            YTFSwitchItem(@"Inline chapter seek", @"Tap chapters/segments to seek inline", KChapterSeek),
-            YTFSwitchItem(@"Reduce player overlays", @"Reveal YouTube's reduce-overlays setting", KReduceOverlays),
-            YTFSwitchItem(@"High-quality audio setting", @"Reveal the audio-quality setting", KHQAAudio),
-            YTFSwitchItem(@"Animated previews setting", @"Reveal the animated-preview setting", KAnimatedPreviews),
             YTFSwitchItem(@"Disable pull-to-fullscreen", @"Stop overscroll from entering fullscreen", KDisablePullToFull),
             YTFSwitchItem(@"Red progress bar", @"Resting bar color becomes red", KRedProgressBar),
             YTFSwitchItem(@"Copy timestamped link on pause", @"Copies watch URL with current time", KCopyTimestampedLink),
@@ -333,8 +403,6 @@ static void buildYTFreedomSection(id manager) {
             YTFSwitchItem(@"Hide dislike button", nil, KHideDisLikeButton),
             YTFSwitchItem(@"Hide share button", nil, KHideShareButton),
             YTFSwitchItem(@"Hide download button", nil, KHideDownloadButton),
-            YTFSwitchItem(@"Hide clip button", nil, KHideClipButton),
-            YTFSwitchItem(@"Hide remix button", nil, KHideRemixButton),
             YTFSwitchItem(@"Hide save button", nil, KHideSaveButton),
         ]);
         return YES;
@@ -342,28 +410,38 @@ static void buildYTFreedomSection(id manager) {
     ((id<YTFreedomSettingsItemHooks>)player).settingIcon = YTFIcon(658);
     [items addObject:player];
 
+    // A/B Testing — server-config flags (YTColdConfig/YTHotConfig getters).
+    // All selectors verified present on the config classes in the 21.32.4
+    // binary (otool). The backend can override them per device/cohort, so
+    // outcomes differ across installs; grouped here for quick flip-and-
+    // compare testing. Values are read at config load -> restart to apply.
+    id ab = YTFItem(@"A/B Testing", @"Server-config flags — outcomes vary per device", ^BOOL(id cell, NSUInteger arg) {
+        YTFPushPicker(manager, settingsVC, @"A/B Testing", @[
+            YTFHeaderItem(@"A/B Testing"),
+            YTFItem(nil, @"Verified flags. Flipping shows 'Restart to apply' — relaunch for effect.", ^BOOL(id c, NSUInteger a) { return NO; }),
+            YTFSwitchItem(@"Mute button in player", @"Adds a mute control to the player bar", KMuteButtonPlayer),
+            YTFSwitchItem(@"Inline chapter seek", @"Tap chapters/segments to seek inline", KChapterSeek),
+            YTFSwitchItem(@"Pinch to fullscreen", @"Restore the pinch-to-fullscreen gesture", KPinchToFullscreen),
+            YTFSwitchItem(@"Reduce player overlays", @"Reveal YouTube's reduce-overlays setting", KReduceOverlays),
+            YTFSwitchItem(@"High-quality audio setting", @"Reveal the audio-quality setting", KHQAAudio),
+            YTFSwitchItem(@"Shorts seekbar", @"Show the seekbar in Shorts", KShowShortsSeekbar),
+            YTFSwitchItem(@"Shorts speed from ⋯ menu", @"Speed options in the Shorts ⋯ menu", KShortsPlaybackSpeed),
+            YTFSwitchItem(@"Inline Shorts shelf playback", @"Play Shorts inline in the feed", KInlineShortsPlayback),
+            YTFSwitchItem(@"Disable Shorts PiP", @"No picture-in-picture for Shorts", KDisablesShortsPiP),
+            YTFSwitchItem(@"Disable new miniplayer", @"Fall back to the classic miniplayer", KDisablesNewMiniPlayer),
+        ]);
+        return YES;
+    });
+    ((id<YTFreedomSettingsItemHooks>)ab).settingIcon = YTFIcon(495); // YT_EXPERIMENT (flask)
+    [items addObject:ab];
+
     // Shorts
     id shorts = YTFItem(@"Shorts", nil, ^BOOL(id cell, NSUInteger arg) {
         YTFPushPicker(manager, settingsVC, @"Shorts", @[
             YTFHeaderItem(@"Shorts"),
-            YTFSwitchItem(@"Hide like button", nil, KHideShortsLikeButton),
-            YTFSwitchItem(@"Hide dislike button", nil, KHideShortsDisLikeButton),
-            YTFSwitchItem(@"Hide comment button", nil, KHideShortsCommentButton),
-            YTFSwitchItem(@"Hide share button", nil, KHideShortsShareButton),
-            YTFSwitchItem(@"Hide remix button", nil, KHideShortsRemixButton),
+            YTFItem(nil, @"The action rail is server-driven in 21.32.4 — like/dislike/share/comment are filtered by icon type; other buttons moved to Beta.", ^BOOL(id c, NSUInteger a) { return NO; }),
             YTFSwitchItem(@"Hide metadata button", nil, KHideShortsMetaButton),
-            YTFSwitchItem(@"Hide products", nil, KHideShortsProducts),
-            YTFSwitchItem(@"Hide rec bar", nil, KHideShortsRecbar),
-            YTFSwitchItem(@"Hide commit pill", nil, KHideShortsCommit),
-            YTFSwitchItem(@"Hide subscribe button", nil, KHideShortsSubscriptButton),
-            YTFSwitchItem(@"Hide live button", nil, KHideShortsLiveButton),
-            YTFSwitchItem(@"Hide lens button", nil, KHideShortsLensButton),
-            YTFSwitchItem(@"Hide trends button", nil, KHideShortsTrendsButton),
-            YTFSwitchItem(@"Hide 'to video' pill", nil, KHideShortsToVideo),
             YTFSwitchItem(@"Enable quality selector", nil, KEnablesShortsQuality),
-            YTFSwitchItem(@"Show seekbar", nil, KShowShortsSeekbar),
-            YTFSwitchItem(@"Playback speed from menu", @"⋯ menu gains speed options (new-IPA flag)", KShortsPlaybackSpeed),
-            YTFSwitchItem(@"Inline playback on Shorts shelf", @"Play Shorts inline in the feed", KInlineShortsPlayback),
         ]);
         return YES;
     });
@@ -375,13 +453,15 @@ static void buildYTFreedomSection(id manager) {
         YTFPushPicker(manager, settingsVC, @"Default tab", @[
             YTFHeaderItem(@"Default tab"),
             [(id<YTFreedomSettingsItemFactory>)itemCls checkmarkItemWithTitle:@"Home" titleDescription:nil
-                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 0); return YES; }],
+                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 0); ytfShowRestartHint(); return YES; }],
             [(id<YTFreedomSettingsItemFactory>)itemCls checkmarkItemWithTitle:@"Shorts" titleDescription:nil
-                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 1); return YES; }],
+                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 1); ytfShowRestartHint(); return YES; }],
             [(id<YTFreedomSettingsItemFactory>)itemCls checkmarkItemWithTitle:@"Subscriptions" titleDescription:nil
-                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 2); return YES; }],
+                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 2); ytfShowRestartHint(); return YES; }],
             [(id<YTFreedomSettingsItemFactory>)itemCls checkmarkItemWithTitle:@"Library" titleDescription:nil
-                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 3); return YES; }],
+                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 3); ytfShowRestartHint(); return YES; }],
+            [(id<YTFreedomSettingsItemFactory>)itemCls checkmarkItemWithTitle:@"You" titleDescription:@"Selects the You tab when the server sends it (FEaccount)"
+                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 4); ytfShowRestartHint(); return YES; }],
         ]);
         return YES;
     });
@@ -393,11 +473,8 @@ static void buildYTFreedomSection(id manager) {
         YTFPushPicker(manager, settingsVC, @"Miscellaneous", @[
             YTFHeaderItem(@"Miscellaneous"),
             YTFSwitchItem(@"Background playback", @"Audio continues with screen off", KBackgroundPlayback),
-            YTFSwitchItem(@"Disable Shorts PiP", nil, KDisablesShortsPiP),
             YTFSwitchItem(@"Block upgrade dialogs", nil, KBlockUpgradeDialogs),
             YTFSwitchItem(@"Hide 'Are you there?' dialog", nil, KHideAreYouThereDialog),
-            YTFSwitchItem(@"Fix slow miniplayer", nil, KFixesSlowMiniPlayer),
-            YTFSwitchItem(@"Disable new miniplayer", nil, KDisablesNewMiniPlayer),
             YTFSwitchItem(@"Disable snackbar", nil, KDisablesSnackBar),
             YTFSwitchItem(@"Hide startup animations", nil, KHideStartupAni),
             YTFSwitchItem(@"Hide 'Play next in queue'", nil, KHidePlayInNextQueue),
@@ -426,6 +503,40 @@ static void buildYTFreedomSection(id manager) {
     });
     ((id<YTFreedomSettingsItemHooks>)menu).settingIcon = YTFIcon(120);
     [items addObject:menu];
+
+    // Beta — ports whose targets are absent from the 21.32.4 binary (ids /
+    // selectors from other versions' tweaks). Kept so nothing is lost;
+    // flip, test, and report so each can be rewired to a real target or
+    // dropped.
+    id beta = YTFItem(@"Beta", @"Unverified on 21.32.4 — test & report", ^BOOL(id cell, NSUInteger arg) {
+        YTFPushPicker(manager, settingsVC, @"Beta", @[
+            YTFHeaderItem(@"Beta"),
+            YTFItem(nil, @"Targets absent from this build. Flip, test, report what each does.", ^BOOL(id c, NSUInteger a) { return NO; }),
+            YTFSwitchItem(@"Hide music playlists shelf", nil, KHideGenMusicShelf),
+            YTFSwitchItem(@"Hide feed posts", nil, KHideFeedPost),
+            YTFSwitchItem(@"Hide subscribe button", nil, KHideSubButton),
+            YTFSwitchItem(@"Hide shop button", nil, KHideShoppingButton),
+            YTFSwitchItem(@"Hide memberships button", nil, KHideMemberButton),
+            YTFSwitchItem(@"Hide clip button", nil, KHideClipButton),
+            YTFSwitchItem(@"Hide remix button", nil, KHideRemixButton),
+            YTFSwitchItem(@"Shorts: hide like", nil, KHideShortsLikeButton),
+            YTFSwitchItem(@"Shorts: hide dislike", nil, KHideShortsDisLikeButton),
+            YTFSwitchItem(@"Shorts: hide comment", nil, KHideShortsCommentButton),
+            YTFSwitchItem(@"Shorts: hide share", nil, KHideShortsShareButton),
+            YTFSwitchItem(@"Shorts: hide remix", nil, KHideShortsRemixButton),
+            YTFSwitchItem(@"Shorts: hide products", nil, KHideShortsProducts),
+            YTFSwitchItem(@"Shorts: hide rec bar", nil, KHideShortsRecbar),
+            YTFSwitchItem(@"Shorts: hide commit pill", nil, KHideShortsCommit),
+            YTFSwitchItem(@"Shorts: hide subscribe", nil, KHideShortsSubscriptButton),
+            YTFSwitchItem(@"Shorts: hide live", nil, KHideShortsLiveButton),
+            YTFSwitchItem(@"Shorts: hide lens", nil, KHideShortsLensButton),
+            YTFSwitchItem(@"Shorts: hide trends", nil, KHideShortsTrendsButton),
+            YTFSwitchItem(@"Shorts: hide to-video", nil, KHideShortsToVideo),
+        ]);
+        return YES;
+    });
+    ((id<YTFreedomSettingsItemHooks>)beta).settingIcon = YTFIcon(950); // YT_SPARKLE_FILLED
+    [items addObject:beta];
 
     // Preferences
     id prefs = YTFItem(@"Preferences", nil, ^BOOL(id cell, NSUInteger arg) {

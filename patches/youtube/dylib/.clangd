@@ -1,0 +1,18 @@
+# clangd config for the iOS tweak dylib: clangd can't discover the iPhoneOS
+# SDK on its own, which makes every UIKit symbol look undeclared. Point it at
+# the real SDK (same flags as build.sh). Ground truth remains build.sh.
+CompileFlags:
+  Compiler: clang
+  Add:
+    - "-target"
+    - "arm64-apple-ios14.0"
+    - "-isysroot"
+    - "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk"
+    - "-fobjc-arc"
+    - "-fobjc-weak"
+    - "-fblocks"
+    - "-Wno-objc-method-access"
+    - "-Wno-unknown-attributes"
+  Remove:
+    - "-mios-simulator-version-min=*"
+    - "-miphoneos-version-min=*"

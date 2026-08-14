@@ -141,6 +141,12 @@ static void fixNavbar(void) {
 // --- G9: tab bar ------------------------------------------------------------
 
 static void fixTabbar(void) {
+    // Pivot identifiers actually present on this device (the server decides
+    // the tab set — e.g. Library vs the newer You tab). Stashed from the
+    // renderer; used by the startup-tab selection below.
+    static NSMutableArray *s_pivotIds = nil;
+    if (!s_pivotIds) s_pivotIds = [NSMutableArray array];
+
     // Remove tabs by pivot identifier.
     static IMP orig_setPivotRenderer;
     orig_setPivotRenderer = ytfHookInstance(NSClassFromString(@"YTPivotBarView"),
@@ -171,6 +177,8 @@ static void fixTabbar(void) {
                         [remove addIndex:idx];
                     if ([pID isEqualToString:@"FEsubscriptions"] && IS_ENABLED(KHideSubscriptTab))
                         [remove addIndex:idx];
+                    if (pID && ![s_pivotIds containsObject:pID]) [s_pivotIds addObject:pID];
+                    if (pID2 && ![s_pivotIds containsObject:pID2]) [s_pivotIds addObject:pID2];
                 }];
                 if (remove.count > 0) [items removeObjectsAtIndexes:remove];
             }
@@ -215,7 +223,9 @@ static void fixTabbar(void) {
         });
     (void)orig_setPivotItemRenderer;
 
-    // Startup tab.
+    // Startup tab. The tab set is server-driven; the same position can be
+    // Library (FElibrary) or the newer You tab (FEaccount) depending on the
+    // device's cohort, so selection is by identifier with a fallback.
     static IMP orig_pivotViewDidAppear;
     orig_pivotViewDidAppear = ytfHookInstance(NSClassFromString(@"YTPivotBarViewController"),
         @selector(viewDidAppear:),
@@ -223,12 +233,26 @@ static void fixTabbar(void) {
             ((void(*)(id, SEL, BOOL))orig_pivotViewDidAppear)(self, @selector(viewDidAppear:), animated);
             static BOOL isTabSelected = NO;
             if (!isTabSelected) {
-                NSArray *identifiers = @[@"FEwhat_to_watch", @"FEshorts", @"FEsubscriptions", @"FElibrary"];
                 int tab = INTFORVAL(KDefaultTab);
-                if (tab >= 0 && tab < (int)identifiers.count) {
-                    id<YTFreedomNavHooks> hooks = self;
-                    if ([hooks respondsToSelector:@selector(selectItemWithPivotIdentifier:)])
-                        [hooks selectItemWithPivotIdentifier:identifiers[tab]];
+                NSString *target = nil;
+                switch (tab) {
+                    case 0: target = @"FEwhat_to_watch"; break;
+                    case 1: target = @"FEshorts"; break;
+                    case 2: target = @"FEsubscriptions"; break;
+                    case 4: target = @"FEaccount"; break;  // You
+                    case 3: default:
+                        // Library / You: pick whichever the server sent.
+                        target = [s_pivotIds containsObject:@"FEaccount"] ? @"FEaccount" : @"FElibrary";
+                        break;
+                }
+                id<YTFreedomNavHooks> hooks = self;
+                if ([hooks respondsToSelector:@selector(selectItemWithPivotIdentifier:)]) {
+                    if ([s_pivotIds containsObject:target])
+                        [hooks selectItemWithPivotIdentifier:target];
+                    else if (s_pivotIds.count > 0)
+                        [hooks selectItemWithPivotIdentifier:s_pivotIds.firstObject];
+                    else
+                        [hooks selectItemWithPivotIdentifier:target];  // ids not stashed yet
                 }
                 isTabSelected = YES;
             }

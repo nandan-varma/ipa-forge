@@ -121,6 +121,12 @@ hooks:
     selector: "didMoveToWindow"
     kind: instance
     required: true
+  - class: "YTSlimVideoDetailsActionView"
+    selector: "updateAccessibilityIdentifier"
+    kind: instance
+  - class: "YTSlimVideoDetailsActionView"
+    selector: "didMoveToWindow"
+    kind: instance
   - class: "YTMySubsFilterHeaderView"
     selector: "setChipFilterView:"
     kind: instance
