@@ -14,7 +14,7 @@
 
 #define YT_BUNDLE_ID @"com.google.ios.youtube"
 #define YT_NAME @"YouTube"
-#define YTFREEDOM_VERSION @"0.6.0"
+#define YTFREEDOM_VERSION @"0.7.0"
 
 // ---------------------------------------------------------------------------
 // Settings keys (NSUserDefaults, prefix YTFreedom)
@@ -44,7 +44,6 @@
 #define KDisablesCaptions        @"YTFreedomAutoDisableCaptions"
 #define KDisableHints            @"YTFreedomDisableHints"
 #define KForceMiniPlayer         @"YTFreedomForceMiniPlayer"
-#define KFixesSlowMiniPlayer     @"YTFreedomFixesSlowMiniPlayer"
 #define KDisablesNewMiniPlayer   @"YTFreedomDisablesNewMiniPlayer"
 #define KDisablesDoubleTap       @"YTFreedomDisablesDoubleTap"
 #define KDisablesLongHold        @"YTFreedomDisablesLongHold"
@@ -111,9 +110,6 @@
 #define KHideLikeDislikeVotes    @"YTFreedomHideLikeDislikeVotes"
 #define KOLEDTheme               @"YTFreedomOLEDTheme"
 #define KOLEDKeyboard            @"YTFreedomOLEDKeyboard"
-#define KDownloadManager         @"YTFreedomDownloadManager"
-#define KDownloadSaveToPhotos    @"YTFreedomDownloadSaveToPhotos"
-#define KDownloadPreferDRCAudio  @"YTFreedomDownloadPreferDRCAudio"
 #define KAutoClearCache          @"YTFreedomAutoClearCache"
 
 // G18 YTLite extras / G6 gestures keys
@@ -150,6 +146,57 @@
 #define INTFORVAL(key)    (int)[[NSUserDefaults standardUserDefaults] integerForKey:(key)]
 #define SET_BOOL(key, v)  [[NSUserDefaults standardUserDefaults] setBool:(v) forKey:(key)]
 #define SET_INT(key, v)   [[NSUserDefaults standardUserDefaults] setInteger:(v) forKey:(key)]
+
+// ---------------------------------------------------------------------------
+// Feature catalog — SINGLE SOURCE OF TRUTH for every YTFreedom setting.
+//
+// The full table lives in YTFFeatures.m; this header declares the shape.
+// That table drives:
+//   1. NSUserDefaults registration (YTFreedom.m registerDefaults:)
+//   2. The in-app settings UI (SettingsUI.m): group order, row order, kind,
+//      the "Restart to apply" hint
+// To add a feature: add one row to YTFFeatures.m, then implement hooks with
+// IS_ENABLED(<key>). To remove: delete the row and its hooks. Every selector
+// and identifier referenced by the dylib is verified against
+// com.google.ios.youtube 21.32.4 (otool + strings; see ROADMAP.md
+// "binary-verified findings").
+// ---------------------------------------------------------------------------
+typedef NS_ENUM(NSInteger, YTFFeatureKind) {
+    YTFFeatureSwitch = 0,   // ON/OFF row
+    YTFFeatureChoices,      // pick one value from a fixed list (SettingsUI)
+};
+
+@interface YTFFeatureSpec : NSObject
+@property (nonatomic, copy) NSString *key;          // NSUserDefaults key (a K* macro)
+@property (nonatomic, copy) NSString *title;        // settings row title
+@property (nonatomic, copy) NSString *detail;       // row description (may be nil)
+@property (nonatomic, copy) NSString *group;        // group id it renders under
+@property (nonatomic) YTFFeatureKind kind;
+@property (nonatomic) NSInteger defaultValue;       // 0/1 for switches; choice index otherwise
+@property (nonatomic) BOOL restartRequired;         // shows "Restart to apply" on flip
+@property (nonatomic) BOOL beta;                    // labeled (beta) in the UI
+@property (nonatomic) BOOL hidden;                  // registered but never rendered
++ (instancetype)switchSpec:(NSString *)key title:(NSString *)title detail:(NSString *)detail
+                     group:(NSString *)group defaultValue:(BOOL)dv restart:(BOOL)restart beta:(BOOL)beta;
++ (instancetype)choiceSpec:(NSString *)key title:(NSString *)title detail:(NSString *)detail
+                     group:(NSString *)group defaultValue:(NSInteger)dv restart:(BOOL)restart;
++ (instancetype)hiddenSwitch:(NSString *)key group:(NSString *)group defaultValue:(BOOL)dv;
++ (instancetype)hiddenInt:(NSString *)key group:(NSString *)group intDefault:(NSInteger)dv;
+@end
+
+@interface YTFGroupSpec : NSObject
+@property (nonatomic, copy) NSString *group;        // group id (feature spec group field)
+@property (nonatomic, copy) NSString *title;        // section title in the UI
+@property (nonatomic, copy) NSString *detail;       // section description (picker header)
+@property (nonatomic) BOOL container;               // sub-menu of groups (Advanced/Preferences)
+@property (nonatomic) BOOL isTopLevel;              // rendered as a row in the YTFreedom section
++ (instancetype)group:(NSString *)g title:(NSString *)title detail:(NSString *)detail
+            container:(BOOL)container topLevel:(BOOL)top;
+@end
+
+NSArray<YTFFeatureSpec *> *ytfFeatureSpecs(void);
+NSArray<YTFGroupSpec *> *ytfGroupSpecs(void);
+NSArray<YTFFeatureSpec *> *ytfFeaturesInGroup(NSString *group);
 
 // ---------------------------------------------------------------------------
 // Logging

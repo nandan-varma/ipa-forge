@@ -2,32 +2,21 @@
 // feature area's init function. Loaded via a plain LC_LOAD_DYLIB; the
 // constructor runs after the ObjC runtime has mapped all images, so
 // NSClassFromString works for every app class here.
+//
+// Defaults come from the feature catalog (YTFFeatures.m) — the single source
+// of truth. Do not add ad-hoc defaults here.
 
 #import "YTFreedom.h"
 
 __attribute__((constructor))
 static void YTFreedomInit(void) {
-    NSDictionary *defaults = @{
-        KBackgroundPlayback: @YES,
-        KAutoClearCache: @YES,
-        KPremiumLogo: @YES,
-        KHideCreateButton: @YES,
-        KHideCastButtonNav: @YES,
-        KHideCastButtonPlayer: @YES,
-        KOldQualityPicker: @YES,
-        KDownloadManager: @YES,
-        KDownloadSaveToPhotos: @YES,
-        KGestureActivationArea: @(1),
-        KLeftSideGesture: @(1),
-        KRightSideGesture: @(2),
-        KGestureHUDSize: @(1),
-        KGestureHUDPosition: @(0),
-        KDefaultTab: @(0),
-        KDisableRatePrompts: @YES,
-        KPinchToFullscreen: @YES,
-        KReduceOverlays: @YES,
-        KHQAAudio: @YES,
-    };
+    NSMutableDictionary *defaults = [NSMutableDictionary dictionary];
+    for (YTFFeatureSpec *spec in ytfFeatureSpecs()) {
+        if (spec.kind == YTFFeatureChoices)
+            defaults[spec.key] = @(spec.defaultValue);
+        else
+            defaults[spec.key] = @(spec.defaultValue ? YES : NO);
+    }
     [[NSUserDefaults standardUserDefaults] registerDefaults:defaults];
 
     YTFreedomSignInFixInit();

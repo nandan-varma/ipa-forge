@@ -1,4 +1,4 @@
-// SettingsUI.m — in-app "YTFreedom" settings section (port of YouMod's
+// SettingsUI.m - in-app "YTFreedom" settings section (port of YouMod's
 // Settings.x + YouModPerferences.x). Inserts a new category into the
 // app's own Settings (YTSettingsGroupData / YTAppSettingsPresentationData),
 // builds the section items via YTSettingsSectionItem factories, and pushes
@@ -101,40 +101,12 @@ static id YTFIcon(int type) {
 // one of these flips in Settings, show a small auto-dismissing hint so the
 // tester knows to relaunch instead of reporting a "broken" toggle.
 static BOOL ytfKeyNeedsRestart(NSString *key) {
-    static NSSet *keys;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        keys = [NSSet setWithArray:@[
-            KDefaultTab,             // pivot bar built at launch
-            KOLEDTheme,              // palette singleton
-            KOLEDKeyboard,           // keyboard views
-            KBackgroundPlayback,     // init-gated hook
-            KDisablesShortsPiP,      // init-gated hook
-            KBlockUpgradeDialogs,    // init-gated hook
-            KHideAreYouThereDialog,  // init-gated hook
-            KDisablesSnackBar,       // init-gated hook
-            KHidePlayInNextQueue,    // init-gated hook
-            KHideLikeDislikeVotes,   // init-gated hook
-            KDisableRatePrompts,     // init-gated hook
-            KHideHUDMessages,        // init-gated hook
-            KTapToSeek,              // init-gated hook
-            KHidePlayerHeatmap,      // init-gated hook
-            KOldQualityPicker,       // init-gated hook
-            KExtraSpeed,             // init-gated hook
-            KMuteButtonPlayer,       // config getter — read at config load
-            KChapterSeek,            // config getter
-            KPinchToFullscreen,      // config getter
-            KReduceOverlays,         // config getter
-            KHQAAudio,               // config getter
-            KShowShortsSeekbar,      // config getter
-            KShortsPlaybackSpeed,    // config getter
-            KInlineShortsPlayback,   // config getter
-            KDisablesNewMiniPlayer,  // config getter
-            KHideStartupAni,         // launch-only
-            KAutoClearCache,         // launch-only
-        ]];
-    });
-    return [keys containsObject:key];
+    // Restart requirement lives in the feature catalog (YTFFeatures.m) -
+    // the single source of truth. Keys are read at launch/init (gated
+    // hooks, config getters, launch-only effects).
+    for (YTFFeatureSpec *spec in ytfFeatureSpecs())
+        if (spec.restartRequired && [spec.key isEqualToString:key]) return YES;
+    return NO;
 }
 
 static void ytfShowRestartHint(void) {
@@ -170,13 +142,13 @@ static void ytfMarkDirtyIfRestartNeeded(NSString *key) {
     if (ytfKeyNeedsRestart(key)) ytfShowRestartHint();
 }
 
-static void YTFPushPicker(id manager, id settingsVC, NSString *title, NSArray *rows) {
+static void YTFPushPicker(id manager, id settingsVC, NSString *title, NSArray *rows, NSUInteger selectedIndex) {
     Class pickerCls = NSClassFromString(@"YTSettingsPickerViewController");
     if (!pickerCls || !settingsVC) return;
     id picker = [(id<YTFreedomSettingsPicker>)[pickerCls alloc] initWithNavTitle:title
                                  pickerSectionTitle:nil
                                                rows:rows
-                                  selectedItemIndex:0
+                                  selectedItemIndex:selectedIndex
                                      parentResponder:[(id<YTFreedomSettingsManager>)manager parentResponder]];
     [(id<YTFreedomSettingsVC>)settingsVC pushViewController:picker];
 }
@@ -292,6 +264,147 @@ static void clearAppCache(void) {
 // Section builder
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Section builder (table-driven - the catalog in YTFFeatures.m decides what
+// renders, in what order, and with what defaults).
+// ---------------------------------------------------------------------------
+
+static NSInteger ytfGroupIcon(NSString *group) {
+    if ([group isEqualToString:@"player"]) return 658;      // settings gear
+    if ([group isEqualToString:@"appearance"]) return 921;  // palette
+    if ([group isEqualToString:@"shorts"]) return 769;      // shorts
+    if ([group isEqualToString:@"feed"]) return 193;        // filter
+    if ([group isEqualToString:@"navigation"]) return 60;   // header
+    if ([group isEqualToString:@"tabbar"]) return 66;       // tabs
+    if ([group isEqualToString:@"advanced"]) return 495;    // YT_EXPERIMENT
+    return 530;                                             // tune
+}
+
+// Choices for YTFFeatureChoices features: {label, stored value} pairs.
+static NSArray *ytfChoicesFor(YTFFeatureSpec *spec) {
+    if ([spec.key isEqualToString:KDefaultTab])
+        return @[ @[@"Home", @0], @[@"Shorts", @1], @[@"Subscriptions", @2],
+                  @[@"Library / You", @3], @[@"You", @4] ];
+    if ([spec.key isEqualToString:KLeftSideGesture] || [spec.key isEqualToString:KRightSideGesture])
+        return @[ @[@"Brightness", @1], @[@"Volume", @2], @[@"Speed", @3] ];
+    return nil;
+}
+
+// Push a picker listing one checkmark row per choice; the stored value is
+// highlighted.
+static void ytfPushChoicesPicker(id manager, id settingsVC, YTFFeatureSpec *spec) {
+    NSArray *choices = ytfChoicesFor(spec);
+    if (!choices.count) return;
+    Class itemCls = NSClassFromString(@"YTSettingsSectionItem");
+    if (!itemCls) return;
+    NSMutableArray *rows = [NSMutableArray array];
+    [rows addObject:YTFHeaderItem(spec.title)];
+    NSUInteger current = (NSUInteger)INTFORVAL(spec.key);
+    NSUInteger selectedIndex = 0;
+    for (NSUInteger i = 0; i < choices.count; i++) {
+        NSArray *pair = choices[i];
+        int value = [pair[1] intValue];
+        if (current == (NSUInteger)value) selectedIndex = i;
+        [rows addObject:[(id<YTFreedomSettingsItemFactory>)itemCls checkmarkItemWithTitle:pair[0]
+                              titleDescription:nil
+                                  selectBlock:^BOOL(id c, NSUInteger a) {
+                                      SET_INT(spec.key, value);
+                                      ytfMarkDirtyIfRestartNeeded(spec.key);
+                                      return YES;
+                                  }]];
+    }
+    YTFPushPicker(manager, settingsVC, spec.title, rows, selectedIndex);
+}
+
+// Push the picker for one feature group (rows come from the catalog).
+static void ytfPushGroupPicker(id manager, id settingsVC, YTFGroupSpec *group) {
+    NSMutableArray *rows = [NSMutableArray array];
+    [rows addObject:YTFHeaderItem(group.title)];
+    if (group.detail)
+        [rows addObject:YTFItem(nil, group.detail, ^BOOL(id c, NSUInteger a) { return NO; })];
+    for (YTFFeatureSpec *spec in ytfFeaturesInGroup(group.group)) {
+        if (spec.hidden) continue;
+        NSString *title = spec.beta ? [spec.title stringByAppendingString:@" (beta)"] : spec.title;
+        if (spec.kind == YTFFeatureChoices) {
+            [rows addObject:YTFItem(title, spec.detail, ^BOOL(id cell, NSUInteger arg) {
+                ytfPushChoicesPicker(manager, settingsVC, spec);
+                return YES;
+            })];
+        } else {
+            [rows addObject:YTFSwitchItem(title, spec.detail, spec.key)];
+        }
+    }
+    YTFPushPicker(manager, settingsVC, group.title, rows, 0);
+}
+
+// Advanced container: sub-groups from the catalog + disabled Future rows.
+static id ytfAdvancedRow(id manager, id settingsVC) {
+    return YTFItem(@"Advanced", @"Rarely changed settings and experimental flags",
+                   ^BOOL(id cell, NSUInteger arg) {
+        NSMutableArray *rows = [NSMutableArray array];
+        [rows addObject:YTFHeaderItem(@"Advanced")];
+        for (YTFGroupSpec *sub in ytfGroupSpecs()) {
+            if (sub.isTopLevel || sub.container) continue;
+            [rows addObject:YTFItem(sub.title, sub.detail, ^BOOL(id c, NSUInteger a) {
+                ytfPushGroupPicker(manager, settingsVC, sub);
+                return YES;
+            })];
+        }
+        // Future - disabled rows for not-yet-implemented features.
+        [rows addObject:YTFHeaderItem(@"Future - not implemented")];
+        [rows addObject:YTFItem(@"Downloads", @"Disabled - not implemented", ^BOOL(id c, NSUInteger a) { return NO; })];
+        [rows addObject:YTFItem(@"Native share sheet", @"Disabled - not implemented", ^BOOL(id c, NSUInteger a) { return NO; })];
+        [rows addObject:YTFItem(@"Dislike counts (RYD)", @"Disabled - not implemented", ^BOOL(id c, NSUInteger a) { return NO; })];
+        [rows addObject:YTFItem(@"SponsorBlock", @"Disabled - not implemented", ^BOOL(id c, NSUInteger a) { return NO; })];
+        YTFPushPicker(manager, settingsVC, @"Advanced", rows, 0);
+        return YES;
+    });
+}
+
+// Preferences container: import/export/restore + cache management.
+static id ytfPrefsRow(id manager, id settingsVC) {
+    return YTFItem(@"Preferences", nil, ^BOOL(id cell, NSUInteger arg) {
+        NSMutableArray *rows = [NSMutableArray array];
+        [rows addObject:YTFHeaderItem(@"Preferences")];
+        [rows addObject:YTFItem(@"Import settings", @"Restore from an exported file", ^BOOL(id c, NSUInteger a) {
+            [[YTFreedomPrefsManager sharedManager] importFromVC:settingsVC];
+            return YES;
+        })];
+        [rows addObject:YTFItem(@"Export settings", @"Save all YTFreedom settings", ^BOOL(id c, NSUInteger a) {
+            [[YTFreedomPrefsManager sharedManager] exportFromVC:settingsVC];
+            return YES;
+        })];
+        [rows addObject:YTFItem(@"Restore defaults", nil, ^BOOL(id c, NSUInteger a) {
+            [[YTFreedomPrefsManager sharedManager] showAlert:@"Warning"
+                                                   subtitle:@"Reset all YTFreedom settings?"
+                                                      action:YES];
+            return YES;
+        })];
+        [rows addObject:YTFHeaderItem(@"Cache")];
+        [rows addObject:YTFItem(@"Clear cache", cacheSizeString(), ^BOOL(id c, NSUInteger a) {
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                clearAppCache();
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    Class toastCls = NSClassFromString(@"YTToastResponderEvent");
+                    if (toastCls) {
+                        id event = [(id<YTFreedomToastFactory>)toastCls eventWithMessage:@"Cache cleared"
+                                                                            firstResponder:[(id<YTFreedomSettingsManager>)manager parentResponder]];
+                        [event send];
+                    }
+                });
+            });
+            return YES;
+        })];
+        // Cache switches come from the catalog too (group "prefs").
+        for (YTFFeatureSpec *spec in ytfFeaturesInGroup(@"prefs")) {
+            if (spec.hidden) continue;
+            [rows addObject:YTFSwitchItem(spec.title, spec.detail, spec.key)];
+        }
+        YTFPushPicker(manager, settingsVC, @"Preferences", rows, 0);
+        return YES;
+    });
+}
+
 static void buildYTFreedomSection(id manager) {
     Class itemCls = NSClassFromString(@"YTSettingsSectionItem");
     if (!itemCls) return;
@@ -300,283 +413,29 @@ static void buildYTFreedomSection(id manager) {
 
     NSMutableArray *items = [NSMutableArray array];
 
-    // Version
-    [items addObject:YTFItem([NSString stringWithFormat:@"YTFreedom v%@", YTFREEDOM_VERSION], nil,
+    // Version row.
+    [items addObject:YTFItem([NSString stringWithFormat:@"YTFreedom v%@", YTFREEDOM_VERSION],
+                             @"Settings for the YTFreedom tweak",
                              ^BOOL(id cell, NSUInteger arg) { return NO; })];
 
-    // Downloading
-    id downloading = YTFItem(@"Downloading", nil, ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"Downloading", @[
-            YTFHeaderItem(@"Downloading"),
-            YTFSwitchItem(@"Download Manager", @"Adds a download button to the player", KDownloadManager),
-            YTFSwitchItem(@"Save to Photos", @"Save downloads to the Photos library", KDownloadSaveToPhotos),
-            YTFSwitchItem(@"Prefer DRC audio", @"Prefer DRM-free audio tracks", KDownloadPreferDRCAudio),
-        ]);
-        return YES;
-    });
-    id<YTFreedomSettingsItemHooks> dIcon = downloading;
-    dIcon.settingIcon = YTFIcon(57);
-    [items addObject:downloading];
-
-    // Appearance
-    id appearance = YTFItem(@"Appearance", nil, ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"Appearance", @[
-            YTFHeaderItem(@"Appearance"),
-            YTFSwitchItem(@"OLED theme", @"True black dark theme", KOLEDTheme),
-            YTFSwitchItem(@"OLED keyboard", @"True black keyboard in dark mode", KOLEDKeyboard),
-        ]);
-        return YES;
-    });
-    ((id<YTFreedomSettingsItemHooks>)appearance).settingIcon = YTFIcon(921);
-    [items addObject:appearance];
-
-    // Navbar
-    id navbar = YTFItem(@"Navigation bar", nil, ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"Navigation bar", @[
-            YTFHeaderItem(@"Navigation bar"),
-            YTFSwitchItem(@"Hide YT logo", @"Hide the YouTube logo in the header", KHideYTLogo),
-            YTFSwitchItem(@"Premium logo", @"Use the premium-style logo", KPremiumLogo),
-            YTFSwitchItem(@"Hide notification button", nil, KHideNoti),
-            YTFSwitchItem(@"Hide search button", nil, KHideSearch),
-            YTFSwitchItem(@"Hide voice search button", nil, KHideVoiceSearch),
-            YTFSwitchItem(@"Hide cast button", nil, KHideCastButtonNav),
-            YTFSwitchItem(@"Sticky navigation bar", nil, KStickyNavbar),
-        ]);
-        return YES;
-    });
-    ((id<YTFreedomSettingsItemHooks>)navbar).settingIcon = YTFIcon(60);
-    [items addObject:navbar];
-
-    // Feed
-    id feed = YTFItem(@"Feed", nil, ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"Feed", @[
-            YTFHeaderItem(@"Feed"),
-            YTFSwitchItem(@"Hide sub bar", @"Hide the channel filter bar", KHideSubbar),
-            YTFSwitchItem(@"Hide Shorts shelf", nil, KHideShortsShelf),
-            YTFSwitchItem(@"Hide search history", nil, KHideSearchHis),
-            YTFSwitchItem(@"Hide related videos", @"Hide related videos on watch page", KNoRelatedVideos),
-        ]);
-        return YES;
-    });
-    ((id<YTFreedomSettingsItemHooks>)feed).settingIcon = YTFIcon(193);
-    [items addObject:feed];
-
-    // Player
-    id player = YTFItem(@"Player", nil, ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"Player", @[
-            YTFHeaderItem(@"Player"),
-            YTFSwitchItem(@"Hide autoplay toggle", nil, KHideAutoPlayToggle),
-            YTFSwitchItem(@"Hide captions button", nil, KHideCaptionsButton),
-            YTFSwitchItem(@"Hide cast button", nil, KHideCastButtonPlayer),
-            YTFSwitchItem(@"Hide previous button", nil, KHidePrevButton),
-            YTFSwitchItem(@"Hide next button", nil, KHideNextButton),
-            YTFSwitchItem(@"Replace prev/next with rewind/ffw", nil, KReplacePrevNextButtons),
-            YTFSwitchItem(@"Remove dark overlay", @"Remove the gradient behind controls", KRemoveDarkOverlay),
-            YTFSwitchItem(@"Hide endscreen cards", nil, KHideEndScreenCards),
-            YTFSwitchItem(@"Hide suggested video on finish", nil, KHideSuggestedVideo),
-            YTFSwitchItem(@"Hide paid promo overlay", nil, KHidePaidPromoOverlay),
-            YTFSwitchItem(@"Hide watermark", nil, KHideWaterMark),
-            YTFSwitchItem(@"Gesture controls", @"Edge swipes: brightness/volume/speed", KGestureControls),
-            YTFSwitchItem(@"Disable double-tap seek", nil, KDisablesDoubleTap),
-            YTFSwitchItem(@"Disable long-press", nil, KDisablesLongHold),
-            YTFSwitchItem(@"Exit fullscreen on finish", nil, KAutoExitFullScreen),
-            YTFSwitchItem(@"Auto-disable captions", nil, KDisablesCaptions),
-            YTFSwitchItem(@"Disable remaining-time toggle", nil, KDisablesShowRemaining),
-            YTFSwitchItem(@"Always show remaining time", nil, KAlwaysShowRemaining),
-            YTFSwitchItem(@"Hide fullscreen actions", nil, KHideFullAction),
-            YTFSwitchItem(@"Hide fullscreen title", nil, KHideFullvidTitle),
-            YTFSwitchItem(@"Stop autoplay", nil, KStopAutoplayVideo),
-            YTFSwitchItem(@"Skip content warning", @"Auto-confirm age/content warnings", KHideContentWarning),
-            YTFSwitchItem(@"Auto fullscreen", nil, KAutoFullScreen),
-            YTFSwitchItem(@"Portrait fullscreen", nil, KPortFull),
-            YTFSwitchItem(@"Old quality picker", nil, KOldQualityPicker),
-            YTFSwitchItem(@"Extra speeds (0.25x-10x)", nil, KExtraSpeed),
-            YTFSwitchItem(@"Tap progress bar to seek", @"Restore tap-to-seek on the scrubber", KTapToSeek),
-            YTFSwitchItem(@"Hide player heatmap", @"Remove the red popularity heatmap", KHidePlayerHeatmap),
-            YTFSwitchItem(@"Disable pull-to-fullscreen", @"Stop overscroll from entering fullscreen", KDisablePullToFull),
-            YTFSwitchItem(@"Red progress bar", @"Resting bar color becomes red", KRedProgressBar),
-            YTFSwitchItem(@"Copy timestamped link on pause", @"Copies watch URL with current time", KCopyTimestampedLink),
-            YTFSwitchItem(@"Disable hints", nil, KDisableHints),
-            YTFSwitchItem(@"Force miniplayer", nil, KForceMiniPlayer),
-            YTFSwitchItem(@"Always show seekbar", nil, KAlwaysShowSeekbar),
-            YTFSwitchItem(@"Hide like button", nil, KHideLikeButton),
-            YTFSwitchItem(@"Hide dislike button", nil, KHideDisLikeButton),
-            YTFSwitchItem(@"Hide share button", nil, KHideShareButton),
-            YTFSwitchItem(@"Hide download button", nil, KHideDownloadButton),
-            YTFSwitchItem(@"Hide save button", nil, KHideSaveButton),
-        ]);
-        return YES;
-    });
-    ((id<YTFreedomSettingsItemHooks>)player).settingIcon = YTFIcon(658);
-    [items addObject:player];
-
-    // A/B Testing — server-config flags (YTColdConfig/YTHotConfig getters).
-    // All selectors verified present on the config classes in the 21.32.4
-    // binary (otool). The backend can override them per device/cohort, so
-    // outcomes differ across installs; grouped here for quick flip-and-
-    // compare testing. Values are read at config load -> restart to apply.
-    id ab = YTFItem(@"A/B Testing", @"Server-config flags — outcomes vary per device", ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"A/B Testing", @[
-            YTFHeaderItem(@"A/B Testing"),
-            YTFItem(nil, @"Verified flags. Flipping shows 'Restart to apply' — relaunch for effect.", ^BOOL(id c, NSUInteger a) { return NO; }),
-            YTFSwitchItem(@"Mute button in player", @"Adds a mute control to the player bar", KMuteButtonPlayer),
-            YTFSwitchItem(@"Inline chapter seek", @"Tap chapters/segments to seek inline", KChapterSeek),
-            YTFSwitchItem(@"Pinch to fullscreen", @"Restore the pinch-to-fullscreen gesture", KPinchToFullscreen),
-            YTFSwitchItem(@"Reduce player overlays", @"Reveal YouTube's reduce-overlays setting", KReduceOverlays),
-            YTFSwitchItem(@"High-quality audio setting", @"Reveal the audio-quality setting", KHQAAudio),
-            YTFSwitchItem(@"Shorts seekbar", @"Show the seekbar in Shorts", KShowShortsSeekbar),
-            YTFSwitchItem(@"Shorts speed from ⋯ menu", @"Speed options in the Shorts ⋯ menu", KShortsPlaybackSpeed),
-            YTFSwitchItem(@"Inline Shorts shelf playback", @"Play Shorts inline in the feed", KInlineShortsPlayback),
-            YTFSwitchItem(@"Disable Shorts PiP", @"No picture-in-picture for Shorts", KDisablesShortsPiP),
-            YTFSwitchItem(@"Disable new miniplayer", @"Fall back to the classic miniplayer", KDisablesNewMiniPlayer),
-        ]);
-        return YES;
-    });
-    ((id<YTFreedomSettingsItemHooks>)ab).settingIcon = YTFIcon(495); // YT_EXPERIMENT (flask)
-    [items addObject:ab];
-
-    // Shorts
-    id shorts = YTFItem(@"Shorts", nil, ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"Shorts", @[
-            YTFHeaderItem(@"Shorts"),
-            YTFItem(nil, @"The action rail is server-driven in 21.32.4 — like/dislike/share/comment are filtered by icon type; other buttons moved to Beta.", ^BOOL(id c, NSUInteger a) { return NO; }),
-            YTFSwitchItem(@"Hide metadata button", nil, KHideShortsMetaButton),
-            YTFSwitchItem(@"Enable quality selector", nil, KEnablesShortsQuality),
-        ]);
-        return YES;
-    });
-    ((id<YTFreedomSettingsItemHooks>)shorts).settingIcon = YTFIcon(769);
-    [items addObject:shorts];
-
-    // Tab bar
-    id tabbar = YTFItem(@"Tab bar", nil, ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"Default tab", @[
-            YTFHeaderItem(@"Default tab"),
-            [(id<YTFreedomSettingsItemFactory>)itemCls checkmarkItemWithTitle:@"Home" titleDescription:nil
-                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 0); ytfShowRestartHint(); return YES; }],
-            [(id<YTFreedomSettingsItemFactory>)itemCls checkmarkItemWithTitle:@"Shorts" titleDescription:nil
-                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 1); ytfShowRestartHint(); return YES; }],
-            [(id<YTFreedomSettingsItemFactory>)itemCls checkmarkItemWithTitle:@"Subscriptions" titleDescription:nil
-                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 2); ytfShowRestartHint(); return YES; }],
-            [(id<YTFreedomSettingsItemFactory>)itemCls checkmarkItemWithTitle:@"Library" titleDescription:nil
-                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 3); ytfShowRestartHint(); return YES; }],
-            [(id<YTFreedomSettingsItemFactory>)itemCls checkmarkItemWithTitle:@"You" titleDescription:@"Selects the You tab when the server sends it (FEaccount)"
-                               selectBlock:^BOOL(id c, NSUInteger a) { SET_INT(KDefaultTab, 4); ytfShowRestartHint(); return YES; }],
-        ]);
-        return YES;
-    });
-    ((id<YTFreedomSettingsItemHooks>)tabbar).settingIcon = YTFIcon(66);
-    [items addObject:tabbar];
-
-    // Miscellaneous
-    id misc = YTFItem(@"Miscellaneous", nil, ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"Miscellaneous", @[
-            YTFHeaderItem(@"Miscellaneous"),
-            YTFSwitchItem(@"Background playback", @"Audio continues with screen off", KBackgroundPlayback),
-            YTFSwitchItem(@"Block upgrade dialogs", nil, KBlockUpgradeDialogs),
-            YTFSwitchItem(@"Hide 'Are you there?' dialog", nil, KHideAreYouThereDialog),
-            YTFSwitchItem(@"Disable snackbar", nil, KDisablesSnackBar),
-            YTFSwitchItem(@"Hide startup animations", nil, KHideStartupAni),
-            YTFSwitchItem(@"Hide 'Play next in queue'", nil, KHidePlayInNextQueue),
-            YTFSwitchItem(@"Hide like/dislike votes", @"Silent voting", KHideLikeDislikeVotes),
-            YTFSwitchItem(@"Disable rate prompts", @"Never ask to rate the app", KDisableRatePrompts),
-            YTFSwitchItem(@"Hide HUD/toast messages", @"Suppress like-saved style toasts", KHideHUDMessages),
-        ]);
-        return YES;
-    });
-    ((id<YTFreedomSettingsItemHooks>)misc).settingIcon = YTFIcon(1101);
-    [items addObject:misc];
-
-    // Menu
-    id menu = YTFItem(@"Menu items", nil, ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"Menu items", @[
-            YTFHeaderItem(@"Menu items"),
-            YTFSwitchItem(@"Remove Download", nil, KRemoveDownloadMenu),
-            YTFSwitchItem(@"Remove Watch later", nil, KRemoveWatchLaterMenu),
-            YTFSwitchItem(@"Remove Save to playlist", nil, KRemoveSaveToPlaylistMenu),
-            YTFSwitchItem(@"Remove Share", nil, KRemoveShareMenu),
-            YTFSwitchItem(@"Remove Not interested", nil, KRemoveNotInterestedMenu),
-            YTFSwitchItem(@"Remove Don't recommend channel", nil, KRemoveDontRecommendMenu),
-            YTFSwitchItem(@"Remove Report", nil, KRemoveReportMenu),
-        ]);
-        return YES;
-    });
-    ((id<YTFreedomSettingsItemHooks>)menu).settingIcon = YTFIcon(120);
-    [items addObject:menu];
-
-    // Beta — ports whose targets are absent from the 21.32.4 binary (ids /
-    // selectors from other versions' tweaks). Kept so nothing is lost;
-    // flip, test, and report so each can be rewired to a real target or
-    // dropped.
-    id beta = YTFItem(@"Beta", @"Unverified on 21.32.4 — test & report", ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"Beta", @[
-            YTFHeaderItem(@"Beta"),
-            YTFItem(nil, @"Targets absent from this build. Flip, test, report what each does.", ^BOOL(id c, NSUInteger a) { return NO; }),
-            YTFSwitchItem(@"Hide music playlists shelf", nil, KHideGenMusicShelf),
-            YTFSwitchItem(@"Hide feed posts", nil, KHideFeedPost),
-            YTFSwitchItem(@"Hide subscribe button", nil, KHideSubButton),
-            YTFSwitchItem(@"Hide shop button", nil, KHideShoppingButton),
-            YTFSwitchItem(@"Hide memberships button", nil, KHideMemberButton),
-            YTFSwitchItem(@"Hide clip button", nil, KHideClipButton),
-            YTFSwitchItem(@"Hide remix button", nil, KHideRemixButton),
-            YTFSwitchItem(@"Shorts: hide like", nil, KHideShortsLikeButton),
-            YTFSwitchItem(@"Shorts: hide dislike", nil, KHideShortsDisLikeButton),
-            YTFSwitchItem(@"Shorts: hide comment", nil, KHideShortsCommentButton),
-            YTFSwitchItem(@"Shorts: hide share", nil, KHideShortsShareButton),
-            YTFSwitchItem(@"Shorts: hide remix", nil, KHideShortsRemixButton),
-            YTFSwitchItem(@"Shorts: hide products", nil, KHideShortsProducts),
-            YTFSwitchItem(@"Shorts: hide rec bar", nil, KHideShortsRecbar),
-            YTFSwitchItem(@"Shorts: hide commit pill", nil, KHideShortsCommit),
-            YTFSwitchItem(@"Shorts: hide subscribe", nil, KHideShortsSubscriptButton),
-            YTFSwitchItem(@"Shorts: hide live", nil, KHideShortsLiveButton),
-            YTFSwitchItem(@"Shorts: hide lens", nil, KHideShortsLensButton),
-            YTFSwitchItem(@"Shorts: hide trends", nil, KHideShortsTrendsButton),
-            YTFSwitchItem(@"Shorts: hide to-video", nil, KHideShortsToVideo),
-        ]);
-        return YES;
-    });
-    ((id<YTFreedomSettingsItemHooks>)beta).settingIcon = YTFIcon(950); // YT_SPARKLE_FILLED
-    [items addObject:beta];
-
-    // Preferences
-    id prefs = YTFItem(@"Preferences", nil, ^BOOL(id cell, NSUInteger arg) {
-        YTFPushPicker(manager, settingsVC, @"Preferences", @[
-            YTFHeaderItem(@"Preferences"),
-            YTFItem(@"Import settings", @"Restore from an exported file", ^BOOL(id c, NSUInteger a) {
-                [[YTFreedomPrefsManager sharedManager] importFromVC:settingsVC];
+    // One row per top-level group, in catalog order.
+    for (YTFGroupSpec *group in ytfGroupSpecs()) {
+        if (!group.isTopLevel) continue;
+        id row = nil;
+        if ([group.group isEqualToString:@"advanced"])
+            row = ytfAdvancedRow(manager, settingsVC);
+        else if ([group.group isEqualToString:@"prefs"])
+            row = ytfPrefsRow(manager, settingsVC);
+        else
+            row = YTFItem(group.title, group.detail, ^BOOL(id cell, NSUInteger arg) {
+                ytfPushGroupPicker(manager, settingsVC, group);
                 return YES;
-            }),
-            YTFItem(@"Export settings", @"Save all YTFreedom settings", ^BOOL(id c, NSUInteger a) {
-                [[YTFreedomPrefsManager sharedManager] exportFromVC:settingsVC];
-                return YES;
-            }),
-            YTFItem(@"Restore defaults", nil, ^BOOL(id c, NSUInteger a) {
-                [[YTFreedomPrefsManager sharedManager] showAlert:@"Warning"
-                                                       subtitle:@"Reset all YTFreedom settings?"
-                                                          action:YES];
-                return YES;
-            }),
-            YTFHeaderItem(@"Cache"),
-            YTFItem(@"Clear cache", cacheSizeString(), ^BOOL(id c, NSUInteger a) {
-                dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-                    clearAppCache();
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        Class toastCls = NSClassFromString(@"YTToastResponderEvent");
-                        if (toastCls) {
-                            id event = [(id<YTFreedomToastFactory>)toastCls eventWithMessage:@"Cache cleared"
-                                                                                firstResponder:[(id<YTFreedomSettingsManager>)manager parentResponder]];
-                            [event send];
-                        }
-                    });
-                });
-                return YES;
-            }),
-            YTFSwitchItem(@"Auto-clear cache", @"Clear cache on launch", KAutoClearCache),
-        ]);
-        return YES;
-    });
-    ((id<YTFreedomSettingsItemHooks>)prefs).settingIcon = YTFIcon(530);
-    [items addObject:prefs];
+            });
+        if (row) {
+            ((id<YTFreedomSettingsItemHooks>)row).settingIcon = YTFIcon((int)ytfGroupIcon(group.group));
+            [items addObject:row];
+        }
+    }
 
     if ([settingsVC respondsToSelector:@selector(setSectionItems:forCategory:title:icon:titleDescription:headerHidden:)]) {
         [(id<YTFreedomSettingsVC>)settingsVC setSectionItems:items
@@ -586,7 +445,7 @@ static void buildYTFreedomSection(id manager) {
                   titleDescription:nil
                       headerHidden:NO];
     } else {
-        os_log(ytfLog(), "YTFreedom: settings VC lacks setSectionItems:... — section not shown");
+        os_log(ytfLog(), "YTFreedom: settings VC lacks setSectionItems:... - section not shown");
     }
 }
 

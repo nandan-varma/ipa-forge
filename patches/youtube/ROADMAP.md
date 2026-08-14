@@ -379,23 +379,37 @@ the `YTFreedom: hooked -[...]` os_log lines at launch.
 
 | Goal | Status |
 | --- | --- |
-| G0 Settings framework | ✅ (0.1–0.5 done; needs on-device pass) |
-| G1–G3 Player bar / overlay / behavior | ✅ implemented — on-device pass pending |
-| G4 Old quality picker | ✅ implemented — on-device pass pending |
-| G5 Extra speed (0.25×–10×) | ✅ implemented — on-device pass pending |
-| G6 Player gestures | ✅ implemented (edge swipes: brightness/volume/speed + HUD) — on-device pass pending |
-| G7 Background playback | ✅ implemented — on-device pass pending |
-| G8–G9 Navbar/Tabbar | ✅ implemented + **You-tab (FEaccount) support** — on-device pass pending |
-| G10–G11 Feed/Shorts | ✅ implemented — Shorts rail now filtered by **icon type** (no a11y ids in 21.32.4); dead id-targets moved to **Beta** — on-device pass pending |
-| G12 Misc | ✅ implemented (+ NoYTPremium promo blockers, menu-item removal) — on-device pass pending |
-| G13 Appearance (OLED) | ✅ fixed + expanded (pageStyle cast bug; full palette + surfaces) — on-device pass pending |
-| G14 Preferences manager | ✅ implemented (import/export/reset/cache) — on-device pass pending |
-| G15 Native share | ⛔ blocked on API drift — see below |
-| G16 RYD dislikes | 🔄 partial research — see below |
-| G17 Downloads | ⬜ final milestone — sub-plan below |
-| G18 YTLite extras | ✅ portable subset done (red progress bar, related-videos hide, timestamped link on pause, menu-item removal, sticky navbar, label fitting, playlist minibar) — on-device pass pending |
-| G19 Adblock polish | ✅ (promo blockers folded into G12) |
-| G20 New-IPA UX batch | ✅ A/B submenu rebuilt from **otool-verified** flags (14/16 real; 2 dropped); watch action-bar re-hooked on `YTSlimVideoDetailsActionView` (covers both variants); restart pills on config-bound toggles — on-device pass pending |
+| G0 Settings framework | ✅ rebuilt table-driven from a single source of truth (`dylib/YTFFeatures.m` catalog): curated top sections (Player/Appearance/Shorts/Feed/Navigation/Tab bar), everything else under Advanced; choices render as checkmark pickers; defaults + restart hints come from the catalog |
+| G1–G3 Player bar / overlay / behavior | ✅ Player section cut to the curated 5 (+gesture customizations); the rest demoted to Advanced → Advanced player (beta) — on-device pass pending |
+| G4 Old quality picker | ✅ default ON — on-device pass pending |
+| G5 Extra speed (0.25×–10×) | ✅ default ON — on-device pass pending |
+| G6 Player gestures | ✅ default ON; left/right edge-swipe controls are now checkmark dropdowns — on-device pass pending |
+| G7 Background playback | ✅ default ON — on-device pass pending |
+| G8–G9 Navbar/Tabbar | ✅ You-tab (FEaccount) identifier-based default; Navbar group top-level — on-device pass pending |
+| G10–G11 Feed/Shorts | ✅ real targets only (icon-filtered rail); dead id-targets under Advanced → Beta — on-device pass pending |
+| G12 Misc | ✅ folded into Advanced → System |
+| G13 Appearance (OLED) | ✅ top-level group — on-device pass pending |
+| G14 Preferences manager | ✅ bottom group (import/export/reset/cache) |
+| G15 Native share | ⛔ blocked — Future (disabled row) |
+| G16 RYD dislikes | ⛔ researched — Future (disabled row) |
+| G17 Downloads | ⛔ disabled — Future (disabled row); Downloading settings group removed |
+| G18 YTLite extras | ✅ portable subset under Advanced player (beta) |
+| G19 Adblock polish | ✅ always-on |
+| G20 New-IPA UX batch | ✅ A/B Testing under Advanced with otool-verified flags + restart pills — on-device pass pending |
+
+### v0.0.3 — settings restructure + two bug fixes
+
+- **Single source of truth**: `dylib/YTFFeatures.m` is the catalog (one row per
+  setting: key/title/detail/group/kind/default/restart/beta/hidden).
+  `YTFreedom.m` registers defaults from it; `SettingsUI.m` renders every group
+  from it; the restart hint scans it. Adding a feature = one table row.
+- **Linker string bug (important for future ports)**: ld64 silently DROPS
+  string literals containing non-ASCII characters when merging constants —
+  `@"… — …"` literals never reach the binary (blank row titles). Verified
+  with a minimal repro; fix = keep every string literal pure ASCII in this
+  dylib. r2 shipped this bug; v0.0.3 fixed it.
+- Hidden fixed defaults (registered, not rendered): KHideCreateButton=ON,
+  KGestureActivationArea=1, KGestureHUDSize=1, KGestureHUDPosition=0.
 
 ### v0.0.2 r2 — binary-verified findings (record for future ports)
 
