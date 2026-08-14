@@ -1,8 +1,8 @@
 # Adding a new app — end-to-end playbook
 
 This is the canonical "give me an IPA, port everything" procedure. It is
-generic; the per-app runbooks ([YouTube](../patches/youtube-21.32.4/PLAYBOOK.md),
-[Spotify](../patches/spotify-9.1.72/PLAYBOOK.md)) apply it to their apps.
+generic; the per-app runbooks ([YouTube](../patches/youtube/PLAYBOOK.md),
+[Spotify](../patches/spotify/PLAYBOOK.md)) apply it to their apps.
 
 ## Phase 0 — accept the IPA
 

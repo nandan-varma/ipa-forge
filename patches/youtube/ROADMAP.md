@@ -14,7 +14,7 @@ Status legend: ✅ done · 🔄 in progress · ⬜ planned · ⛔ verified absen
 - Delivery: `YouTubeMod_21.32.4_unsigned.ipa` (unsigned; AltStore signs at install).
 - Hook verification is built into forge: `forge hooks extract|verify|audit` (class/method
   walk of `__objc_classlist`/`__objc_methlist`/`__objc_selrefs`, chained-fixup aware) and
-  the `hooks:` block in `youtube-mod.yaml` (159 declared, 12 required). The parser misses
+  the `hooks:` block in `youtube.yaml` (159 declared, 12 required). The parser misses
   some methods; every suspicious selector was cross-checked with `strings` on the binary —
   **all confirmed present**.
 
@@ -321,7 +321,7 @@ YTReExplore, alternate-app-icons (no icon set in our build).
 
 `forge hooks audit --ipa <decrypted.ipa> --dir dylib/` classifies every hook
 our dylib installs against the 21.32.4 binary (`forge hooks verify` does the
-same for the `hooks:` block in `youtube-mod.yaml`). Results: 151/159 attach;
+same for the `hooks:` block in `youtube.yaml`). Results: 151/159 attach;
 the 8 `unverified` are classname-only classes / parser decode gaps (all
 strings-confirmed present). Two earlier findings, both fixed:
 

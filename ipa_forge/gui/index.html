@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <title>ipa-forge — Patch &amp; Re-sign</title>
+    <title>ipa-forge — Patch an IPA</title>
     <style>
       :root {
         --accent: #0071e3;
@@ -19,11 +19,8 @@
         --success: #34c759;
         --danger: #ff3b30;
         --success-bg: rgba(52, 199, 89, 0.12);
-        --success-border: rgba(52, 199, 89, 0.5);
         --danger-bg: rgba(255, 59, 48, 0.12);
         --danger-border: rgba(255, 59, 48, 0.5);
-        --pending-bg: rgba(120, 120, 128, 0.12);
-        --pending-border: rgba(120, 120, 128, 0.4);
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -35,656 +32,208 @@
           --shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
           --accent: #0a84ff;
           --accent-hover: #3a9bff;
-          --accent-press: #0a7ae6;
         }
       }
-      * {
-        box-sizing: border-box;
-      }
-      html {
-        -webkit-text-size-adjust: 100%;
-      }
+      * { box-sizing: border-box; }
       body {
         margin: 0;
-        font-family:
-          -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
-          "Segoe UI", sans-serif;
+        font-family: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
         background: var(--bg);
         color: var(--text);
-        line-height: 1.45;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-      .wrap {
-        max-width: 560px;
-        margin: 0 auto;
-        padding: 56px 20px 72px;
-      }
-      header {
-        text-align: center;
-        margin-bottom: 36px;
-      }
-      .logo {
-        display: inline-flex;
+        display: flex;
+        min-height: 100vh;
         align-items: center;
         justify-content: center;
-        width: 60px;
-        height: 60px;
-        border-radius: 16px;
-        background: linear-gradient(135deg, #0a84ff, #0060df);
-        color: #fff;
-        margin-bottom: 14px;
-        box-shadow: 0 4px 16px rgba(10, 132, 255, 0.35);
+        padding: 24px;
       }
-      h1 {
-        margin: 0 0 4px;
-        font-size: 30px;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-      }
-      .subtitle {
-        margin: 0;
-        color: var(--text-secondary);
-        font-size: 15px;
-      }
-
       .card {
         background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        box-shadow: var(--shadow);
-        padding: 26px 26px 20px;
-      }
-      .field {
-        margin-bottom: 20px;
-      }
-      .field > label,
-      .field-label {
-        display: block;
-        font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 7px;
-        letter-spacing: 0.01em;
-      }
-      .hint {
-        margin: 7px 0 0;
-        font-size: 12px;
-        color: var(--text-secondary);
-      }
-      .hint code {
-        font-family: ui-monospace, "SF Mono", Menlo, monospace;
-        font-size: 11px;
-        background: var(--pending-bg);
-        padding: 1px 5px;
-        border-radius: 5px;
-      }
-
-      /* File drop zones */
-      .drop {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        border: 1.5px dashed var(--border);
-        border-radius: 14px;
-        padding: 14px 16px;
-        cursor: pointer;
-        user-select: none;
-        transition:
-          border-color 0.15s ease,
-          background 0.15s ease;
-      }
-      .drop:hover {
-        border-color: var(--accent);
-        background: var(--success-bg);
-        background: var(--pending-bg);
-      }
-      .drop .icon {
-        flex: none;
-        color: var(--accent);
-        opacity: 0.9;
-      }
-      .drop .meta {
-        flex: 1;
-        min-width: 0;
-      }
-      .drop .fname {
-        font-size: 14px;
-        font-weight: 500;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .drop .fplaceholder {
-        font-size: 13px;
-        color: var(--text-secondary);
-      }
-      input[type="file"] {
-        display: none;
-      }
-
-      input[type="text"] {
-        width: 100%;
-        padding: 12px 14px;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        background: var(--bg);
-        color: var(--text);
-        font-size: 15px;
-        font-family: inherit;
-        transition:
-          border-color 0.15s ease,
-          box-shadow 0.15s ease;
-      }
-      input[type="text"]::placeholder {
-        color: var(--text-secondary);
-      }
-      input[type="text"]:focus {
-        outline: none;
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3.5px rgba(10, 132, 255, 0.25);
-      }
-
-      /* Dry-run switch */
-      .switch {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        cursor: pointer;
-        padding: 6px 0;
-      }
-      .switch input {
-        display: none;
-      }
-      .switch .switch-text {
-        font-size: 14px;
-        font-weight: 500;
-      }
-      .switch .switch-sub {
-        display: block;
-        font-size: 12px;
-        font-weight: 400;
-        color: var(--text-secondary);
-      }
-      .track {
-        flex: none;
-        width: 46px;
-        height: 28px;
-        border-radius: 14px;
-        background: var(--border);
-        position: relative;
-        transition: background 0.2s ease;
-      }
-      .knob {
-        position: absolute;
-        top: 2px;
-        left: 2px;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        background: #fff;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-        transition: transform 0.2s ease;
-      }
-      .switch input:checked + .track {
-        background: var(--accent);
-      }
-      .switch input:checked + .track .knob {
-        transform: translateX(18px);
-      }
-
-      .btn {
-        width: 100%;
-        margin-top: 18px;
-        padding: 15px;
-        border: none;
-        border-radius: 14px;
-        background: var(--accent);
-        color: #fff;
-        font-size: 16px;
-        font-weight: 600;
-        font-family: inherit;
-        cursor: pointer;
-        transition:
-          background 0.15s ease,
-          transform 0.05s ease;
-      }
-      .btn:hover {
-        background: var(--accent-hover);
-      }
-      .btn:active {
-        background: var(--accent-press);
-        transform: scale(0.985);
-      }
-      .btn:disabled {
-        opacity: 0.5;
-        cursor: default;
-        transform: none;
-      }
-
-      /* Result card */
-      #result {
-        display: none;
-        margin-top: 16px;
-      }
-      #result.visible {
-        display: block;
-      }
-      .result-card {
-        display: flex;
-        gap: 14px;
-        align-items: flex-start;
         border-radius: 18px;
-        border: 1px solid;
-        padding: 18px 20px;
+        box-shadow: var(--shadow);
+        padding: 32px;
+        width: 100%;
+        max-width: 460px;
       }
-      .result-card .icon {
-        flex: none;
-        margin-top: 1px;
-        font-size: 22px;
-        line-height: 1;
-        font-weight: 700;
-      }
-      .result-card.ok {
-        background: var(--success-bg);
-        border-color: var(--success-border);
-        color: var(--text);
-      }
-      .result-card.error {
-        background: var(--danger-bg);
-        border-color: var(--danger-border);
-        color: var(--text);
-      }
-      .result-card.pending {
-        background: var(--pending-bg);
-        border-color: var(--pending-border);
-        color: var(--text);
-      }
-      .result-card.ok .icon {
-        color: var(--success);
-      }
-      .result-card.error .icon {
-        color: var(--danger);
-      }
-      .result-card.pending .icon {
-        color: var(--accent);
-      }
-      .spinner {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 2.5px solid currentColor;
-        border-top-color: transparent;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-      }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-      .result-title {
-        font-size: 15px;
-        font-weight: 700;
-      }
-      .result-meta {
-        margin-top: 2px;
-        font-size: 13px;
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      .subtitle { color: var(--text-secondary); font-size: 13px; margin: 0 0 20px; }
+      .drop {
+        border: 2px dashed var(--border);
+        border-radius: 12px;
+        padding: 28px 16px;
+        text-align: center;
         color: var(--text-secondary);
+        cursor: pointer;
+        transition: border-color 0.2s, color 0.2s;
+        font-size: 14px;
       }
-      ul.ops {
-        margin: 10px 0 2px;
-        padding: 0;
-        list-style: none;
+      .drop.dragover, .drop:hover { border-color: var(--accent); color: var(--text); }
+      .drop .file-name { color: var(--text); font-weight: 600; word-break: break-all; }
+      .drop input { display: none; }
+      .status {
+        margin-top: 16px;
+        border-radius: 10px;
+        padding: 12px 14px;
         font-size: 13px;
+        display: none;
       }
-      ul.ops li {
-        padding: 2px 0;
-        display: flex;
-        gap: 8px;
-      }
-      .op-status {
-        margin-left: auto;
-        font-weight: 600;
-      }
-      .op-status.applied {
-        color: var(--success);
-      }
-      .op-status.skipped {
-        color: var(--text-secondary);
-      }
-      .op-status.failed {
-        color: var(--danger);
-      }
-      .download-btn {
-        display: inline-block;
-        margin-top: 12px;
-        padding: 10px 20px;
-        border-radius: 980px;
+      .status.error { display: block; background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger); }
+      .status.info { display: block; background: var(--success-bg); border: 1px solid rgba(52,199,89,0.5); color: var(--success); }
+      .status.warn { display: block; background: rgba(255,149,0,0.12); border: 1px solid rgba(255,149,0,0.5); color: #ff9500; }
+      .status.warn b { color: var(--text); }
+      .detected { display: none; margin-top: 16px; font-size: 13px; }
+      .detected.show { display: block; }
+      .detected .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
+      .detected .row:last-child { border-bottom: none; }
+      .detected .k { color: var(--text-secondary); }
+      .detected .v { font-weight: 600; }
+      button {
+        margin-top: 18px;
+        width: 100%;
+        padding: 14px;
+        border: none;
+        border-radius: 12px;
         background: var(--accent);
         color: #fff;
-        text-decoration: none;
-        font-size: 14px;
+        font-size: 15px;
         font-weight: 600;
-        transition: background 0.15s ease;
+        cursor: pointer;
+        transition: background 0.2s;
       }
-      .download-btn:hover {
-        background: var(--accent-hover);
-      }
-
-      footer {
-        margin-top: 28px;
-        text-align: center;
-        font-size: 12px;
-        color: var(--text-secondary);
-      }
-      .disabled-group {
-        opacity: 0.45;
-        pointer-events: none;
-        transition: opacity 0.2s ease;
-      }
+      button:hover { background: var(--accent-hover); }
+      button:active { background: var(--accent-press); }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .footnote { margin-top: 14px; color: var(--text-secondary); font-size: 12px; text-align: center; }
+      .download { margin-top: 14px; text-align: center; }
+      .download a { color: var(--accent); font-weight: 600; text-decoration: none; }
     </style>
   </head>
   <body>
-    <div class="wrap">
-      <header>
-        <span class="logo" aria-hidden="true">
-          <svg
-            viewBox="0 0 24 24"
-            width="30"
-            height="30"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14.5 12l-2.5-2.5z"
-            />
-          </svg>
-        </span>
-        <h1>ipa-forge</h1>
-        <p class="subtitle">Patch and re-sign an IPA for AltStore Classic</p>
-      </header>
+    <div class="card">
+      <h1>ipa-forge</h1>
+      <p class="subtitle">Select an IPA to patch it with the matching patch set. Output is unsigned — ready for AltStore.</p>
 
-      <form
-        id="patch-form"
-        action="/patch"
-        method="post"
-        enctype="multipart/form-data"
-      >
-        <div class="card">
-          <div class="field">
-            <span class="field-label">IPA file</span>
-            <label class="drop" for="ipa">
-              <span class="icon" aria-hidden="true">
-                <svg
-                  viewBox="0 0 24 24"
-                  width="22"
-                  height="22"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M6 2h9l4 4v16H6z" />
-                  <path d="M15 2v5h5" />
-                  <path d="M9 13h6M9 17h4" />
-                </svg>
-              </span>
-              <span class="meta"
-                ><span class="fname" id="ipa-name"
-                  >Choose an .ipa file…</span
-                ></span
-              >
-            </label>
-            <input type="file" name="ipa" id="ipa" accept=".ipa" required />
-          </div>
+      <div class="drop" id="drop">
+        <span id="dropText">Click or drop your .ipa file here</span>
+        <input type="file" id="file" accept=".ipa" />
+      </div>
 
-          <div class="field">
-            <span class="field-label">Patch definition</span>
-            <label class="drop" for="patches">
-              <span class="icon" aria-hidden="true">
-                <svg
-                  viewBox="0 0 24 24"
-                  width="22"
-                  height="22"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path
-                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                  />
-                  <path d="M14 2v6h6" />
-                  <path d="M8 13h8M8 17h5" />
-                </svg>
-              </span>
-              <span class="meta"
-                ><span class="fname" id="patches-name"
-                  >.yaml, .yml, .json — or a .zip</span
-                ></span
-              >
-            </label>
-            <input
-              type="file"
-              name="patches"
-              id="patches"
-              accept=".yaml,.yml,.json,.zip"
-              required
-            />
-            <p class="hint">
-              A .zip of the patch directory (definition + <code>assets/</code>)
-              when using resource_replace / resource_add.
-            </p>
-          </div>
+      <div class="status" id="status"></div>
 
-          <div class="field" id="profile-group">
-            <span class="field-label">Provisioning profile(s)</span>
-            <label class="drop" for="profile">
-              <span class="icon" aria-hidden="true">
-                <svg
-                  viewBox="0 0 24 24"
-                  width="22"
-                  height="22"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="3" y="5" width="18" height="14" rx="3" />
-                  <path d="M3 10h18M7 15h4" />
-                </svg>
-              </span>
-              <span class="meta"
-                ><span class="fname" id="profile-name"
-                  >None selected — one signs everything</span
-                ></span
-              >
-            </label>
-            <input type="file" name="profile" id="profile" multiple />
-            <p class="hint">
-              Optional for dry run. Select several to sign each app extension /
-              watch app with its own profile, matched by bundle id.
-            </p>
-          </div>
+      <div class="detected" id="detected">
+        <div class="row"><span class="k">App</span><span class="v" id="dApp">–</span></div>
+        <div class="row"><span class="k">Version</span><span class="v" id="dVersion">–</span></div>
+        <div class="row"><span class="k">Patch set</span><span class="v" id="dPatchSet">–</span></div>
+        <div class="row"><span class="k">Targets</span><span class="v" id="dTarget">–</span></div>
+      </div>
 
-          <div class="field" id="identity-group">
-            <span class="field-label">Signing identity</span>
-            <input
-              type="text"
-              name="identity"
-              id="identity"
-              placeholder="e.g. Apple Development: Your Name (TEAM123456)"
-              autocomplete="off"
-              spellcheck="false"
-            />
-            <p class="hint">
-              SHA-1 hash or unique name substring from
-              <code>security find-identity -v -p codesigning</code>.
-            </p>
-          </div>
+      <button id="patchBtn" disabled>Patch</button>
 
-          <label class="switch" for="dry_run">
-            <span class="switch-text"
-              >Dry run<span class="switch-sub"
-                >Validate patches only — no signing</span
-              ></span
-            >
-            <input type="checkbox" name="dry_run" value="1" id="dry_run" />
-            <span class="track"><span class="knob"></span></span>
-          </label>
-        </div>
-
-        <button id="submit-btn" class="btn" type="submit">
-          Patch &amp; Sign
-        </button>
-      </form>
-
-      <div id="result"><div class="result-card" id="result-card"></div></div>
-
-      <footer>
-        GPLv3-or-later &middot; Runs locally on 127.0.0.1 &middot; ipa-forge
-        __VERSION__
-      </footer>
+      <div class="download" id="download"></div>
+      <p class="footnote">version mismatch shows a warning but patching still runs — hook verification is the safety net.</p>
     </div>
 
     <script>
-      const $ = (id) => document.getElementById(id);
+      const fileInput = document.getElementById("file");
+      const drop = document.getElementById("drop");
+      const dropText = document.getElementById("dropText");
+      const status = document.getElementById("status");
+      const detected = document.getElementById("detected");
+      const patchBtn = document.getElementById("patchBtn");
+      const download = document.getElementById("download");
 
-      // Show chosen filenames in each drop zone.
-      const drops = {
-        ipa: { el: $("ipa-name"), placeholder: "Choose an .ipa file…" },
-        patches: {
-          el: $("patches-name"),
-          placeholder: ".yaml, .yml, .json — or a .zip",
-        },
-        profile: {
-          el: $("profile-name"),
-          placeholder: "None selected — one signs everything",
-        },
-      };
-      for (const [inputId, drop] of Object.entries(drops)) {
-        $(inputId).addEventListener("change", () => {
-          const names = Array.from($(inputId).files || []).map((f) => f.name);
-          drop.el.textContent = names.length
-            ? names.join(", ")
-            : drop.placeholder;
-        });
+      let currentFile = null;
+      let currentPatchSet = null;
+
+      function showStatus(kind, html) {
+        status.className = "status " + kind;
+        status.innerHTML = html;
       }
 
-      // Dry run toggles button label and grays out signing inputs.
-      const dryRun = $("dry_run");
-      const btn = $("submit-btn");
-      const updateDryRunUI = () => {
-        btn.textContent = dryRun.checked
-          ? "Validate (Dry Run)"
-          : "Patch & Sign";
-        $("profile-group").classList.toggle("disabled-group", dryRun.checked);
-        $("identity-group").classList.toggle("disabled-group", dryRun.checked);
-      };
-      dryRun.addEventListener("change", updateDryRunUI);
-      updateDryRunUI();
+      function setDetected(app, version, patchSet, target) {
+        detected.classList.add("show");
+        document.getElementById("dApp").textContent = app || "–";
+        document.getElementById("dVersion").textContent = version || "–";
+        document.getElementById("dPatchSet").textContent = patchSet || "none found";
+        document.getElementById("dTarget").textContent = target || "–";
+      }
 
-      // Inline result rendering (no page navigation). All values are written via
-      // textContent -- nothing from the pipeline is ever interpolated as HTML.
-      const result = $("result");
-      const resultCard = $("result-card");
-      function showResult(kind, title, meta, ops, downloadUrl) {
-        resultCard.className = "result-card " + kind;
-        resultCard.textContent = "";
+      async function analyze(file) {
+        showStatus("info", "Analyzing…");
+        download.innerHTML = "";
+        const fd = new FormData();
+        fd.append("ipa", file);
+        const res = await fetch("/detect", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) {
+          showStatus("error", data.error || "Could not read the IPA.");
+          patchBtn.disabled = true;
+          return;
+        }
+        const ps = data.patch_sets || [];
+        currentPatchSet = ps[0] ? ps[0].name : null;
+        setDetected(data.bundle_id, data.version, currentPatchSet || "none", ps[0] ? ps[0].target_version : "–");
 
-        const icon = document.createElement("span");
-        icon.className = "icon";
-        icon.setAttribute("aria-hidden", "true");
-        if (kind === "pending") {
-          const spinner = document.createElement("span");
-          spinner.className = "spinner";
-          icon.appendChild(spinner);
+        if (!ps.length) {
+          showStatus("error", "No patch set found for <b>" + (data.bundle_id || "this app") + "</b>.");
+          patchBtn.disabled = true;
+        } else if (data.mismatch) {
+          showStatus(
+            "warn",
+            "Heads up: this patch set targets <b>" + ps[0].target_version + "</b> but your IPA is <b>" +
+              data.version + "</b>. The hooks gate will still verify everything — patching is allowed."
+          );
+          patchBtn.disabled = false;
         } else {
-          icon.textContent = kind === "ok" ? "✓" : "✕";
+          showStatus("info", "Ready — patch set <b>" + currentPatchSet + "</b> matches.");
+          patchBtn.disabled = false;
         }
-        resultCard.appendChild(icon);
-
-        const body = document.createElement("div");
-        body.style.minWidth = "0";
-
-        const titleEl = document.createElement("div");
-        titleEl.className = "result-title";
-        titleEl.textContent = title;
-        body.appendChild(titleEl);
-
-        if (meta) {
-          const metaEl = document.createElement("div");
-          metaEl.className = "result-meta";
-          metaEl.textContent = meta;
-          body.appendChild(metaEl);
-        }
-
-        if (ops && ops.length) {
-          const list = document.createElement("ul");
-          list.className = "ops";
-          for (const op of ops) {
-            const item = document.createElement("li");
-            const name = document.createElement("span");
-            name.textContent = op.id;
-            item.appendChild(name);
-            const status = document.createElement("span");
-            status.className = "op-status " + op.status;
-            status.textContent = op.status;
-            item.appendChild(status);
-            list.appendChild(item);
-          }
-          body.appendChild(list);
-        }
-
-        if (downloadUrl) {
-          const link = document.createElement("a");
-          link.className = "download-btn";
-          link.href = downloadUrl;
-          link.textContent = "Download patched.ipa";
-          body.appendChild(link);
-        }
-
-        resultCard.appendChild(body);
-        result.classList.add("visible");
-        result.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
 
-      $("patch-form").addEventListener("submit", async (e) => {
+      drop.addEventListener("click", () => fileInput.click());
+      drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("dragover"); });
+      drop.addEventListener("dragleave", () => drop.classList.remove("dragover"));
+      drop.addEventListener("drop", (e) => {
         e.preventDefault();
-        btn.disabled = true;
-        showResult("pending", "Processing…", "", [], null);
-        try {
-          const res = await fetch("/patch", {
-            method: "POST",
-            body: new FormData(e.target),
-          });
-          const body = await res.json();
-          if (!res.ok) {
-            showResult(
-              "error",
-              "Error",
-              body.error || "HTTP " + res.status,
-              [],
-              null,
-            );
-            return;
-          }
-          const m = body.manifest || {};
-          const ops = m.patches_applied || [];
-          const meta = (m.bundle_id || "") + " v" + (m.version || "");
-          const title = body.download_url ? "Patched" : "Dry Run OK";
-          showResult("ok", title, meta, ops, body.download_url);
-        } catch (err) {
-          showResult("error", "Request failed", String(err), [], null);
-        } finally {
-          btn.disabled = false;
+        drop.classList.remove("dragover");
+        if (e.dataTransfer.files.length) {
+          currentFile = e.dataTransfer.files[0];
+          dropText.textContent = currentFile.name;
+          dropText.classList.add("file-name");
+          analyze(currentFile);
         }
+      });
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files.length) {
+          currentFile = fileInput.files[0];
+          dropText.textContent = currentFile.name;
+          dropText.classList.add("file-name");
+          analyze(currentFile);
+        }
+      });
+
+      patchBtn.addEventListener("click", async () => {
+        if (!currentFile || !currentPatchSet) return;
+        patchBtn.disabled = true;
+        showStatus("info", "Patching… (a 150 MB IPA takes a few minutes)");
+        download.innerHTML = "";
+        const fd = new FormData();
+        fd.append("ipa", currentFile);
+        fd.append("patch_set", currentPatchSet);
+        fd.append("no_sign", "true");
+        const res = await fetch("/patch", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) {
+          showStatus("error", data.error || "Patching failed.");
+          patchBtn.disabled = false;
+          return;
+        }
+        const manifest = data.manifest || {};
+        const applied = (manifest.patches_applied || []).filter((p) => p.status === "applied").length;
+        showStatus("info", "Patched — " + applied + " operation(s) applied.");
+        if (data.download_url) {
+          download.innerHTML = '<a href="' + data.download_url + '">Download patched IPA</a>';
+        }
+        patchBtn.disabled = false;
       });
     </script>
   </body>

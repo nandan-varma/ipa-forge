@@ -8,7 +8,7 @@ is the concrete application.
 
 | Path | What it is |
 | --- | --- |
-| `spotify-mod.yaml` | The definition (strip + stage + weak link + `hooks:`) |
+| `spotify.yaml` | The definition (strip + stage + weak link + `hooks:`) |
 | `dylib/` | SpotifyHook sources: `SpotifyHook.h/.m`, `SideloadFix.m`, `SessionProtection.m`, `PremiumPatch.m` + `PBProto.m` (wire-format editor), `AdBlock.m`, `Settings.m` |
 | `dylib-test/` | Minimal do-nothing dylib (`spotify-test.yaml`) for isolating launch crashes |
 | `/Users/nandan/Downloads/com.spotify.client_9.1.72_und3fined.ipa` | Base IPA (decrypted) |
@@ -17,12 +17,12 @@ is the concrete application.
 
 ```bash
 cd /Users/nandan/dev/ipa-forge && source .venv/bin/activate
-patches/spotify-9.1.72/dylib/build.sh                # -> build/SpotifyHook.dylib
+patches/spotify/dylib/build.sh                # -> build/SpotifyHook.dylib
 forge patch --ipa /Users/nandan/Downloads/com.spotify.client_9.1.72_und3fined.ipa \
-  --patches patches/spotify-9.1.72/spotify-mod.yaml \
+  --patches patches/spotify/spotify.yaml \
   --output /tmp/x.ipa --dry-run                      # hooks gate (15/16 attach)
 forge patch --ipa /Users/nandan/Downloads/com.spotify.client_9.1.72_und3fined.ipa \
-  --patches patches/spotify-9.1.72/spotify-mod.yaml \
+  --patches patches/spotify/spotify.yaml \
   --no-sign --output /Users/nandan/dev/ytlite-ipa/SpotifyMod_9.1.72_unsigned.ipa
 ```
 
@@ -58,9 +58,9 @@ install, `<feature> ready|disabled`, `patched bootstrap/customize`,
 
 ## Porting to a newer Spotify
 
-1. New decrypted IPA → bump `target.version` in `spotify-mod.yaml`.
+1. New decrypted IPA → bump `target.version` in `spotify.yaml`.
 2. `forge patch --dry-run` → the hooks report shows what broke.
-3. `forge hooks diff --old 9.1.72.ipa --new <new>.ipa --patches spotify-mod.yaml`
+3. `forge hooks diff --old 9.1.72.ipa --new <new>.ipa --patches spotify.yaml`
    — exact regressions.
 4. Fix the dylib sources, rebuild, regenerate the hooks block
    (`forge hooks manifest --dir dylib/ --required hooks-required.txt`) plus

@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Minimal local web GUI wrapping the same ipa_forge.pipeline used by the CLI.
+"""Local web GUI wrapping the same ipa_forge.pipeline used by the CLI.
 
-Single-user, local-only tool -- request state lives in module-level dicts,
-which is intentionally not safe for concurrent multi-user deployment (this
-is meant to run on localhost next to AltServer, not as a hosted service).
-The page itself is a self-contained static template (gui/index.html) with an
-inline fetch flow -- no build step, no external assets, works offline.
+Novice flow: pick an IPA file -> the GUI auto-detects the app and the
+matching patch set, warns (non-blocking) if the patch set targets a
+different version, then one "Patch" button produces an unsigned IPA for
+AltStore. No signing identity, no profiles, no YAML editing required.
+
+Single-user, local-only: request state lives in module-level dicts. The page
+is a self-contained static template (gui/index.html) with an inline fetch
+flow — no build step, works offline.
 """
 
 from __future__ import annotations
@@ -21,13 +24,15 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
-from ipa_forge.gui.uploads import UploadError, resolve_patch_definition
+from ipa_forge.bundle.ipa import load_bundle
+from ipa_forge.cli.common import validated_extract
+from ipa_forge.patches import find_patch_sets_for_bundle
 from ipa_forge.pipeline import PipelineError, run_pipeline
+from ipa_forge.validators.ipa_validator import IpaValidationError
 
 app = FastAPI(title="ipa-forge")
 
 _WORK_DIR = Path(tempfile.mkdtemp(prefix="ipa_forge_gui_"))
-# token -> (path on disk, display filename for the download response)
 _outputs: dict[str, tuple[Path, str]] = {}
 _OUTPUTS_MAX = 20
 
@@ -35,7 +40,7 @@ _OUTPUTS_MAX = 20
 def _package_version() -> str:
     try:
         return _installed_version("ipa-forge")
-    except PackageNotFoundError:  # not installed (e.g. run from a source checkout)
+    except PackageNotFoundError:
         return "0.1.0"
 
 
@@ -49,59 +54,105 @@ def index() -> str:
     return _FORM_HTML
 
 
-@app.post("/patch")
-async def patch(
-    ipa: UploadFile = File(...),
-    patches: UploadFile = File(...),
-    profile: list[UploadFile] | None = File(None),
-    identity: str | None = Form(None),
-    dry_run: bool = Form(False),
-) -> JSONResponse:
+@app.post("/detect")
+async def detect(ipa: UploadFile = File(...)) -> JSONResponse:
+    """Analyze an uploaded IPA: bundle id, version, matching patch sets, and
+    a version-mismatch warning (informational — patching is still allowed)."""
     request_dir = _WORK_DIR / uuid.uuid4().hex
     request_dir.mkdir(parents=True)
     try:
-        # F4: signing inputs are only needed for a real (non-dry-run) run.
-        if not dry_run:
-            if identity is None or not identity.strip():
-                return JSONResponse(status_code=400, content={"error": "identity is required unless dry_run is set"})
-            if not profile:
-                return JSONResponse(
-                    status_code=400,
-                    content={"error": "at least one provisioning profile is required unless dry_run is set"},
-                )
-        # Upload filenames are client-supplied and untrusted -- take only the
-        # basename before joining into a filesystem path, or a crafted filename
-        # like "../../etc/whatever" could write outside request_dir.
         ipa_path = request_dir / Path(ipa.filename or "upload.ipa").name
-        patches_upload_path = request_dir / Path(patches.filename or "patches").name
         ipa_path.write_bytes(await ipa.read())
-        patches_upload_path.write_bytes(await patches.read())
-
         try:
-            patches_path = resolve_patch_definition(patches_upload_path, request_dir)
-        except UploadError as e:
+            app_path = validated_extract(ipa_path, request_dir / "extracted")
+            bundle = load_bundle(app_path)
+        except (ValueError, IpaValidationError) as e:
             return JSONResponse(status_code=400, content={"error": str(e)})
 
-        profile_dir = request_dir / "profiles"
-        profile_dir.mkdir()
-        profile_paths = []
-        for i, upload in enumerate(profile or []):
-            dest = profile_dir / f"{i}_{Path(upload.filename or 'profile.mobileprovision').name}"
-            dest.write_bytes(await upload.read())
-            profile_paths.append(dest)
+        patch_sets = []
+        for ps in find_patch_sets_for_bundle(bundle.bundle_id):
+            match = ps.version_exact is None or ps.version_exact == bundle.version
+            patch_sets.append(
+                {
+                    "name": ps.name,
+                    "target_version": ps.version_exact or ps.version_spec,
+                    "matches": match,
+                }
+            )
+        return JSONResponse(
+            {
+                "bundle_id": bundle.bundle_id,
+                "version": bundle.version,
+                "build": bundle.build,
+                "patch_sets": patch_sets,
+                # a warning when the app has a patch set but the version differs
+                "mismatch": bool(patch_sets) and not any(p["matches"] for p in patch_sets),
+            }
+        )
+    finally:
+        shutil.rmtree(request_dir, ignore_errors=True)
+
+
+@app.post("/patch")
+async def patch(
+    ipa: UploadFile = File(...),
+    patch_set: str = Form(...),
+    identity: str | None = Form(None),
+    profile: list[UploadFile] | None = File(None),
+    dry_run: bool = Form(False),
+    no_sign: bool = Form(True),
+) -> JSONResponse:
+    """Patch an IPA with a discovered patch set. Defaults to unsigned output
+    for AltStore (no identity/profile needed); the version-mismatch warning
+    is non-blocking — the hooks gate still guards what attaches."""
+    request_dir = _WORK_DIR / uuid.uuid4().hex
+    request_dir.mkdir(parents=True)
+    try:
+        ipa_path = request_dir / Path(ipa.filename or "upload.ipa").name
+        ipa_path.write_bytes(await ipa.read())
+
+        from ipa_forge.patches import discover_patch_sets
+
+        definition = None
+        for ps in discover_patch_sets():
+            if ps.name == patch_set:
+                definition = ps.definition
+                break
+        if definition is None:
+            return JSONResponse(status_code=400, content={"error": f"unknown patch set '{patch_set}'"})
+
+        profile_paths: list[Path] = []
+        if not dry_run and not no_sign:
+            if not identity or not identity.strip():
+                return JSONResponse(status_code=400, content={"error": "identity is required for signed output"})
+            if not profile:
+                return JSONResponse(
+                    status_code=400, content={"error": "at least one profile is required for signed output"}
+                )
+            profile_dir = request_dir / "profiles"
+            profile_dir.mkdir()
+            for i, upload in enumerate(profile or []):
+                dest = profile_dir / f"{i}_{Path(upload.filename or 'profile.mobileprovision').name}"
+                dest.write_bytes(await upload.read())
+                profile_paths.append(dest)
 
         output_path = request_dir / f"patched_{ipa_path.name}"
-
         try:
-            result = run_pipeline(ipa_path, patches_path, identity or "", profile_paths, output_path, dry_run=dry_run)
+            result = run_pipeline(
+                ipa_path,
+                definition,
+                identity or "",
+                profile_paths,
+                output_path,
+                dry_run=dry_run,
+                no_sign=no_sign,
+                allow_version_mismatch=True,
+            )
         except PipelineError as e:
             return JSONResponse(status_code=400, content={"error": str(e)})
 
         response: dict = {"manifest": json.loads(result.manifest.to_json())}
         if result.output_path is not None:
-            # Stash the produced IPA outside the per-request dir (cleaned up
-            # in the finally below) so /download can still serve it, bounded
-            # by _evict_outputs so long-running sessions don't leak disk.
             token = uuid.uuid4().hex
             final_path = _WORK_DIR / f"{token}.ipa"
             result.output_path.replace(final_path)
@@ -114,7 +165,6 @@ async def patch(
 
 
 def _evict_outputs() -> None:
-    """Drop the oldest completed outputs once the cap is exceeded."""
     while len(_outputs) > _OUTPUTS_MAX:
         token = next(iter(_outputs))
         path, _ = _outputs.pop(token)

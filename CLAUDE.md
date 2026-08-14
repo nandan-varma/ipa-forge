@@ -23,7 +23,7 @@ making non-trivial changes to `pipeline.py` or `signing/`.
 - `docs/adding-an-app.md` — port a new app end-to-end.
 - `docs/adding-a-feature.md` — add a feature to a hook dylib (conventions).
 - `docs/patch-reference.md` / `docs/usage.md` — YAML + CLI reference.
-- The patch sets (`patches/youtube-21.32.4/`, `patches/spotify-9.1.72/`) each
+- The patch sets (`patches/youtube/`, `patches/spotify/`) each
   have a `PLAYBOOK.md` runbook with the app-specific commands and gotchas.
 
 ## Commands

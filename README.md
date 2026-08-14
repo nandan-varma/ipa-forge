@@ -28,8 +28,8 @@ Start at [`docs/README.md`](docs/README.md) — the index.
 
 | Set | Runbook | Features |
 | --- | --- | --- |
-| YouTube 21.32.4 | [`patches/youtube-21.32.4/PLAYBOOK.md`](patches/youtube-21.32.4/PLAYBOOK.md) | [`patches/youtube-21.32.4/README.md`](patches/youtube-21.32.4/README.md) |
-| Spotify 9.1.72 | [`patches/spotify-9.1.72/PLAYBOOK.md`](patches/spotify-9.1.72/PLAYBOOK.md) | [`patches/spotify-9.1.72/README.md`](patches/spotify-9.1.72/README.md) |
+| YouTube 21.32.4 | [`patches/youtube/PLAYBOOK.md`](patches/youtube/PLAYBOOK.md) | [`patches/youtube/README.md`](patches/youtube/README.md) |
+| Spotify 9.1.72 | [`patches/spotify/PLAYBOOK.md`](patches/spotify/PLAYBOOK.md) | [`patches/spotify/README.md`](patches/spotify/README.md) |
 
 ## Requirements
 

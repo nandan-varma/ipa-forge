@@ -9,4 +9,7 @@ dist/
 *.ipa.tmp/
 .pi/
 # staged tweak artifacts are built locally; keep the patch definitions only
-patches/spotify-9.1.72/build/
+patches/*/build*/
+patches/*/dev/build*/
+patches/*/dylib/build/
+patches/*/dev/build-test/

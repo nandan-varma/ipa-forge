@@ -1,92 +1,102 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""F4 (GUI side): the /patch endpoint accepts dry-run requests without any
-signing inputs, and rejects real runs that lack them. Dry-run never reaches
-the signing stages, so these tests need no Keychain identity (not macOS).
-"""
+"""GUI tests: the novice flow — /detect analyzes an IPA and returns the
+matching patch set (with a non-blocking version-mismatch warning), and
+/patch produces an unsigned IPA by patch-set name."""
 
 from __future__ import annotations
 
-import io
+import os
 from pathlib import Path
 
-import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from ipa_forge.gui.app import app
 
-_FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
-
-# A self-contained definition with no external assets (binary_replace only),
-# matching the synthetic fixture -- same shape as the macos-marked GUI tests.
-_BINARY_ONLY = (
-    "target:\n"
-    "  bundle_id: com.example.synthetic\n"
-    "  version: {exact: '1.0.0'}\n"
-    "patches:\n"
-    "  - id: zero-marker-bytes\n"
-    "    type: binary_replace\n"
-    "    executable: TestApp\n"
-    "    arch: arm64\n"
-    "    pattern: 'ca fe f0 0d de ad be ef 13 37 c0 de ab cd ef 01'\n"
-    "    replacement: '00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00'\n"
-    "    expected_matches: 1\n"
-)
+client = TestClient(app)
 
 
-def _post(client: TestClient, patches: Path, data: dict) -> httpx.Response:
-    ipa_bytes = (_FIXTURES / "synthetic_app.ipa").read_bytes()
-    return client.post(
-        "/patch",
-        files={
-            "ipa": ("synthetic_app.ipa", io.BytesIO(ipa_bytes), "application/octet-stream"),
-            "patches": ("binary_only.yaml", io.BytesIO(patches.read_bytes()), "application/x-yaml"),
-        },
-        data=data,
+@pytest.fixture(autouse=True)
+def _isolated_patches_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Point the GUI at a temporary patch-set tree with a synthetic patch set."""
+
+    # build a canonical patches/<name>/<name>.yaml for the synthetic fixture
+    ps_dir = tmp_path / "patches"
+    (ps_dir / "synthetic").mkdir(parents=True)
+    definition = (
+        "target:\n"
+        "  bundle_id: com.example.testapp\n"
+        "  version: { exact: 1.0.0 }\n"
+        "patches:\n"
+        "  - id: rename\n"
+        "    type: plist_edit\n"
+        "    action: set\n"
+        "    key: CFBundleDisplayName\n"
+        "    value: Patched\n"
     )
+    (ps_dir / "synthetic" / "synthetic.yaml").write_text(definition)
+    monkeypatch.setenv("IPA_FORGE_PATCHES_DIR", str(ps_dir))
+    yield
 
 
-def test_index_serves_the_fetch_based_form():
-    """UI: the form must be enhanced by the inline fetch flow, not the raw
-    JSON navigation it replaced."""
-    client = TestClient(app)
-    response = client.get("/")
-    assert response.status_code == 200
-    html = response.text
-    assert 'id="patch-form"' in html
-    assert 'id="result"' in html
-    assert "fetch(" in html
+def _upload_ipa(tmp_path: Path, fake_ipa: Path) -> dict:
+    return {"ipa": ("app.ipa", fake_ipa.read_bytes(), "application/octet-stream")}
 
 
-def test_patch_dry_run_without_profile_or_identity(tmp_path: Path):
-    client = TestClient(app)
-    patches = tmp_path / "binary_only.yaml"
-    patches.write_text(_BINARY_ONLY)
-
-    response = _post(client, patches, data={"dry_run": "1"})
-
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["manifest"]["bundle_id"] == "com.example.synthetic"
-    assert "download_url" not in body  # dry run produces no artifact
+def test_index_serves_the_novice_form():
+    res = client.get("/")
+    assert res.status_code == 200
+    assert "Patch an IPA" in res.text
+    assert "/detect" in res.text
 
 
-def test_patch_real_run_without_profile_returns_400(tmp_path: Path):
-    client = TestClient(app)
-    patches = tmp_path / "binary_only.yaml"
-    patches.write_text(_BINARY_ONLY)
+def test_detect_returns_bundle_and_patch_set(tmp_path: Path, fake_ipa: Path):
+    res = client.post("/detect", files=_upload_ipa(tmp_path, fake_ipa))
+    assert res.status_code == 200
+    data = res.json()
+    assert data["bundle_id"] == "com.example.testapp"
+    assert data["version"] == "1.0.0"
+    assert data["patch_sets"] == [{"name": "synthetic", "target_version": "1.0.0", "matches": True}]
+    assert data["mismatch"] is False
 
-    response = _post(client, patches, data={"identity": "Apple Development"})  # profile missing
 
-    assert response.status_code == 400
-    assert "provisioning profile" in response.json()["error"]
+def test_detect_reports_version_mismatch(tmp_path: Path, fake_ipa: Path):
+    """A patch set targeting a different version -> warning, but the set is
+    still returned so patching stays possible."""
+    ps_dir = Path(os.environ["IPA_FORGE_PATCHES_DIR"])
+    (ps_dir / "synthetic" / "synthetic.yaml").write_text(
+        "target:\n  bundle_id: com.example.testapp\n  version: { exact: 9.9.9 }\n"
+        "patches:\n  - id: rename\n    type: plist_edit\n    action: set\n    key: CFBundleDisplayName\n    value: Patched\n"
+    )
+    res = client.post("/detect", files=_upload_ipa(tmp_path, fake_ipa))
+    assert res.status_code == 200
+    data = res.json()
+    assert data["version"] == "1.0.0"
+    assert data["mismatch"] is True
+    assert data["patch_sets"][0]["matches"] is False
 
 
-def test_patch_real_run_without_identity_returns_400(tmp_path: Path):
-    client = TestClient(app)
-    patches = tmp_path / "binary_only.yaml"
-    patches.write_text(_BINARY_ONLY)
+def test_patch_unknown_patch_set_returns_400(tmp_path: Path, fake_ipa: Path):
+    res = client.post(
+        "/patch",
+        files=_upload_ipa(tmp_path, fake_ipa),
+        data={"patch_set": "nope"},
+    )
+    assert res.status_code == 400
+    assert "unknown patch set" in res.json()["error"]
 
-    response = _post(client, patches, data={})  # neither identity nor dry_run
 
-    assert response.status_code == 400
-    assert response.json()["error"].startswith("identity")
+def test_patch_no_sign_produces_download(tmp_path: Path, fake_ipa: Path):
+    res = client.post(
+        "/patch",
+        files=_upload_ipa(tmp_path, fake_ipa),
+        data={"patch_set": "synthetic", "no_sign": "true"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    manifest = data["manifest"]
+    assert manifest["bundle_id"] == "com.example.testapp"
+    assert data["download_url"].startswith("/download/")
+    dl = client.get(data["download_url"])
+    assert dl.status_code == 200
+    assert dl.headers["content-type"] == "application/octet-stream"

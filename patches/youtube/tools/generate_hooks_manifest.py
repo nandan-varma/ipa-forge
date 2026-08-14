@@ -8,7 +8,7 @@ backbone) so `forge patch --dry-run` fails loudly if a future app version
 breaks them.
 
 Usage:
-    python3 tools/generate_hooks_manifest.py  # prints YAML (copy into youtube-mod.yaml)
+    python3 tools/generate_hooks_manifest.py  # prints YAML (copy into youtube.yaml)
 """
 
 import re

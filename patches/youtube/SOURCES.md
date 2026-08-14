@@ -1,6 +1,6 @@
 # Sources & attribution
 
-Everything in `youtube-21.32.4` was researched from the following projects and
+Everything in `patches/youtube` was researched from the following projects and
 verified independently against the decrypted 21.32.4 binary before porting.
 Licenses of the sources apply to the adapted logic; our dylib itself is
 GPL-3.0-or-later (matching ipa-forge).
@@ -24,7 +24,7 @@ GPL-3.0-or-later (matching ipa-forge).
   `__objc_classlist`/`__objc_methlist`/`__objc_selrefs` (chained-fixup aware,
   lipo-thinned) of the arm64 slice: class existence + per-class method lists.
 - `forge hooks verify --ipa X --patches Y` — verify the definition's `hooks:`
-  block (159 declared in `youtube-mod.yaml`); also runs on `--dry-run`.
+  block (159 declared in `youtube.yaml`); also runs on `--dry-run`.
 - `forge hooks audit --ipa X --dir dylib/` — scan tweak sources for hook calls
   and check each. The parser under-reports methods on GPBMessage subclasses;
   every flagged selector was re-checked with `strings` on the binary — all

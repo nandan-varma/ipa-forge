@@ -188,7 +188,7 @@ forge hooks extract --ipa New.ipa --search "<old class substring>"
 ```
 
 A complete, YouTube-specific runbook lives at
-`patches/youtube-21.32.4/PLAYBOOK.md`.
+`patches/youtube/PLAYBOOK.md`.
 
 ### Generating and diffing hook manifests
 

@@ -12,9 +12,11 @@ with `forge patch --dry-run`.
 
 | File | Effect | Status |
 | --- | --- | --- |
-| `youtube-21.32.4.yaml` | Safe cosmetic: display name + signed-out 90s preview video swap | dry-run OK |
-| `youtube-mod.yaml` | **Full mod**: adblock + sign-in fix + settings + all feature toggles via `libYTHook.dylib`, **plus extension stripping** (required for AltStore install) | dry-run OK |
-| `youtube-21.32.4-full.yaml` | Cosmetic + everything from `youtube-mod.yaml` | dry-run OK |
+| `youtube.yaml` | **The mod** (single canonical definition): adblock + sign-in fix + settings + all feature toggles via `libYTHook.dylib`, **plus extension stripping** (required for AltStore install) | dry-run OK |
+
+> One definition per app — the version lives in `target.version` inside the
+> YAML (the directory is just the app name). Discoverable by the GUI and
+> `forge hooks` via `ipa_forge.patches`.
 
 ## Why extensions are stripped (and what you lose)
 
@@ -32,7 +34,7 @@ extensions (push is unavailable on free sideload accounts anyway). Core playback
 ads removal, downloads, and all patched features are unaffected — the main
 Info.plist references none of them.
 
-## Feature overview (`youtube-mod.yaml`)
+## Feature overview (`youtube.yaml`)
 
 The dylib (see `SOURCES.md` for attribution) implements, all behind the in-app
 **Settings → YTFreedom** section:
@@ -101,13 +103,13 @@ Supporting identity spoofing so Google frameworks see the stock app
 `APMAEU isFAS`). Hook set is the union of YouMod's `Sideloading.x` (adapted
 from YTLite + uYouEnhanced) and YTSideloadSignInFix; every class and
 selector was verified present in the 21.32.4 binary with
-`forge hooks verify --ipa <decrypted.ipa> --patches youtube-mod.yaml`
+`forge hooks verify --ipa <decrypted.ipa> --patches youtube.yaml`
 (only `OGLPhenotypeFlagServiceImpl` is absent and is skipped).
 
 ### Build the dylib
 
 ```bash
-patches/youtube-21.32.4/dylib/build.sh
+patches/youtube/dylib/build.sh
 ```
 
 (arm64 iOS dylib, plain ObjC-runtime swizzling in an `__attribute__((constructor))` —
@@ -121,7 +123,7 @@ forge hooks extract --ipa youtube-21.32.4-decrypted.ipa --class YTLocalPlaybackC
 # search classes by name
 forge hooks extract --ipa youtube-21.32.4-decrypted.ipa --search "AdBreak|ControlFlow"
 # verify every hook the mod declares against the binary (also runs in --dry-run)
-forge hooks verify --ipa youtube-21.32.4-decrypted.ipa --patches youtube-mod.yaml
+forge hooks verify --ipa youtube-21.32.4-decrypted.ipa --patches youtube.yaml
 # scan the dylib sources for hook calls and check each
 forge hooks audit --ipa youtube-21.32.4-decrypted.ipa --dir dylib/
 ```
@@ -134,7 +136,7 @@ arm64 slice (chained-fixup aware; fat binaries are thinned with lipo). See
 
 ```bash
 forge patch --ipa /path/to/youtube-21.32.4-decrypted.ipa \
-  --patches patches/youtube-21.32.4/youtube-21.32.4-full.yaml \
+  --patches patches/youtube/youtube.yaml \
   --output /tmp/youtube-patched.ipa --dry-run
 ```
 

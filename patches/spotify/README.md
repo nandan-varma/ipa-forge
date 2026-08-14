@@ -50,16 +50,16 @@ binaries.
 ## Building
 
 ```bash
-patches/spotify-9.1.72/dylib/build.sh    # -> build/SpotifyHook.dylib
+patches/spotify/dylib/build.sh    # -> build/SpotifyHook.dylib
 ```
 
 ## Applying
 
 ```bash
 forge patch --ipa com.spotify.client_9.1.72_und3fined.ipa \
-  --patches patches/spotify-9.1.72/spotify-mod.yaml --dry-run   # hooks gate
+  --patches patches/spotify/spotify.yaml --dry-run   # hooks gate
 forge patch --ipa com.spotify.client_9.1.72_und3fined.ipa \
-  --patches patches/spotify-9.1.72/spotify-mod.yaml \
+  --patches patches/spotify/spotify.yaml \
   --no-sign --output /Users/nandan/dev/ytlite-ipa/SpotifyMod_9.1.72_unsigned.ipa
 ```
 
@@ -70,7 +70,7 @@ AltStore account anyway.
 
 ## Verified on 9.1.72
 
-Every hook declared in `spotify-mod.yaml` verified attaching via
+Every hook declared in `spotify.yaml` verified attaching via
 `forge hooks verify` against the main binary + SpotifyShared.framework (the
 `SPTDataLoaderService` hooks live in the framework — forge's multi-binary
 analysis covers them). The wire schema (field numbers for

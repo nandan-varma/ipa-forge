@@ -22,5 +22,16 @@ def target_matches(bundle: AppBundle, definition: PatchDefinition) -> bool:
     return version_spec.max is None or v < parse_version(version_spec.max)
 
 
-def resolve_definitions(bundle: AppBundle, definitions: list[PatchDefinition]) -> list[PatchDefinition]:
-    return [d for d in definitions if target_matches(bundle, d)]
+def resolve_definitions(
+    bundle: AppBundle, definitions: list[PatchDefinition], *, ignore_version: bool = False
+) -> list[PatchDefinition]:
+    """Select definitions whose bundle id matches; version must match unless
+    ``ignore_version`` (used by the GUI's non-blocking mismatch path — the
+    hooks gate still guards what actually attaches)."""
+    result = []
+    for d in definitions:
+        if bundle.bundle_id != d.target.bundle_id:
+            continue
+        if ignore_version or target_matches(bundle, d):
+            result.append(d)
+    return result

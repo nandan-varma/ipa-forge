@@ -19,8 +19,8 @@ Which document to read, for what.
 
 | Patch set | Docs |
 | --- | --- |
-| YouTube 21.32.4 (`patches/youtube-21.32.4/`) | [`PLAYBOOK.md`](../patches/youtube-21.32.4/PLAYBOOK.md) (runbook), [`README.md`](../patches/youtube-21.32.4/README.md) (features), [`ROADMAP.md`](../patches/youtube-21.32.4/ROADMAP.md) (goals), [`SOURCES.md`](../patches/youtube-21.32.4/SOURCES.md) (attribution) |
-| Spotify 9.1.72 (`patches/spotify-9.1.72/`) | [`PLAYBOOK.md`](../patches/spotify-9.1.72/PLAYBOOK.md) (runbook), [`README.md`](../patches/spotify-9.1.72/README.md) (features), [`SOURCES.md`](../patches/spotify-9.1.72/SOURCES.md) |
+| YouTube 21.32.4 (`patches/youtube/`) | [`PLAYBOOK.md`](../patches/youtube/PLAYBOOK.md) (runbook), [`README.md`](../patches/youtube/README.md) (features), [`ROADMAP.md`](../patches/youtube/ROADMAP.md) (goals), [`SOURCES.md`](../patches/youtube/SOURCES.md) (attribution) |
+| Spotify 9.1.72 (`patches/spotify/`) | [`PLAYBOOK.md`](../patches/spotify/PLAYBOOK.md) (runbook), [`README.md`](../patches/spotify/README.md) (features), [`SOURCES.md`](../patches/spotify/SOURCES.md) |
 
 ## The reading order for a new session
 

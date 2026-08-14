@@ -15,8 +15,8 @@ here lives in this repo and is kept up to date.
 | Path | What it is |
 | --- | --- |
 | `/Users/nandan/dev/ipa-forge` | The patcher (generic). `forge` CLI, `ipa_forge/hooks/` hook engine, docs/ |
-| `/Users/nandan/dev/ipa-forge/patches/youtube-21.32.4/` | This patch set (YouTube-specific) |
-| `…/youtube-mod.yaml` | The canonical patch definition (ops + `hooks:` block) |
+| `/Users/nandan/dev/ipa-forge/patches/youtube/` | This patch set (YouTube-specific) |
+| `…/youtube.yaml` | The canonical patch definition (ops + `hooks:` block) |
 | `…/dylib/` | Hook dylib sources (`build.sh` compiles all `*.m` → `assets/libYTHook.dylib`) |
 | `…/assets/` | Staged dylib + swapped resources (90s video) |
 | `…/tools/generate_hooks_manifest.py` | Regenerates the `hooks:` block from dylib sources |
@@ -39,11 +39,11 @@ here lives in this repo and is kept up to date.
 ```bash
 # one-shot: rebuild dylib, dry-run (hooks gate), build unsigned IPA
 cd /Users/nandan/dev/ipa-forge && source .venv/bin/activate
-patches/youtube-21.32.4/dylib/build.sh
-forge patch --ipa <base.ipa> --patches patches/youtube-21.32.4/youtube-mod.yaml \
+patches/youtube/dylib/build.sh
+forge patch --ipa <base.ipa> --patches patches/youtube/youtube.yaml \
   --output /Users/nandan/dev/ytlite-ipa/YouTubeMod_21.32.4_unsigned.ipa \
   --dry-run                 # must show "Hooks: N/N attach" with no required failures
-forge patch --ipa <base.ipa> --patches patches/youtube-21.32.4/youtube-mod.yaml \
+forge patch --ipa <base.ipa> --patches patches/youtube/youtube.yaml \
   --no-sign --output /Users/nandan/dev/ytlite-ipa/YouTubeMod_21.32.4_unsigned.ipa
 ```
 
@@ -77,15 +77,15 @@ into a report:
 
 ```bash
 # 1. Put the decrypted IPA on disk (e.g. /Users/nandan/dev/ytlite-ipa/)
-# 2. Bump target.version in youtube-mod.yaml (exact: "<new>")
+# 2. Bump target.version in youtube.yaml (exact: "<new>")
 # 3. Dry-run — this now verifies every hook against the new binary:
-forge patch --ipa <new.ipa> --patches youtube-mod.yaml --output /tmp/x.ipa --dry-run
+forge patch --ipa <new.ipa> --patches youtube.yaml --output /tmp/x.ipa --dry-run
 #    -> "Hooks: N/M attach (K issue(s))" — every issue is a hook that would no-op
 # 4. For each issue, find what replaced the class/selector:
 forge hooks extract --ipa <new.ipa> --search "<substring of old class name>"
 # 5. Fix the dylib source (rename/redirect the hook), rebuild, re-run dry-run
 # 6. When required hooks are green, regenerate the manifest and commit:
-python3 tools/generate_hooks_manifest.py   # -> copy `hooks:` into youtube-mod.yaml
+python3 tools/generate_hooks_manifest.py   # -> copy `hooks:` into youtube.yaml
 ```
 
 Status vocabulary (`ipa_forge/hooks/verify.py`): `ok` / `ok-inherited` /

@@ -88,6 +88,7 @@ def run_pipeline(
     provider: SigningProvider | None = None,
     dry_run: bool = False,
     no_sign: bool = False,
+    allow_version_mismatch: bool = False,
 ) -> PipelineResult:
     """profile_paths accepts one or more .mobileprovision files. A single
     profile signs every target, exactly as before per-extension profiles
@@ -113,7 +114,7 @@ def run_pipeline(
             definition = load_patch_definition(patch_definition_path)
         except PatchLoadError as e:
             raise PipelineError(str(e)) from e
-        matched = resolve_definitions(bundle, [definition])
+        matched = resolve_definitions(bundle, [definition], ignore_version=allow_version_mismatch)
         ops = [op for d in matched for op in build_operations(d)]
         if not ops:
             # F1: a single user-supplied definition that matches nothing is
@@ -132,6 +133,20 @@ def run_pipeline(
                     f"{bundle.bundle_id} v{bundle.version} (definition targets "
                     f"{definition.target.bundle_id}); refusing to produce an unpatched IPA"
                 )
+
+        if (
+            allow_version_mismatch
+            and bundle.bundle_id == definition.target.bundle_id
+            and bundle.version != getattr(definition.target.version, "exact", None)
+        ):
+            warnings.warn(
+                f"version mismatch allowed: definition targets "
+                f"{definition.target.bundle_id} "
+                f"{getattr(definition.target.version, 'exact', '?')} but the IPA is "
+                f"{bundle.bundle_id} v{bundle.version}; hook verification below "
+                f"is the safety net",
+                stacklevel=2,
+            )
 
         # Stage 4.5: verify declared runtime hooks against the actual binary --
         # catches silent hook no-ops on version drift before anything mutates.
