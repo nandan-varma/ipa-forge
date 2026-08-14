@@ -31,6 +31,19 @@ Start at [`docs/README.md`](docs/README.md) — the index.
 | YouTube 21.32.4 | [`patches/youtube/PLAYBOOK.md`](patches/youtube/PLAYBOOK.md) | [`patches/youtube/README.md`](patches/youtube/README.md) |
 | Spotify 9.1.72 | [`patches/spotify/PLAYBOOK.md`](patches/spotify/PLAYBOOK.md) | [`patches/spotify/README.md`](patches/spotify/README.md) |
 
+## Quick start (novice — the GUI)
+
+1. **Install**: `python3 -m venv .venv && source .venv/bin/activate && pip install -e .`
+2. **Launch the GUI**: `forge gui` → open http://127.0.0.1:8765
+3. **Drop your .ipa** into the box. The GUI detects the app and the matching
+   patch set, shows a small warning if the patch set targets a different
+   version (patching is still allowed — hook verification is the safety
+   net), and presents one **Patch** button.
+4. **Download** the patched IPA (unsigned — ready for AltStore).
+
+No YAML editing, no signing identity, no provisioning profiles needed for
+the AltStore path.
+
 ## Requirements
 
 - macOS with Xcode Command Line Tools (`xcode-select -p` should print a
