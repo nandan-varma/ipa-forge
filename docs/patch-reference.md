@@ -298,6 +298,9 @@ the run when `required`).
 
 Porting to a new app version becomes: bump `target.version`, run
 `--dry-run`, read the hook report, and fix exactly the hooks the report flags.
+`forge hooks manifest --dir <dylib-sources>` regenerates the `hooks:` block
+from the tweak sources; `forge hooks diff --old A.ipa --new B.ipa
+--patches patch.yaml` shows which hooks regressed between two versions.
 
 ## The manifest
 

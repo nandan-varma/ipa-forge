@@ -155,14 +155,14 @@ def verify_hooks(analysis: MachOAnalysis, hooks: list[HookDecl]) -> list[HookRes
                     )
                 )
             elif _is_system_class(cls):
-                if sel in analysis.selectors:
+                if sel in analysis.selectors or sel in _SYSTEM_SELECTORS:
                     results.append(
                         HookResult(
                             cls,
                             sel,
                             hook.kind,
                             "ok-system",
-                            "system class; selector referenced by the app",
+                            "system class; selector referenced by the app or a known system API",
                             hook.required,
                         )
                     )

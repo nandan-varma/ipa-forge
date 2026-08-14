@@ -190,6 +190,26 @@ forge hooks extract --ipa New.ipa --search "<old class substring>"
 A complete, YouTube-specific runbook lives at
 `patches/youtube-21.32.4/PLAYBOOK.md`.
 
+### Generating and diffing hook manifests
+
+```bash
+# Emit a `hooks:` block from the tweak sources (direct + unambiguous
+# variable-resolved hook calls); mark load-bearing ones required:
+forge hooks manifest --dir dylib/ --required hooks-required.txt
+
+# Porting aid: compare hook attachment between two IPAs, highlight hooks
+# that regressed (would no-op on the new version), exit 1 if a required
+# hook broke:
+forge hooks diff --old prev.ipa --new next.ipa --patches patch.yaml
+```
+
+The scanner recognizes any `<prefix>HookInstance/HookClass/AddInstanceMethod`
+call with an inline `NSClassFromString(@"X")` (or a file-scoped
+`cls = NSClassFromString(@"X")` assignment). Helper/loop-based hooks (a class
+passed as a parameter, or a `for (NSString *sel in @[...])` swizzle loop) are
+not traced and must be declared manually in the definition's `hooks:` block —
+which is what the YouTube/Spotify patch sets do.
+
 ## Signing identity & profile
 
 ipa-forge re-signs with **your own** Apple development credentials — it never

@@ -244,6 +244,48 @@ def hooks_extract(
 
 
 @hooks_app.command("audit")
+def scan_hook_sources(dylib_src: Path) -> list[HookDecl]:
+    """Scan ObjC tweak sources for runtime hook calls. Any
+    ``<prefix>HookInstance/HookClass/AddInstanceMethod(NSClassFromString(...), @selector(...))``
+    pattern is recognized (ytfHook*, sptHook*, ...), so the same scanner
+    serves every patch set."""
+    import re as _re
+
+    pattern = _re.compile(
+        r"([A-Za-z_][A-Za-z0-9_]*)Hook(Instance|Class|AddInstanceMethod)\("
+        r"\s*(?:NSClassFromString\(@?\"([^\"]+)\"\)|\[\s*(\w+)\s*class\]|(\w+))"
+        r"\s*,\s*(?:@selector\(([^)]+)\)|sel_registerName\(\"([^\"]+)\"\))"
+    )
+    var_re = _re.compile(r"(\w+)\s*=\s*NSClassFromString\(@?\"([^\"]+)\"\)")
+    decls: list[HookDecl] = []
+    for f in sorted(dylib_src.glob("*.m")):
+        text = f.read_text(errors="replace")
+        var_class: dict[str, str] = {}
+        var_classes: dict[str, set[str]] = {}
+        for m in var_re.finditer(text):
+            var_classes.setdefault(m.group(1), set()).add(m.group(2))
+        for var, classes in var_classes.items():
+            if len(classes) == 1:
+                var_class[var] = next(iter(classes))
+        for m in pattern.finditer(text):
+            prefix, kind, cls, cls2, clsvar, sel, sel2 = m.groups()
+            cls = cls or cls2 or var_class.get(clsvar or "")
+            sel = sel or sel2
+            if not cls or not sel:
+                continue
+            hook_kind = "class" if kind == "Class" else "instance"
+            decls.append(HookDecl(cls, sel, hook_kind, added=(kind == "AddInstanceMethod")))  # type: ignore[arg-type]
+    # de-duplicate, keep order
+    seen: set[tuple[str, str]] = set()
+    unique: list[HookDecl] = []
+    for d in decls:
+        if (d.class_name, d.selector) in seen:
+            continue
+        seen.add((d.class_name, d.selector))
+        unique.append(d)
+    return unique
+
+
 def hooks_audit(
     ipa: Path = typer.Option(..., "--ipa", exists=True, help="Input .ipa"),
     dylib_src: Path = typer.Option(..., "--dir", exists=True, help="Directory of tweak sources (*.m/*.h) to scan"),
@@ -251,28 +293,7 @@ def hooks_audit(
     """Scan ObjC tweak sources for NSClassFromString + selector hook calls and
     verify each target against the app binary. Catches hooks the author wrote
     but a newer app version broke."""
-    import re as _re
-
-    pattern = _re.compile(
-        r"(ytfHookInstance|ytfHookClass|ytfAddInstanceMethod)\("
-        r"\s*(?:NSClassFromString\(@?\"([^\"]+)\"\)|\[\s*(\w+)\s*class\])"
-        r"\s*,\s*(?:@selector\(([^)]+)\)|sel_registerName\(\"([^\"]+)\"\))"
-    )
-    decls: list[HookDecl] = []
-    for f in sorted(dylib_src.glob("*.m")):
-        text = f.read_text(errors="replace")
-        for m in pattern.finditer(text):
-            fn, cls, cls2, sel, sel2 = m.groups()
-            cls = cls or cls2
-            sel = sel or sel2
-            if cls and sel:
-                decls.append(
-                    HookDecl(
-                        cls,
-                        sel,
-                        "class" if fn == "ytfHookClass" else "instance",  # type: ignore[arg-type]
-                    )
-                )
+    decls = scan_hook_sources(dylib_src)
     if not decls:
         typer.echo("No hook calls found in the sources.")
         raise typer.Exit(code=0)
@@ -291,6 +312,92 @@ def hooks_audit(
                 f"[{r.status:16}] {r.class_name} {'+' if r.kind == 'class' else '-'}[{r.selector}]  {r.detail}",
                 fg=typer.colors.YELLOW,
             )
+
+
+@hooks_app.command("manifest")
+def hooks_manifest(
+    dylib_src: Path = typer.Option(..., "--dir", exists=True, help="Directory of tweak sources (*.m)"),
+    required: Path | None = typer.Option(None, "--required", exists=True,
+        help="Optional file with 'ClassName selector' lines to mark required: true"),
+) -> None:
+    """Emit a `hooks:` YAML block from the hook calls in tweak sources — the
+    block goes into the patch definition's `hooks:` section so dry-run
+    verifies every hook against the real binary."""
+    decls = scan_hook_sources(dylib_src)
+    if not decls:
+        typer.echo("No hook calls found in the sources.")
+        raise typer.Exit(code=0)
+
+    required_set: set[tuple[str, str]] = set()
+    if required:
+        for line in required.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(None, 1)
+            if len(parts) == 2:
+                required_set.add((parts[0], parts[1]))
+
+    typer.echo("hooks:")
+    for d in decls:
+        typer.echo(f'  - class: "{d.class_name}"')
+        typer.echo(f'    selector: "{d.selector}"')
+        typer.echo(f"    kind: {d.kind}")
+        if d.added:
+            typer.echo("    added: true")
+        if (d.class_name, d.selector) in required_set:
+            typer.echo("    required: true")
+    typer.secho(f"# {len(decls)} hooks ({len(required_set)} required)", fg=typer.colors.BRIGHT_BLACK)
+
+
+@hooks_app.command("diff")
+def hooks_diff(
+    old_ipa: Path = typer.Option(..., "--old", exists=True, help="Previously-working .ipa"),
+    new_ipa: Path = typer.Option(..., "--new", exists=True, help="New .ipa"),
+    patches: Path = typer.Option(..., "--patches", exists=True, help="Patch definition with a `hooks:` section"),
+) -> None:
+    """Compare hook attachment between two IPAs — the porting aid. Shows every
+    hook whose status changed, highlighting ones that regressed (would no-op
+    on the new version). Exit 1 if a required hook regressed."""
+    with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
+        app_old = _validated_extract(old_ipa, Path(tmp) / "old")
+        bundle_old = load_bundle(app_old)
+        app_new = _validated_extract(new_ipa, Path(tmp) / "new")
+        bundle_new = load_bundle(app_new)
+        definition = load_patch_definition(patches)
+        decls = [
+            HookDecl(h.class_name, h.selector, h.kind, h.added, h.required)
+            for h in (definition.hooks or [])
+        ]
+        if not decls:
+            typer.echo("No hooks declared in the definition (add a `hooks:` section).")
+            raise typer.Exit(code=0)
+        old_results = {r.class_name + r.selector: r for r in verify_hooks(analyze_bundle(bundle_old), decls)}
+        new_results = {r.class_name + r.selector: r for r in verify_hooks(analyze_bundle(bundle_new), decls)}
+
+    regressed = 0
+    for d in decls:
+        key = d.class_name + d.selector
+        old = old_results.get(key)
+        new = new_results.get(key)
+        if old is None or new is None:
+            continue
+        changed = old.status != new.status
+        if old.ok and not new.ok:
+            regressed += 1
+            typer.secho(
+                f"[{old.status:14} -> {new.status:14}] {d.class_name} "
+                f"{'+' if d.kind == 'class' else '-'}[{d.selector}]  REGRESSED",
+                fg=typer.colors.RED,
+            )
+        elif changed:
+            typer.secho(
+                f"[{old.status:14} -> {new.status:14}] {d.class_name} "
+                f"{'+' if d.kind == 'class' else '-'}[{d.selector}]",
+                fg=typer.colors.YELLOW,
+            )
+    typer.echo(f"{regressed} hook(s) regressed" + (" — required hook broken" if regressed else "."))
+    raise typer.Exit(code=1 if regressed else 0)
 
 
 if __name__ == "__main__":
