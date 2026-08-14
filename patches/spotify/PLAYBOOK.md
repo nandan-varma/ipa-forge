@@ -9,7 +9,7 @@ is the concrete application.
 | Path | What it is |
 | --- | --- |
 | `spotify.yaml` | The definition (strip + stage + weak link + `hooks:`) |
-| `dylib/` | SpotifyHook sources: `SpotifyHook.h/.m`, `SideloadFix.m`, `SessionProtection.m`, `PremiumPatch.m` + `PBProto.m` (wire-format editor), `AdBlock.m`, `Settings.m` |
+| `dylib/` | SpotifyHook sources: `SpotifyHook.h/.m`, `SpotifyFeatures.m` (feature catalog — single source of truth), `SideloadFix.m`, `SessionProtection.m`, `PremiumPatch.m` + `PBProto.m` (wire-format editor), `AdBlock.m`, `SettingsUI.m` |
 | `dylib-test/` | Minimal do-nothing dylib (`spotify-test.yaml`) for isolating launch crashes |
 | `/Users/nandan/Downloads/com.spotify.client_9.1.72_und3fined.ipa` | Base IPA (decrypted) |
 
@@ -23,22 +23,27 @@ forge patch --ipa /Users/nandan/Downloads/com.spotify.client_9.1.72_und3fined.ip
   --output /tmp/x.ipa --dry-run                      # hooks gate (15/16 attach)
 forge patch --ipa /Users/nandan/Downloads/com.spotify.client_9.1.72_und3fined.ipa \
   --patches patches/spotify/spotify.yaml \
-  --no-sign --output /Users/nandan/dev/ytlite-ipa/SpotifyMod_9.1.72_unsigned.ipa
+  --no-sign --output /Users/nandan/dev/ytlite-ipa/SpotifyMod_v0.0.1.ipa
 ```
+
+Bump `SPOTIFYMOD_VERSION` in `dylib/SpotifyHook.h` and the IPA file name on
+every pass (v0.0.1, v0.0.2, ...); the About section shows the same version.
+Update `TESTING.md` per pass.
 
 ## Features (all toggleable in Settings → SpotifyMod, default ON)
 
-- **Premium unlock** — bootstrap + `/v1/customize` responses rewritten
-  (account attributes → premium, assigned values → ads off + capping
-  removed, lyrics share on); premium-plan endpoints answered with premium
-  protobufs.
-- **Ad blocker** — HUB JSON ad components filtered + full ad-endpoint
-  network blocking (DAC, Esperanto, /ads/*, sponsored/promoted paths,
-  doubleclick/aet hosts).
-- **Session protection** — forced logout blocked
-  (`SPTAuthSessionImplementation`, `SPTAuthLegacyLoginControllerImplementation`),
-  logout/ad-driver requests cancelled.
-- **App-group fix** — container fallback for the re-signed install.
+Settings are organized by the catalog in `dylib/SpotifyFeatures.m`:
+
+- **Essentials** — Premium unlock, Ad blocker, Session protection.
+- **Interface** — opt-in: Hide Premium & Create tabs (one switch, both
+  tabs together).
+- **Advanced** — App-group fix; Ad blocking strength (Standard / Aggressive;
+  Aggressive adds free-tier re-fetch suppression after a 30s startup grace).
+- **Future** — disabled roadmap rows (Downloads unlock, Audio quality selector,
+  Startup tab, Settings import/export).
+- **About** — version, reset-all.
+
+Every change needs a relaunch (a “Restart to apply” pill confirms).
 
 ## The load model (why it doesn't crash)
 

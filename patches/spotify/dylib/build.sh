@@ -6,17 +6,18 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 mkdir -p "$HERE/../build"
 xcrun --sdk iphoneos clang \
-    -arch arm64 \
-    -miphoneos-version-min=14.0 \
-    -isysroot "$SDK" \
-    -fobjc-arc \
-    -fobjc-weak \
-    -dynamiclib \
-    -framework Foundation \
-    -framework Security \
-    -framework UIKit \
-    -install_name "@rpath/SpotifyHook.dylib" \
-    -o "$HERE/../build/SpotifyHook.dylib" \
-    "$HERE"/SpotifyHook.m "$HERE"/SideloadFix.m "$HERE"/SessionProtection.m \
-    "$HERE"/PremiumPatch.m "$HERE"/AdBlock.m "$HERE"/Settings.m "$HERE"/PBProto.m
+	-arch arm64 \
+	-miphoneos-version-min=14.0 \
+	-isysroot "$SDK" \
+	-fobjc-arc \
+	-fobjc-weak \
+	-dynamiclib \
+	-framework Foundation \
+	-framework Security \
+	-framework UIKit \
+	-install_name "@rpath/SpotifyHook.dylib" \
+	-o "$HERE/../build/SpotifyHook.dylib" \
+	"$HERE"/SpotifyHook.m "$HERE"/SideloadFix.m "$HERE"/SessionProtection.m \
+	"$HERE"/PremiumPatch.m "$HERE"/AdBlock.m "$HERE"/SpotifyFeatures.m \
+	"$HERE"/SettingsUI.m "$HERE"/TabBarFix.m "$HERE"/PBProto.m
 echo "built $HERE/../build/SpotifyHook.dylib"

@@ -19,13 +19,19 @@ static void safeInit(const char *name, void (^block)(void)) {
 
 static void installAll(void) {
     os_log(spotLog(), "SpotifyMod installing hooks (post-launch)");
-    [[NSUserDefaults standardUserDefaults] registerDefaults:@{
-        kSMPremium: @YES, kSMAdBlock: @YES, kSMSession: @YES, kSMAppGroup: @YES,
-    }];
+    // Defaults come from the feature catalog (SpotifyFeatures.m — the single
+    // source of truth), never hard-coded here.
+    NSMutableDictionary *defaults = [NSMutableDictionary dictionary];
+    for (SMFeatureSpec *spec in smFeatureSpecs()) {
+        if (spec.kind == SMFeatureSwitch) defaults[spec.key] = @(spec.defaultValue);
+        else if (spec.kind == SMFeatureChoice) defaults[spec.key] = @(spec.choiceDefault);
+    }
+    [[NSUserDefaults standardUserDefaults] registerDefaults:defaults];
     safeInit("sideload", ^{ SpotifySideloadFixInit(); });
     safeInit("session-protection", ^{ SpotifySessionProtectionInit(); });
     safeInit("premium", ^{ SpotifyPremiumPatchInit(); });
     safeInit("adblock", ^{ SpotifyAdBlockInit(); });
+    safeInit("tabbar", ^{ SpotifyTabBarFixInit(); });
     safeInit("settings", ^{ SpotifySettingsInit(); });
     os_log(spotLog(), "SpotifyMod install complete");
 }

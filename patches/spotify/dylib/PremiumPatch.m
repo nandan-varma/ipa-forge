@@ -459,10 +459,11 @@ static NSMutableDictionary<NSNumber *, NSData *> *sptBufferCache(void) {
 static void hookURLSessionDelegate(Class cls) {
     if (!cls) return;
 
-    static IMP orig_didReceiveData;
+    __block IMP orig_didReceiveData = NULL;
     orig_didReceiveData = sptHookInstance(cls,
         @selector(URLSession:dataTask:didReceiveData:),
         ^void(id self, NSURLSession *session, NSURLSessionDataTask *task, NSData *data) {
+            if (!orig_didReceiveData) return;
             NSURL *url = task.currentRequest.URL ?: task.originalRequest.URL;
             if (urlNeedsPatching(url)) {
                 @synchronized (sptBufferCache()) {
@@ -484,12 +485,12 @@ static void hookURLSessionDelegate(Class cls) {
             ((void(*)(id, SEL, id, id, id))orig_didReceiveData)(
                 self, @selector(URLSession:dataTask:didReceiveData:), session, task, data);
         });
-    (void)orig_didReceiveData;
 
-    static IMP orig_didComplete;
+    __block IMP orig_didComplete = NULL;
     orig_didComplete = sptHookInstance(cls,
         @selector(URLSession:task:didCompleteWithError:),
         ^void(id self, NSURLSession *session, NSURLSessionDataTask *task, NSError *error) {
+            if (!orig_didComplete || !orig_didReceiveData) return;
             NSURL *url = task.currentRequest.URL ?: task.originalRequest.URL;
             if (urlNeedsPatching(url)) {
                 NSData *buffer;
@@ -509,7 +510,6 @@ static void hookURLSessionDelegate(Class cls) {
             ((void(*)(id, SEL, id, id, id))orig_didComplete)(
                 self, @selector(URLSession:task:didCompleteWithError:), session, task, error);
         });
-    (void)orig_didComplete;
 }
 
 void SpotifyPremiumPatchInit(void) {

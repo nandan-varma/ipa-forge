@@ -99,3 +99,19 @@ hooks:
   - class: "NSFileManager"
     selector: "containerURLForSecurityApplicationGroupIdentifier:"
     required: false
+  # tab hiding (TabBarFix.m) — Swift tab bar (NavigationUI_TabBarImpl).
+  # TabBarContainer is a UIViewController: items are filtered in
+  # setViewControllers:, layout is triggered from viewDidLayoutSubviews.
+  - class: "_TtC23NavigationUI_TabBarImpl15TabBarContainer"
+    selector: "setViewControllers:"
+  - class: "_TtC23NavigationUI_TabBarImpl15TabBarContainer"
+    selector: "viewDidLayoutSubviews"
+  - class: "_TtC23NavigationUI_TabBarImpl21TabBarItemElementView"
+    selector: "didMoveToWindow"
+  - class: "_TtC23NavigationUI_TabBarImpl21TabBarItemElementView"
+    selector: "layoutSubviews"
+  # presence proxy: the Create tab is detected by this view class at runtime;
+  # not hooked, but flag drift so the detection silently degrading is visible
+  - class: "_TtC22CreateMenu_TabPageImpl24CreateMenuTabBarItemView"
+    selector: "didMoveToWindow"
+    required: false

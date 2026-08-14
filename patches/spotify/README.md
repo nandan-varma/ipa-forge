@@ -81,15 +81,35 @@ validated with round-trip test binaries.
 ## Settings
 
 Settings → **SpotifyMod** (an inline row at the top of Spotify's settings
-list) opens a settings screen with toggles for every feature: Premium
-unlock, Ad blocker, Session protection, App-group fix. All default ON;
-changes apply on relaunch (toggles are read when hooks install).
+list) opens a settings screen with four sections, driven entirely by the
+feature catalog in `dylib/SpotifyFeatures.m` (the single source of truth):
+
+- **Essentials** — Premium unlock, Ad blocker, Session protection (all ON).
+- **Interface** — opt-in bottom-bar tweak (OFF by default): Hide Premium &
+  Create tabs (one switch, both tabs together).
+- **Advanced** — rarely-changed: App-group fix + **Ad blocking strength**
+  dropdown (Standard / Aggressive). Aggressive (default) also suppresses
+  free-tier re-fetch after a 30s startup grace.
+- **Future** — not-yet-implemented features rendered as disabled rows
+  (Downloads unlock, Audio quality selector, Startup tab, Settings
+  import/export).
+- **About** — mod version, reset-all, relaunch note.
+
+Every change shows a “Restart to apply” pill — toggles are read when hooks
+install, so changes apply on relaunch. Not everything is a switch: strength
+and future dropdowns use a checkmark picker.
+
+## Testing
+
+See [`TESTING.md`](TESTING.md) — the per-version device test sheet.
 
 ## Debugging
 
 `SpotifyMod` logs to the system log (`com.nandan.spotifymod`):
+
 ```bash
 log stream --predicate 'subsystem == "com.nandan.spotifymod"'
 ```
+
 Watch for `hooked -[...]` at launch (attachment), `patched bootstrap/customize`
 (premium rewrite firing), and `cancelled <url>` (session-protection blocking).
