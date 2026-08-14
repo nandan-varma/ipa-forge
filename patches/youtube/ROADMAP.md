@@ -397,6 +397,24 @@ the `YTFreedom: hooked -[...]` os_log lines at launch.
 | G19 Adblock polish | ✅ always-on |
 | G20 New-IPA UX batch | ✅ A/B Testing under Advanced with otool-verified flags + restart pills — on-device pass pending |
 
+### v0.0.8 — loop + settings-section hiding + SponsorBlock bar segments
+
+- **Loop video** (`dylib/LoopVideo.m`, YouLoop-style): timer-based restart at
+  end via seekToTime:0. KLoopVideo (Player group, default OFF).
+- **Settings sections** (`dylib/SettingsCleaner.m`, uYouPlus approach): the 9
+  update<Name>SectionWithEntry: hooks on YTSettingsSectionItemManager no-op'd
+  when hidden (all verified in the binary). New Advanced -> Settings sections
+  group with 9 toggles.
+- **SponsorBlock bar segments** (v2): green segment markers rendered on
+  YTInlinePlayerBarContainerView + YTPlayerBarView layoutSubviews, mapped by
+  currentVideoTotalMediaTime.
+- **Not feasible on 21.32.4** (researched, documented): RYD (watch-page target
+  updateLikeButtonWithRenderer: absent; remaining path is brittle ELM
+  yoga-tree node cloning), red subscribe button (eml.compact_subscribe_button
+  absent), YTUHD (needs bundled VP9/AV1 decoder libs - incompatible with the
+  single plain-ObjC dylib).
+- hooks manifest 172 -> 183; in-app 0.6.3.
+
 ### v0.0.7 — SponsorBlock + keep-screen-on; quality/speed demoted to Beta
 
 - **SponsorBlock** (new `dylib/SponsorBlock.m`, port of iSponsorBlock auto-skip

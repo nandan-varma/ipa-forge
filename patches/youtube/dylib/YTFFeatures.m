@@ -92,6 +92,9 @@ static NSArray<YTFGroupSpec *> *kGroups(void) {
             [YTFGroupSpec group:@"system" title:@"System"
                           detail:@"Dialogs, toasts, startup behavior"
                         container:NO topLevel:NO],
+            [YTFGroupSpec group:@"settings" title:@"Settings sections"
+                          detail:@"Hide sections from the app's Settings screen"
+                        container:NO topLevel:NO],
             [YTFGroupSpec group:@"beta" title:@"Beta"
                           detail:@"Targets absent from 21.32.4 - test & report so each is rewired or dropped"
                         container:NO topLevel:NO],
@@ -133,6 +136,9 @@ static NSArray<YTFFeatureSpec *> *kFeatures(void) {
             [YTFFeatureSpec switchSpec:KGestureHUD title:@"Gesture HUD"
                                 detail:@"Show a % indicator during gestures"
                                  group:@"player" defaultValue:YES restart:NO beta:NO],
+            [YTFFeatureSpec switchSpec:KLoopVideo title:@"Loop video"
+                                detail:@"Restart playback when the video ends"
+                                 group:@"player" defaultValue:NO restart:NO beta:NO],
 
             // ---- Appearance ----
             [YTFFeatureSpec switchSpec:KOLEDTheme title:@"OLED theme"
@@ -327,6 +333,26 @@ static NSArray<YTFFeatureSpec *> *kFeatures(void) {
             [YTFFeatureSpec switchSpec:KKeepScreenOn title:@"Keep screen on"
                                 detail:@"Prevent auto-lock/dimming while a video plays (DEMC-style)"
                                  group:@"system" defaultValue:NO restart:NO beta:NO],
+
+            // ---- Settings sections (hide rows from the app's Settings screen) ----
+            [YTFFeatureSpec switchSpec:KHideSAccountSection title:@"Hide Account section"
+                                detail:nil group:@"settings" defaultValue:NO restart:NO beta:NO],
+            [YTFFeatureSpec switchSpec:KHideSAutoplaySection title:@"Hide Autoplay section"
+                                detail:nil group:@"settings" defaultValue:NO restart:NO beta:NO],
+            [YTFFeatureSpec switchSpec:KHideSTryNewFeatures title:@"Hide 'Try new features' section"
+                                detail:nil group:@"settings" defaultValue:NO restart:NO beta:NO],
+            [YTFFeatureSpec switchSpec:KHideSVideoQualityPrefs title:@"Hide Video quality preferences"
+                                detail:nil group:@"settings" defaultValue:NO restart:NO beta:NO],
+            [YTFFeatureSpec switchSpec:KHideSNotifications title:@"Hide Notifications section"
+                                detail:nil group:@"settings" defaultValue:NO restart:NO beta:NO],
+            [YTFFeatureSpec switchSpec:KHideSManageHistory title:@"Hide Manage all history"
+                                detail:nil group:@"settings" defaultValue:NO restart:NO beta:NO],
+            [YTFFeatureSpec switchSpec:KHideSYourData title:@"Hide 'Your data in YouTube'"
+                                detail:nil group:@"settings" defaultValue:NO restart:NO beta:NO],
+            [YTFFeatureSpec switchSpec:KHideSPrivacy title:@"Hide Privacy section"
+                                detail:nil group:@"settings" defaultValue:NO restart:NO beta:NO],
+            [YTFFeatureSpec switchSpec:KHideSLiveChat title:@"Hide Live chat section"
+                                detail:nil group:@"settings" defaultValue:NO restart:NO beta:NO],
 
             // ---- Beta (targets absent from 21.32.4 - unverified) ----
             [YTFFeatureSpec switchSpec:KHideGenMusicShelf title:@"Hide music playlists shelf"

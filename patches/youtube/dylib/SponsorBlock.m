@@ -35,6 +35,12 @@ static NSArray<YTFSegment *> *ytfSegmentsForVideo(NSString *videoID) {
     return nil;
 }
 
+// For the player-bar renderer (below): segments for the current video.
+NSArray *ytfSponsorSegments(void) {
+    if (!IS_ENABLED(KSponsorBlock)) return nil;
+    return sSegments;
+}
+
 // Fetch segments for videoID (async); updates the cache when done.
 static void ytfFetchSegments(NSString *videoID) {
     NSString *urlString = [NSString stringWithFormat:
@@ -76,6 +82,7 @@ static void ytfFetchSegments(NSString *videoID) {
 @protocol YTFreedomSponsorHooks <NSObject>
 - (NSString *)currentVideoID;
 - (double)currentVideoMediaTime;
+- (double)currentVideoTotalMediaTime;
 - (void)seekToTime:(CGFloat)time;
 @end
 
@@ -121,6 +128,63 @@ static void startSponsorTimer(void) {
     dispatch_resume(timer);
 }
 
+// ---------------------------------------------------------------------------
+// Player-bar segment visualization: colored markers on the seekbar showing
+// where the sponsor segments are. Rendered on the inline bar and the
+// fullscreen bar; total duration comes from the player VC.
+// ---------------------------------------------------------------------------
+
+static const NSInteger kSBMarkerTag = 0x5342;
+
+static void ytfRenderSegmentsOnBar(UIView *bar) {
+    if (!bar || bar.bounds.size.width < 50) return;
+    // Remove stale markers.
+    for (UIView *sub in [bar subviews]) {
+        if (sub.tag == kSBMarkerTag) [sub removeFromSuperview];
+    }
+    NSArray *segments = ytfSponsorSegments();
+    if (!segments.count) return;
+    UIViewController *playerVC = ytfCurrentPlayerViewController();
+    if (!playerVC) return;
+    id<YTFreedomSponsorHooks> pvc = (id<YTFreedomSponsorHooks>)playerVC;
+    if (![pvc respondsToSelector:@selector(currentVideoTotalMediaTime)]) return;
+    double totalTime = [pvc currentVideoTotalMediaTime];
+    if (totalTime <= 0) return;
+
+    CGFloat barWidth = bar.bounds.size.width;
+    CGFloat barHeight = bar.bounds.size.height;
+    for (YTFSegment *seg in segments) {
+        CGFloat x = (CGFloat)(seg.start / totalTime) * barWidth;
+        CGFloat w = (CGFloat)((seg.end - seg.start) / totalTime) * barWidth;
+        if (w < 2.0) w = 2.0;
+        UIView *marker = [[UIView alloc] initWithFrame:CGRectMake(x, barHeight - 3.0, w, 3.0)];
+        marker.tag = kSBMarkerTag;
+        marker.backgroundColor = [UIColor colorWithRed:0.0 green:0.64 blue:0.42 alpha:0.9];
+        marker.userInteractionEnabled = NO;
+        [bar addSubview:marker];
+    }
+}
+
+static void fixSegmentBarOverlay(void) {
+    static IMP orig_inlineLayout;
+    orig_inlineLayout = ytfHookInstance(NSClassFromString(@"YTInlinePlayerBarContainerView"),
+        @selector(layoutSubviews),
+        ^void(id self) {
+            ((void(*)(id, SEL))orig_inlineLayout)(self, @selector(layoutSubviews));
+            ytfRenderSegmentsOnBar((UIView *)self);
+        });
+    (void)orig_inlineLayout;
+    static IMP orig_barLayout;
+    orig_barLayout = ytfHookInstance(NSClassFromString(@"YTPlayerBarView"),
+        @selector(layoutSubviews),
+        ^void(id self) {
+            ((void(*)(id, SEL))orig_barLayout)(self, @selector(layoutSubviews));
+            ytfRenderSegmentsOnBar((UIView *)self);
+        });
+    (void)orig_barLayout;
+}
+
 void YTFreedomSponsorBlockInit(void) {
     startSponsorTimer();
+    fixSegmentBarOverlay();
 }

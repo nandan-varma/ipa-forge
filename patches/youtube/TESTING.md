@@ -1,24 +1,28 @@
-# YouTube Pro v0.0.7 — device test sheet
+# YouTube Pro v0.0.8 — device test sheet
 
-Install `/Users/nandan/dev/ytlite-ipa/Youtube_pro_v0.0.7.ipa`. Confirm build:
-Settings → YTFreedom → version row = **v0.6.2**.
+Install `/Users/nandan/dev/ytlite-ipa/Youtube_pro_v0.0.8.ipa`. Confirm build:
+Settings → YTFreedom → version row = **v0.6.3**.
 
-## What changed in v0.0.7
+## What changed in v0.0.8 (remaining reference features)
 
-- **SponsorBlock** (new, from iSponsorBlock reference): auto-skips sponsor
-  segments. Toggle: Advanced → System → SponsorBlock (default OFF — it sends
-  video IDs to api.sponsor.ajay.app). When on: fetches segments for the
-  current video and seeks past them (1s poll; no player-bar UI yet).
-- **Keep screen on** (new, DEMC-style): prevents auto-lock/dimming while a
-  video is playing. Advanced → System → Keep screen on.
-- **Quality + speed moved to Beta**: Old quality picker and Extra speeds are
-  version-gated by the app on 21.32.4 and could not be made to work; their
-  toggles now live in Advanced → Beta (marked beta, default OFF). Their
-  hooks stay installed so they can be flipped for experiments, but treat them
-  as non-functional.
-- RYD (dislike counts) stays deferred: its watch-page hook target
-  (updateLikeButtonWithRenderer:) is absent in 21.32.4.
+- **Loop video** (YouLoop-style): restarts playback when the video ends.
+  Player group toggle. Timer-based (no fragile callback).
+- **Settings sections hiding** (uYouPlus approach, 9 sections): Advanced →
+  Settings sections — hide Account / Autoplay / Try new features / Video
+  quality preferences / Notifications / Manage all history / Your data in
+  YouTube / Privacy / Live chat from the app's Settings screen. All 9 targets
+  verified present.
+- **SponsorBlock player-bar segments** (v2): green markers on the seekbar
+  (inline + fullscreen) showing where sponsor segments are, alongside the
+  auto-skip.
+- **Not feasible on 21.32.4 (documented, not implemented)**:
+  - Return-YouTube-Dislikes: watch-page hook target (updateLikeButtonWithRenderer:)
+    is absent; the remaining path is fragile ELM yoga-tree surgery.
+  - Red subscribe button: `eml.compact_subscribe_button` is absent.
+  - YTUHD (VP9/UHD unlock): requires bundling VP9/AV1 decoder libraries — not
+    portable to the single-dylib build.
 
+## 0. Smoke
 ## 0. Smoke
 ## 0. Smoke
 ## 0. Smoke

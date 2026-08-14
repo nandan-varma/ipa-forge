@@ -496,6 +496,33 @@ hooks:
   - class: "YTWatchLayerViewController"
     selector: "watchController:didSetPlayerViewController:"
     kind: instance
+  - class: "YTSettingsSectionItemManager"
+    selector: "updateAccountSwitcherSectionWithEntry:"
+    kind: instance
+  - class: "YTSettingsSectionItemManager"
+    selector: "updateAutoplaySectionWithEntry:"
+    kind: instance
+  - class: "YTSettingsSectionItemManager"
+    selector: "updatePremiumEarlyAccessSectionWithEntry:"
+    kind: instance
+  - class: "YTSettingsSectionItemManager"
+    selector: "updateVideoQualitySectionWithEntry:"
+    kind: instance
+  - class: "YTSettingsSectionItemManager"
+    selector: "updateNotificationSectionWithEntry:"
+    kind: instance
+  - class: "YTSettingsSectionItemManager"
+    selector: "updateHistorySectionWithEntry:"
+    kind: instance
+  - class: "YTSettingsSectionItemManager"
+    selector: "updateYourDataSectionWithEntry:"
+    kind: instance
+  - class: "YTSettingsSectionItemManager"
+    selector: "updatePrivacySectionWithEntry:"
+    kind: instance
+  - class: "YTSettingsSectionItemManager"
+    selector: "updateLiveChatSectionWithEntry:"
+    kind: instance
   - class: "YTSettingsGroupData"
     selector: "orderedCategories"
     kind: instance
@@ -585,4 +612,10 @@ hooks:
     kind: instance
   - class: "CHMConfiguration"
     selector: "keychainAccessGroup"
+    kind: instance
+  - class: "YTInlinePlayerBarContainerView"
+    selector: "layoutSubviews"
+    kind: instance
+  - class: "YTPlayerBarView"
+    selector: "layoutSubviews"
     kind: instance

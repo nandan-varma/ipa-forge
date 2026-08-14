@@ -17,7 +17,7 @@
 
 #define YT_BUNDLE_ID @"com.google.ios.youtube"
 #define YT_NAME @"YouTube"
-#define YTFREEDOM_VERSION @"0.6.2"
+#define YTFREEDOM_VERSION @"0.6.3"
 
 // ---------------------------------------------------------------------------
 // Settings keys (NSUserDefaults, prefix YTFreedom)
@@ -116,6 +116,26 @@
 #define KAutoClearCache          @"YTFreedomAutoClearCache"
 #define KSponsorBlock            @"YTFreedomSponsorBlock"
 #define KKeepScreenOn            @"YTFreedomKeepScreenOn"
+#define KLoopVideo               @"YTFreedomLoopVideo"
+#define KHideSAccountSection     @"YTFreedomHideSAccountSection"
+#define KHideSAutoplaySection    @"YTFreedomHideSAutoplaySection"
+#define KHideSTryNewFeatures     @"YTFreedomHideSTryNewFeatures"
+#define KHideSVideoQualityPrefs  @"YTFreedomHideSVideoQualityPrefs"
+#define KHideSNotifications      @"YTFreedomHideSNotifications"
+#define KHideSManageHistory      @"YTFreedomHideSManageHistory"
+#define KHideSYourData           @"YTFreedomHideSYourData"
+#define KHideSPrivacy            @"YTFreedomHideSPrivacy"
+#define KHideSLiveChat           @"YTFreedomHideSLiveChat"
+#define KLoopVideo               @"YTFreedomLoopVideo"
+#define KHideSAccountSection     @"YTFreedomHideSAccountSection"
+#define KHideSAutoplaySection    @"YTFreedomHideSAutoplaySection"
+#define KHideSTryNewFeatures     @"YTFreedomHideSTryNewFeatures"
+#define KHideSVideoQualityPrefs  @"YTFreedomHideSVideoQualityPrefs"
+#define KHideSNotifications      @"YTFreedomHideSNotifications"
+#define KHideSManageHistory      @"YTFreedomHideSManageHistory"
+#define KHideSYourData           @"YTFreedomHideSYourData"
+#define KHideSPrivacy            @"YTFreedomHideSPrivacy"
+#define KHideSLiveChat           @"YTFreedomHideSLiveChat"
 
 // G18 YTLite extras / G6 gestures keys
 #define KRedProgressBar           @"YTFreedomRedProgressBar"
@@ -325,6 +345,8 @@ void YTFreedomMiscInit(void);
 void YTFreedomAppearanceInit(void);
 void YTFreedomSponsorBlockInit(void);
 void YTFreedomKeepScreenOnInit(void);
+void YTFreedomLoopVideoInit(void);
+void YTFreedomSettingsCleanerInit(void);
 UIViewController *ytfCurrentPlayerViewController(void);
 
 // ---------------------------------------------------------------------------

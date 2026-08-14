@@ -30,6 +30,8 @@ static void YTFreedomInit(void) {
     YTFreedomAppearanceInit();
     YTFreedomSponsorBlockInit();
     YTFreedomKeepScreenOnInit();
+    YTFreedomLoopVideoInit();
+    YTFreedomSettingsCleanerInit();
 
     os_log(ytfLog(), "YTFreedom v%@ init complete", YTFREEDOM_VERSION);
 }
