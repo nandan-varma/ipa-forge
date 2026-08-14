@@ -15,20 +15,25 @@
 static BOOL urlIsBootstrap(NSURL *url) { return [url.path containsString:@"bootstrap/v1/bootstrap"]; }
 static BOOL urlIsCustomize(NSURL *url) { return [url.path containsString:@"v1/customize"]; }
 static BOOL urlIsDAC(NSURL *url) { return [url.path containsString:@"/dac/view/v1/"]; }
-static BOOL urlIsAccountValidate(NSURL *url) { return [url.path containsString:@"account-validate"]; }
-static BOOL urlIsTrialsFacade(NSURL *url) { return [url.path containsString:@"trials-facade"]; }
-static BOOL urlIsPremiumMarketing(NSURL *url) { return [url.path containsString:@"premium-marketing"]; }
+static BOOL urlIsAccountValidate(NSURL *url) { return [url.path containsString:@"signup/public"]; }
+static BOOL urlIsTrialsFacade(NSURL *url) { return [url.path containsString:@"trials-facade/start-trial"]; }
+static BOOL urlIsPremiumMarketing(NSURL *url) { return [url.path containsString:@"premium-marketing/upsellOffer"]; }
 static BOOL urlIsScreenConfig(NSURL *url) { return [url.path containsString:@"pses/screenconfig"]; }
+static BOOL urlIsPlanRow(NSURL *url) { return [url.path containsString:@"v1/GetPremiumPlanRow"]; }
+static BOOL urlIsPlanBadge(NSURL *url) { return [url.path containsString:@"GetYourPremiumBadge"]; }
+static BOOL urlIsPlanOverview(NSURL *url) { return [url.path containsString:@"GetPlanOverview"]; }
 static BOOL urlIsSessionInvalidation(NSURL *url) {
     NSString *p = url.path;
     return [p containsString:@"session/purge"] || [p containsString:@"token/revoke"]
         || [p containsString:@"DeleteToken"] || [p containsString:@"logout"]
-        || [p containsString:@"sign-out"] || [p containsString:@"signup/public"];
+        || [p containsString:@"sign-out"] || [p containsString:@"signup/public"]
+        || [p containsString:@"auth/expire"];
 }
 static BOOL urlNeedsPatching(NSURL *url) { return urlIsBootstrap(url) || urlIsCustomize(url); }
 static BOOL urlNeedsCannedResponse(NSURL *url) {
     return urlIsDAC(url) || urlIsAccountValidate(url) || urlIsTrialsFacade(url)
-        || urlIsPremiumMarketing(url) || urlIsScreenConfig(url) || urlIsSessionInvalidation(url);
+        || urlIsPremiumMarketing(url) || urlIsScreenConfig(url) || urlIsSessionInvalidation(url)
+        || urlIsPlanRow(url) || urlIsPlanBadge(url) || urlIsPlanOverview(url);
 }
 
 // --- UcsResponse navigation -------------------------------------------------
@@ -360,6 +365,69 @@ static NSData *spotPatchUcsData(NSData *data) {
 
 // --- canned responses -------------------------------------------------------
 
+// PremiumPlanRow: {3: planName, 18: planIdentifier, 4: colorCode}
+static NSData *spotPlanRowData(void) {
+    NSArray *fields = @[
+        [PBProto stringField:3 value:@"EeveeSpotify"],
+        [PBProto stringField:18 value:@"Eevee"],
+        [PBProto stringField:4 value:@"#FFD2D7"],
+    ];
+    return [PBProto serialize:fields];
+}
+
+// YourPremiumBadge: {1: name, 2: version, 3: colorCode}
+static NSData *spotPlanBadgeData(void) {
+    NSArray *fields = @[
+        [PBProto stringField:1 value:@"Eevee"],
+        [PBProto varintField:2 value:2],
+        [PBProto stringField:3 value:@"#FFD2D7"],
+    ];
+    return [PBProto serialize:fields];
+}
+
+// SpotifyPlan: {1: subscription, 2: notice}
+static NSData *spotPlanOverviewData(void) {
+    NSArray *features = @[
+        [PBProto messageFieldBuilder:20 fields:@[
+            [PBProto varintField:1 value:1], // icon = check
+            [PBProto stringField:2 value:@"Ad-free music listening"],
+            [PBProto stringField:4 value:@"#1ED760"],
+        ]],
+        [PBProto messageFieldBuilder:20 fields:@[
+            [PBProto varintField:1 value:1],
+            [PBProto stringField:2 value:@"Play songs in any order"],
+            [PBProto stringField:4 value:@"#1ED760"],
+        ]],
+        [PBProto messageFieldBuilder:20 fields:@[
+            [PBProto varintField:1 value:1],
+            [PBProto stringField:2 value:@"Organize your listening queue"],
+            [PBProto stringField:4 value:@"#1ED760"],
+        ]],
+    ];
+    NSArray *subscription = @[
+        [PBProto varintField:2 value:2],
+        [PBProto stringField:3 value:@"EeveeSpotify"],
+        [PBProto stringField:4 value:@"Eevee"],
+        [PBProto stringField:5 value:@"#FFD2D7"],
+    ];
+    NSArray *notice = @[
+        [PBProto stringField:1 value:@"You are on the EeveeSpotify plan"],
+        [PBProto varintField:7 value:2], // subscription status
+    ];
+    NSArray *top = @[
+        [PBProto messageFieldBuilder:1 fields:subscription],
+        [PBProto messageFieldBuilder:2 fields:notice],
+    ];
+    // features belong inside subscription (field 20), not top-level
+    NSMutableArray *subWithFeatures = [subscription mutableCopy];
+    [subWithFeatures addObjectsFromArray:features];
+    return [PBProto serialize:@[
+        [PBProto messageFieldBuilder:1 fields:subWithFeatures],
+        [PBProto messageFieldBuilder:2 fields:notice],
+    ]];
+    (void)top;
+}
+
 static NSData *spotCannedResponse(NSURL *url) {
     if (urlIsDAC(url)) return [NSData data]; // "no ad to render"
     if (urlIsAccountValidate(url))
@@ -370,6 +438,9 @@ static NSData *spotCannedResponse(NSURL *url) {
         return [@"{}" dataUsingEncoding:NSUTF8StringEncoding];
     if (urlIsSessionInvalidation(url))
         return [@"{\"status\":\"OK\"}" dataUsingEncoding:NSUTF8StringEncoding];
+    if (urlIsPlanRow(url)) return spotPlanRowData();
+    if (urlIsPlanBadge(url)) return spotPlanBadgeData();
+    if (urlIsPlanOverview(url)) return spotPlanOverviewData();
     return nil;
 }
 

@@ -22,6 +22,7 @@ static void installAll(void) {
     safeInit("sideload", ^{ SpotifySideloadFixInit(); });
     safeInit("session-protection", ^{ SpotifySessionProtectionInit(); });
     safeInit("premium", ^{ SpotifyPremiumPatchInit(); });
+    safeInit("adblock", ^{ SpotifyAdBlockInit(); });
     os_log(spotLog(), "SpotifyMod install complete");
 }
 

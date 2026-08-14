@@ -49,5 +49,6 @@ static inline IMP sptHookClass(Class cls, SEL sel, id block) {
 void SpotifySideloadFixInit(void);
 void SpotifySessionProtectionInit(void);
 void SpotifyPremiumPatchInit(void);
+void SpotifyAdBlockInit(void);
 
 #endif

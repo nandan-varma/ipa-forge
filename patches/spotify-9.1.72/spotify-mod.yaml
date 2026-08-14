@@ -87,6 +87,10 @@ hooks:
     selector: "destroySession"
   - class: "SPTAuthLegacyLoginControllerImplementation"
     selector: "invalidate"
+  # HUB ad-component filter (sponsored shelves, banners, marquee cards)
+  - class: "HUBViewModelBuilderImplementation"
+    selector: "addJSONDictionary:"
+    required: true
   # network-level logout/ad re-fetch blocking
   - class: "NSURLSessionTask"
     selector: "resume"

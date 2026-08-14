@@ -71,8 +71,38 @@ static BOOL spotShouldBlockURL(NSURL *url) {
         || [path containsString:@"session/purge"]
         || [path containsString:@"logout"]
         || [path containsString:@"sign-out"]
-        || [path containsString:@"auth/expire"]
-        || [path containsString:@"account/revoke"]) {
+        || [path containsString:@"auth/expire"]) {
+        return YES;
+    }
+
+    // Ad-delivery endpoints (Ad on App Open banner, /ads/*, ad-logic, DAC,
+    // Esperanto slots, sponsored/promoted/upsell/campaign paths...).
+    if ([path containsString:@"/ad-on-app-open"]
+        || [path containsString:@"/ads/"]
+        || [path containsString:@"/ad-logic/"]
+        || [path containsString:@"/dac/view/v1/"]
+        || ([path containsString:@"/esperanto/"] && ([path containsString:@"ad"] || [path containsString:@"slot"]))
+        || [path containsString:@"/ad-slot/"]
+        || [path containsString:@"/ad-inventory/"]
+        || [path containsString:@"/sponsored/"]
+        || [path containsString:@"/promoted/"]
+        || [path containsString:@"/upsell/"]
+        || [path containsString:@"/campaign/"]
+        || [path containsString:@"/billboard/"]
+        || [path containsString:@"/banner/"]
+        || [path containsString:@"/interstitial/"]
+        || [path containsString:@"/marquee/"]
+        || [path containsString:@"/leavebehind/"]
+        || [path containsString:@"/display-ad/"]
+        || [path containsString:@"/fullbleed/"]
+        || [path containsString:@"/sponsored-shelf/"]
+        || [path containsString:@"/native-ad/"]
+        || [path containsString:@"/home-ads/"]
+        || [path containsString:@"/search-ads/"]) {
+        return YES;
+    }
+    if ([host containsString:@"doubleclick"] || [host containsString:@"googlesyndication"]
+        || [host hasPrefix:@"aet."] || [host hasSuffix:@".aet.spotify.com"]) {
         return YES;
     }
 
@@ -84,14 +114,9 @@ static BOOL spotShouldBlockURL(NSURL *url) {
             || [path containsString:@"pses/screenconfig"]
             || [path containsString:@"bootstrap/v1/bootstrap"]
             || [path containsString:@"v1/customize"]
-            || ([path containsString:@"/dac/view/v1/"]
-                || ([path containsString:@"/esperanto/"] && [path containsString:@"ad"]))) {
-            return YES;
-        }
-        // Spotify's account-session daemons
-        if ([path containsString:@"trials-facade"]
-            || [path containsString:@"premium-marketing"]
-            || [path containsString:@"account-validate"]) {
+            || [path containsString:@"trials-facade/start-trial"]
+            || [path containsString:@"premium-marketing/upsellOffer"]
+            || [path containsString:@"select-ondemand-set"]) {
             return YES;
         }
     }

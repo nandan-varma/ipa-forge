@@ -18,5 +18,5 @@ xcrun --sdk iphoneos clang \
     -install_name "@rpath/SpotifyHook.dylib" \
     -o "$HERE/../build/SpotifyHook.dylib" \
     "$HERE"/SpotifyHook.m "$HERE"/SideloadFix.m "$HERE"/SessionProtection.m \
-    "$HERE"/PremiumPatch.m "$HERE"/PBProto.m
+    "$HERE"/PremiumPatch.m "$HERE"/AdBlock.m "$HERE"/PBProto.m
 echo "built $HERE/../build/SpotifyHook.dylib"
