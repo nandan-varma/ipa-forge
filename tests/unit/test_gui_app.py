@@ -66,7 +66,8 @@ def test_detect_reports_version_mismatch(tmp_path: Path, fake_ipa: Path):
     ps_dir = Path(os.environ["IPA_FORGE_PATCHES_DIR"])
     (ps_dir / "synthetic" / "synthetic.yaml").write_text(
         "target:\n  bundle_id: com.example.testapp\n  version: { exact: 9.9.9 }\n"
-        "patches:\n  - id: rename\n    type: plist_edit\n    action: set\n    key: CFBundleDisplayName\n    value: Patched\n"
+        "patches:\n  - id: rename\n    type: plist_edit\n    action: set\n"
+        "    key: CFBundleDisplayName\n    value: Patched\n"
     )
     res = client.post("/detect", files=_upload_ipa(tmp_path, fake_ipa))
     assert res.status_code == 200
