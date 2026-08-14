@@ -397,6 +397,19 @@ the `YTFreedom: hooked -[...]` os_log lines at launch.
 | G19 Adblock polish | ✅ always-on |
 | G20 New-IPA UX batch | ✅ A/B Testing under Advanced with otool-verified flags + restart pills — on-device pass pending |
 
+### v0.0.6 — menu rows fixed (real availability gates found)
+
+The overflow-menu rows are ADDED by YTPlayerOverflowMenuController
+(maybeAddVarispeedItemForOverflowMenuRenderer + the quality-item logic),
+gated by readonly config properties that the previous hooks never touched:
+
+- Speed row: `MLInnerTubePlayerConfig.varispeedAllowed` (TB,R,N) -> forced YES.
+- Quality row: `YTVideoQualitySwitchOriginalController`/`RedesignedController`
+  `isQualitySwitchAvailable`/`isQualitySwitchEnabled` (TB,R,N) -> forced YES.
+- YTOverflowMenuViewController isVideoQualityAvailable/Enabled + label hooks
+  kept as a backstop for the native row state.
+- Version scheme returned to 0.0.x (the v1.0.0 bump was not authorized).
+
 ### v1.0.0 — native integration (pill removed)
 
 The pill overlay was removed per user feedback (bad UX, always visible).

@@ -880,7 +880,62 @@ static void fixYTLiteExtras(void) {
 // Its "Video quality" row is server-gated (isVideoQualityAvailable / isVideoQualityEnabled)
 // and shows the current quality (selectedVideoQualityLabelText). We force the row visible
 // and surface OUR tracked quality label on it, so the native menu is the UI (no overlay).
+// Native integration: the player's ... menu (YTPlayerOverflowMenuController) adds
+// the "Playback speed" row via maybeAddVarispeedItemForOverflowMenuRenderer and the
+// "Video quality" row via the quality-switch availability, each gated by a
+// readonly config property:
+//   - speed:  MLInnerTubePlayerConfig.varispeedAllowed
+//   - quality: YTVideoQualitySwitch(Original|Redesigned)Controller
+//             isQualitySwitchAvailable / isQualitySwitchEnabled
+// Force those gates (binary-verified: TB,R,N synthesized getters) so the rows
+// always render; the app's own item-adding code does the rest (no protobuf
+// construction on our side). The YTOverflowMenuViewController hooks are kept
+// as a backstop for the native row state + current-quality label.
 static void fixNativeQualityMenu(void) {
+    static IMP orig_varispeedAllowed;
+    orig_varispeedAllowed = ytfHookInstance(NSClassFromString(@"MLInnerTubePlayerConfig"),
+        @selector(varispeedAllowed),
+        ^BOOL(id self) {
+            return IS_ENABLED(KExtraSpeed) ? YES
+                : ((BOOL(*)(id, SEL))orig_varispeedAllowed)(self, @selector(varispeedAllowed));
+        });
+    (void)orig_varispeedAllowed;
+
+    // Original + Redesigned quality switch controllers (inline class refs so
+    // the hooks manifest generator sees them).
+    static IMP orig_qsAvailableOriginal;
+    orig_qsAvailableOriginal = ytfHookInstance(NSClassFromString(@"YTVideoQualitySwitchOriginalController"),
+        @selector(isQualitySwitchAvailable),
+        ^BOOL(id self) {
+            return IS_ENABLED(KOldQualityPicker) ? YES
+                : ((BOOL(*)(id, SEL))orig_qsAvailableOriginal)(self, @selector(isQualitySwitchAvailable));
+        });
+    (void)orig_qsAvailableOriginal;
+    static IMP orig_qsEnabledOriginal;
+    orig_qsEnabledOriginal = ytfHookInstance(NSClassFromString(@"YTVideoQualitySwitchOriginalController"),
+        @selector(isQualitySwitchEnabled),
+        ^BOOL(id self) {
+            return IS_ENABLED(KOldQualityPicker) ? YES
+                : ((BOOL(*)(id, SEL))orig_qsEnabledOriginal)(self, @selector(isQualitySwitchEnabled));
+        });
+    (void)orig_qsEnabledOriginal;
+    static IMP orig_qsAvailableRedesigned;
+    orig_qsAvailableRedesigned = ytfHookInstance(NSClassFromString(@"YTVideoQualitySwitchRedesignedController"),
+        @selector(isQualitySwitchAvailable),
+        ^BOOL(id self) {
+            return IS_ENABLED(KOldQualityPicker) ? YES
+                : ((BOOL(*)(id, SEL))orig_qsAvailableRedesigned)(self, @selector(isQualitySwitchAvailable));
+        });
+    (void)orig_qsAvailableRedesigned;
+    static IMP orig_qsEnabledRedesigned;
+    orig_qsEnabledRedesigned = ytfHookInstance(NSClassFromString(@"YTVideoQualitySwitchRedesignedController"),
+        @selector(isQualitySwitchEnabled),
+        ^BOOL(id self) {
+            return IS_ENABLED(KOldQualityPicker) ? YES
+                : ((BOOL(*)(id, SEL))orig_qsEnabledRedesigned)(self, @selector(isQualitySwitchEnabled));
+        });
+    (void)orig_qsEnabledRedesigned;
+
     static IMP orig_available;
     orig_available = ytfHookInstance(NSClassFromString(@"YTOverflowMenuViewController"), @selector(isVideoQualityAvailable),
         ^BOOL(id self) {

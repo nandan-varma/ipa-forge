@@ -460,6 +460,21 @@ hooks:
   - class: "YTPlayerBarController"
     selector: "setHeatmap:"
     kind: instance
+  - class: "MLInnerTubePlayerConfig"
+    selector: "varispeedAllowed"
+    kind: instance
+  - class: "YTVideoQualitySwitchOriginalController"
+    selector: "isQualitySwitchAvailable"
+    kind: instance
+  - class: "YTVideoQualitySwitchOriginalController"
+    selector: "isQualitySwitchEnabled"
+    kind: instance
+  - class: "YTVideoQualitySwitchRedesignedController"
+    selector: "isQualitySwitchAvailable"
+    kind: instance
+  - class: "YTVideoQualitySwitchRedesignedController"
+    selector: "isQualitySwitchEnabled"
+    kind: instance
   - class: "YTOverflowMenuViewController"
     selector: "isVideoQualityAvailable"
     kind: instance
