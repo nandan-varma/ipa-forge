@@ -280,6 +280,44 @@ def test_cli_audit_no_hook_calls(objc_macho_binary: Path, tmp_path: Path) -> Non
     assert "No hook calls found" in result.stdout
 
 
+def test_cli_audit_patches_flag_all_declared(objc_macho_binary: Path, tmp_path: Path) -> None:
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    src_dir = tmp_path / "tweak_src"
+    src_dir.mkdir()
+    (src_dir / "tweak.m").write_text(
+        'static void a(void) { ytfHookInstance(NSClassFromString(@"Foo"), @selector(doIt:), ^void(id self) {}); }\n'
+    )
+    hooks = _hooks_yaml(tmp_path, "Foo", "doIt:")
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["audit", "--ipa", str(ipa), "--dir", str(src_dir), "--patches", str(hooks)],
+    )
+    assert result.exit_code == 0
+    assert "All 1 source hooks are declared" in result.stdout
+
+
+def test_cli_audit_patches_flag_catches_undeclared_hook(objc_macho_binary: Path, tmp_path: Path) -> None:
+    """A hook the source calls but the definition's `hooks:` block omits is
+    invisible to --dry-run's safety net -- this is exactly the Spotify gap
+    a manual audit found (three real hooks missing from spotify.yaml)."""
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    src_dir = tmp_path / "tweak_src"
+    src_dir.mkdir()
+    (src_dir / "tweak.m").write_text(
+        'static void a(void) { ytfHookInstance(NSClassFromString(@"Foo"), @selector(doIt:), ^void(id self) {}); }\n'
+        'static void b(void) { ytfHookClass(NSClassFromString(@"Foo"), @selector(makeIt),\n'
+        "    ^id(id self){return nil;}); }\n"
+    )
+    hooks = _hooks_yaml(tmp_path, "Foo", "doIt:")  # only declares one of the two
+    result = runner.invoke(
+        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
+        ["audit", "--ipa", str(ipa), "--dir", str(src_dir), "--patches", str(hooks)],
+    )
+    assert result.exit_code == 1
+    assert "missing from" in result.stdout
+    assert "Foo" in result.stdout and "makeIt" in result.stdout
+
+
 def test_cli_manifest_marks_required(tmp_path: Path) -> None:
     (tmp_path / "tweak.m").write_text(
         'static void a(void) { ytfHookInstance(NSClassFromString(@"Thing"), @selector(doIt:), ^void(id self) {}); }\n'

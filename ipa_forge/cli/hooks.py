@@ -135,10 +135,18 @@ def hooks_audit(
         exists=True,
         help="Already-extracted Payload/<App>.app directory to analyze instead of re-extracting the IPA",
     ),
+    patches: Path | None = typer.Option(
+        None,
+        "--patches",
+        exists=True,
+        help="Patch definition with a `hooks:` section -- cross-check it against what the source scan finds "
+        "and flag hooks the source calls that aren't declared (so --dry-run isn't gating on them)",
+    ),
 ) -> None:
     """Scan ObjC tweak sources for hook calls and verify each target against
     the app binary. Catches hooks the author wrote but a newer app version
-    broke."""
+    broke. With --patches, also catches hooks the author wrote but forgot to
+    declare in the `hooks:` block -- those never get checked by --dry-run."""
     decls = scan_hook_sources(dylib_src)
     if not decls:
         typer.echo("No hook calls found in the sources.")
@@ -156,6 +164,23 @@ def hooks_audit(
                 f"[{r.status:16}] {r.class_name} {'+' if r.kind == 'class' else '-'}[{r.selector}]  {r.detail}",
                 fg=typer.colors.YELLOW,
             )
+
+    if patches is None:
+        return
+    definition = load_patch_definition(patches)
+    declared = {(h.class_name, h.selector) for h in (definition.hooks or [])}
+    undeclared = [d for d in decls if (d.class_name, d.selector) not in declared]
+    if undeclared:
+        typer.echo("")
+        typer.secho(
+            f"{len(undeclared)} hook(s) found in sources but missing from {patches.name}'s `hooks:` block "
+            f"(--dry-run does not gate on these):",
+            fg=typer.colors.RED,
+        )
+        for d in undeclared:
+            typer.secho(f"  {d.class_name} {'+' if d.kind == 'class' else '-'}[{d.selector}]", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    typer.echo(f"\nAll {len(decls)} source hooks are declared in {patches.name}'s `hooks:` block.")
 
 
 @app.command("find")
