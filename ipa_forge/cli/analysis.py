@@ -17,12 +17,13 @@ from pathlib import Path
 import typer
 
 from ipa_forge.analysis.classdump import render_analysis
+from ipa_forge.analysis.diff import diff_analyses, render_diff
 from ipa_forge.analysis.security import analyze_security, render_security_posture
 from ipa_forge.analysis.strings import strings_in_bundle
 from ipa_forge.analysis.symbols import analyze_symbols
 from ipa_forge.bundle.ipa import load_bundle
 from ipa_forge.bundle.models import AppBundle
-from ipa_forge.cli.common import extract_or_use
+from ipa_forge.cli.common import extract_or_use, resolve_app_path
 from ipa_forge.machO.arch import AmbiguousArchError, ArchNotFoundError, NotMachOError
 from ipa_forge.machO.detect import bundle_executable_paths
 from ipa_forge.machO.objc import analyze_bundle
@@ -182,3 +183,43 @@ def analysis_security(
             raise typer.Exit(code=1) from None
 
     typer.echo(render_security_posture(posture))
+
+
+@app.command("diff")
+def analysis_diff(
+    old_ipa: Path | None = typer.Option(
+        None, "--old", exists=True, help="Previous-version .ipa (not needed with --old-app-dir)"
+    ),
+    new_ipa: Path | None = typer.Option(
+        None, "--new", exists=True, help="New-version .ipa (not needed with --new-app-dir)"
+    ),
+    old_app_dir: Path | None = typer.Option(
+        None, "--old-app-dir", exists=True, help="Extracted Payload/<App>.app of the old build"
+    ),
+    new_app_dir: Path | None = typer.Option(
+        None, "--new-app-dir", exists=True, help="Extracted Payload/<App>.app of the new build"
+    ),
+) -> None:
+    """Survey what changed between two builds of the same app: classes and
+    protocols added/removed, per-class method churn, and Info.plist key
+    changes. Broader and purely informational compared to `forge hooks
+    diff`, which only re-checks one patch definition's declared hook
+    targets and fails the exit code on a required-hook regression."""
+    with tempfile.TemporaryDirectory(prefix="ipa_forge_analysis_") as tmp:
+        try:
+            old_path = resolve_app_path(old_ipa, old_app_dir, Path(tmp) / "old")
+            new_path = resolve_app_path(new_ipa, new_app_dir, Path(tmp) / "new")
+        except ValueError as e:
+            typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1) from None
+        bundle_old = load_bundle(old_path)
+        bundle_new = load_bundle(new_path)
+        diff = diff_analyses(
+            analyze_bundle(bundle_old),
+            analyze_bundle(bundle_new),
+            bundle_old.info_plist,
+            bundle_new.info_plist,
+        )
+
+    typer.echo(f"{bundle_old.bundle_id} {bundle_old.version} -> {bundle_new.version}")
+    typer.echo(render_diff(diff))
