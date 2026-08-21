@@ -10,6 +10,7 @@ import typer
 
 from ipa_forge.altstore.source import build_app_entry, write_source_json
 from ipa_forge.bundle.ipa import load_bundle
+from ipa_forge.cli import analysis as _analysis  # `forge analysis` subcommands
 from ipa_forge.cli import hooks as _hooks  # `forge hooks` subcommands
 from ipa_forge.cli.common import validated_extract
 from ipa_forge.pipeline import PipelineError, run_pipeline
@@ -162,6 +163,7 @@ def gui(
 
 
 app.add_typer(_hooks.app, name="hooks")
+app.add_typer(_analysis.app, name="analysis")
 
 
 if __name__ == "__main__":

@@ -40,10 +40,10 @@ class MachOProperty:
 class MachOProtocol:
     name: str
     protocols: set[str] = field(default_factory=set)  # inherited protocols
-    inst: set[str] = field(default_factory=set)  # required instance methods
-    cls: set[str] = field(default_factory=set)  # required class methods
-    opt_inst: set[str] = field(default_factory=set)  # @optional instance methods
-    opt_cls: set[str] = field(default_factory=set)  # @optional class methods
+    inst: dict[str, str] = field(default_factory=dict)  # required instance methods -> type encoding
+    cls: dict[str, str] = field(default_factory=dict)  # required class methods -> type encoding
+    opt_inst: dict[str, str] = field(default_factory=dict)  # @optional instance methods -> type encoding
+    opt_cls: dict[str, str] = field(default_factory=dict)  # @optional class methods -> type encoding
 
 
 @dataclass
@@ -51,8 +51,8 @@ class MachOCategory:
     name: str
     class_name: str  # class being extended; "«external»" for a system-class
     # category (Foundation/UIKit); "" only if the pointer itself is absent
-    inst: set[str] = field(default_factory=set)
-    cls: set[str] = field(default_factory=set)  # class (metaclass) methods
+    inst: dict[str, str] = field(default_factory=dict)  # instance methods -> type encoding
+    cls: dict[str, str] = field(default_factory=dict)  # class (metaclass) methods -> type encoding
     protocols: set[str] = field(default_factory=set)
 
 
@@ -60,8 +60,8 @@ class MachOCategory:
 class MachOClass:
     name: str
     super_name: str | None = None  # None = root; "«external»" = defined in another image
-    inst: set[str] = field(default_factory=set)
-    cls: set[str] = field(default_factory=set)  # class (metaclass) methods
+    inst: dict[str, str] = field(default_factory=dict)  # instance methods -> type encoding
+    cls: dict[str, str] = field(default_factory=dict)  # class (metaclass) methods -> type encoding
     protocols: set[str] = field(default_factory=set)
     ivars: list[MachOIvar] = field(default_factory=list)
     properties: list[MachOProperty] = field(default_factory=list)
@@ -283,39 +283,52 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
             classes[name].super_name = super_name
 
     # ---- pass 2: method lists ----
-    def parse_methods(list_raw: int | None) -> set[str]:
+    # Returns {selector: type_encoding} rather than a bare set of selectors --
+    # `sel in methods` still works unchanged (dict key containment), but the
+    # type encoding lets class-dump reconstruct full method signatures
+    # instead of bare selector names.
+    def parse_methods(list_raw: int | None) -> dict[str, str]:
         if not list_raw:
-            return set()
+            return {}
         lp = resolve_ptr(list_raw)
         if not lp:
-            return set()
+            return {}
         eo = vm2off(lp)
         if eo is None or eo + 8 > len(data):
-            return set()
+            return {}
         eaf = struct.unpack_from("<I", data, eo)[0]
         entsize = eaf & 0xFFFF or eaf & 0x3FFFFF
         rel = bool(eaf & 0x80000000)
         count = struct.unpack_from("<I", data, eo + 4)[0]
         if count > 5_000_000:
-            return set()
-        sels: set[str] = set()
+            return {}
+        methods: dict[str, str] = {}
         for i in range(count):
             e = lp + 8 + i * entsize
             eo_i = vm2off(e)
             if eo_i is None or eo_i + 12 > len(data):
                 break
             if rel and entsize == 12:
-                rel_off = struct.unpack_from("<i", data, eo_i)[0]
-                sel_ptr = resolve_ptr(rd64(e + rel_off))
+                # name/types are self-relative: a signed 32-bit offset from
+                # the FIELD's own address. `name` additionally indirects
+                # through a selector-reference slot (uniquing); `types`
+                # points straight at the encoding cstring (no uniquing table
+                # exists for them), no second resolve_ptr needed.
+                name_off = struct.unpack_from("<i", data, eo_i)[0]
+                sel_ptr = resolve_ptr(rd64(e + name_off))
                 sel = cstr(sel_ptr) if sel_ptr else None
+                types_off = struct.unpack_from("<i", data, eo_i + 4)[0]
+                types = cstr(e + 4 + types_off)
             elif not rel:
                 sel_ptr = resolve_ptr(rd64(e))
                 sel = cstr(sel_ptr) if sel_ptr else None
+                types_ptr = resolve_ptr(rd64(e + 8))
+                types = cstr(types_ptr) if types_ptr else None
             else:
                 continue
             if sel:
-                sels.add(sel)
-        return sels
+                methods[sel] = types or ""
+        return methods
 
     # ---- pass 2b: protocol/ivar/property lists shared by classes, protocols,
     # and categories (protocol_list_t / ivar_list_t / property_list_t) ----
@@ -439,7 +452,7 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
                 if sel_str:
                     selectors.add(sel_str)
     for cls in classes.values():
-        selectors |= cls.inst | cls.cls
+        selectors |= set(cls.inst) | set(cls.cls)
 
     # ---- pass 4: methname (every selector DECLARED as a method name) ----
     # Distinct from selrefs: a selector can be *referenced* (NSSelectorFromString,

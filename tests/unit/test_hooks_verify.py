@@ -10,10 +10,10 @@ from ipa_forge.machO.objc import MachOAnalysis, MachOClass
 def _analysis() -> MachOAnalysis:
     return MachOAnalysis(
         classes={
-            "YTThing": MachOClass(name="YTThing", super_name=None, inst={"doIt:"}, cls={"makeIt"}),
+            "YTThing": MachOClass(name="YTThing", super_name=None, inst={"doIt:": "v@:"}, cls={"makeIt": "@@:"}),
             "YTChild": MachOClass(name="YTChild", super_name="YTThing"),
             "YTCustom": MachOClass(name="YTCustom", super_name="«external»"),
-            "YTView": MachOClass(name="YTView", super_name="«external»", inst={"setHidden:"}),
+            "YTView": MachOClass(name="YTView", super_name="«external»", inst={"setHidden:": "v@:B"}),
         },
         classnames={"YTThing", "YTChild", "YTGone", "YTWalkMissed"},
         selectors={

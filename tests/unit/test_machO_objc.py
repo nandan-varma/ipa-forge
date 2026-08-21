@@ -21,6 +21,15 @@ def test_analyze_protocol_conformance_and_methods(objc_rich_macho_binary: Path) 
     assert "wave" in greeter.opt_inst
 
 
+def test_analyze_method_type_encoding(objc_rich_macho_binary: Path) -> None:
+    """Methods map selector -> type encoding now, not just a bare selector
+    set -- class-dump needs the encoding to render argument/return types."""
+    analysis = analyze_macho(objc_rich_macho_binary)
+    bar = analysis.classes["Bar"]
+    # -(void)greet -- v (void return), @ (self), : (_cmd); no args beyond that
+    assert bar.inst["greet"] == "v16@0:8"
+
+
 def test_analyze_ivars_and_properties(objc_rich_macho_binary: Path) -> None:
     analysis = analyze_macho(objc_rich_macho_binary)
     bar = analysis.classes["Bar"]
