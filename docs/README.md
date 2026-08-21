@@ -19,11 +19,13 @@ then come back here for the map.
 
 ## The patch sets (concrete worked examples)
 
-| Patch set | Docs |
-| --- | --- |
-| YouTube 21.32.4 (`patches/youtube/`) | [`PLAYBOOK.md`](../patches/youtube/PLAYBOOK.md) (runbook), [`README.md`](../patches/youtube/README.md) (features), [`ROADMAP.md`](../patches/youtube/ROADMAP.md) (goals), [`SOURCES.md`](../patches/youtube/SOURCES.md) (attribution) |
-| Spotify 9.1.72 (`patches/spotify/`) | [`PLAYBOOK.md`](../patches/spotify/PLAYBOOK.md) (runbook), [`README.md`](../patches/spotify/README.md) (features), [`SOURCES.md`](../patches/spotify/SOURCES.md) |
-| Instagram 442.0.0 (`patches/instagram/`) | [`PLAYBOOK.md`](../patches/instagram/PLAYBOOK.md) (runbook), [`README.md`](../patches/instagram/README.md) (features), [`SOURCES.md`](../patches/instagram/SOURCES.md) |
+Patch definitions live in **separate private repos** (submoduled under `patches/` — requires auth). Clone with `git clone --recursive`.
+
+| Patch set | Docs | Repo |
+| --- | --- | --- |
+| YouTube 21.32.4 (`patches/youtube/`) | [`PLAYBOOK.md`](../patches/youtube/PLAYBOOK.md) (runbook), [`README.md`](../patches/youtube/README.md) (features), [`ROADMAP.md`](../patches/youtube/ROADMAP.md) (goals), [`SOURCES.md`](../patches/youtube/SOURCES.md) (attribution) | [`nandan-varma/ipa-forge-patches-youtube`](https://github.com/nandan-varma/ipa-forge-patches-youtube) (private) |
+| Spotify 9.1.72 (`patches/spotify/`) | [`PLAYBOOK.md`](../patches/spotify/PLAYBOOK.md) (runbook), [`README.md`](../patches/spotify/README.md) (features), [`SOURCES.md`](../patches/spotify/SOURCES.md) | [`nandan-varma/ipa-forge-patches-spotify`](https://github.com/nandan-varma/ipa-forge-patches-spotify) (private) |
+| Instagram 442.0.0 (`patches/instagram/`) | [`PLAYBOOK.md`](../patches/instagram/PLAYBOOK.md) (runbook), [`README.md`](../patches/instagram/README.md) (features), [`SOURCES.md`](../patches/instagram/SOURCES.md) | [`nandan-varma/ipa-forge-patches-instagram`](https://github.com/nandan-varma/ipa-forge-patches-instagram) (private) |
 
 ## The reading order for a new session
 

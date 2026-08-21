@@ -1,7 +1,7 @@
 # ipa-forge
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![repo](https://img.shields.io/badge/repo-nandanvarma%2Fipa--forge-555.svg)](https://github.com/nandanvarma/ipa-forge)
+[![repo](https://img.shields.io/badge/repo-nandan--varma%2Fipa--forge-555.svg)](https://github.com/nandan-varma/ipa-forge)
 
 A generic, data-driven iOS IPA patcher framework: extract a user-supplied
 `.ipa`, apply version-aware patches from external YAML definitions (binary
@@ -28,8 +28,9 @@ Start at [`docs/README.md`](docs/README.md) — the index.
 
 | Set | Runbook | Features |
 | --- | --- | --- |
-| YouTube 21.32.4 | [`patches/youtube/PLAYBOOK.md`](patches/youtube/PLAYBOOK.md) | [`patches/youtube/README.md`](patches/youtube/README.md) |
-| Spotify 9.1.72 | [`patches/spotify/PLAYBOOK.md`](patches/spotify/PLAYBOOK.md) | [`patches/spotify/README.md`](patches/spotify/README.md) |
+| YouTube 21.32.4 | [`patches/youtube/PLAYBOOK.md`](patches/youtube/PLAYBOOK.md) | [`patches/youtube/README.md`](patches/youtube/README.md) | `nandan-varma/ipa-forge-patches-youtube` (private) |
+| Spotify 9.1.72 | [`patches/spotify/PLAYBOOK.md`](patches/spotify/PLAYBOOK.md) | [`patches/spotify/README.md`](patches/spotify/README.md) | `nandan-varma/ipa-forge-patches-spotify` (private) |
+| Instagram 442.0.0 | [`patches/instagram/PLAYBOOK.md`](patches/instagram/PLAYBOOK.md) | [`patches/instagram/README.md`](patches/instagram/README.md) | `nandan-varma/ipa-forge-patches-instagram` (private) |
 
 ## Quick start (novice — the GUI)
 
@@ -184,6 +185,10 @@ Real-device AltStore Classic install/launch/refresh cannot be automated in
 this environment -- see
 [`docs/altstore_device_testing.md`](docs/altstore_device_testing.md) for the
 manual checklist.
+
+## Disclaimer
+
+For educational and research purposes only. You must supply your own legally obtained `.ipa`. Not affiliated with Apple, Google/YouTube, Spotify, or Meta/Instagram. No copyrighted binaries are distributed — patch definitions only. Sideloading may violate an app's Terms of Service.
 
 ## License
 

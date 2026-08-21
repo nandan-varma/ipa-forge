@@ -13,4 +13,5 @@ patches/*/build*/
 patches/*/dev/build*/
 patches/*/dylib/build/
 patches/*/dev/build-test/
+patches/*/assets/*.dylib
 .coverage
