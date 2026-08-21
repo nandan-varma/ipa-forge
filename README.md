@@ -35,7 +35,7 @@ Start at [`docs/README.md`](docs/README.md) — the index.
 ## Quick start (novice — the GUI)
 
 1. **Install**: `python3 -m venv .venv && source .venv/bin/activate && pip install -e .`
-2. **Launch the GUI**: `forge gui` → open http://127.0.0.1:8765
+2. **Launch the GUI**: `forge gui` → open <http://127.0.0.1:8765>
 3. **Drop your .ipa** into the box. The GUI detects the app and the matching
    patch set, shows a small warning if the patch set targets a different
    version (patching is still allowed — hook verification is the safety
