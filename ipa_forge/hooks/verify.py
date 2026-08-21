@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from ipa_forge.hooks.binary import MachOAnalysis, contains_string
+from ipa_forge.machO.objc import MachOAnalysis, contains_string
 
 HookStatus = Literal[
     "ok",

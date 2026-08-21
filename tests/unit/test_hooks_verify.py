@@ -3,8 +3,8 @@
 
 import pytest
 
-from ipa_forge.hooks.binary import MachOAnalysis, MachOClass
 from ipa_forge.hooks.verify import HookDecl, failing, verify_hooks
+from ipa_forge.machO.objc import MachOAnalysis, MachOClass
 
 
 def _analysis() -> MachOAnalysis:

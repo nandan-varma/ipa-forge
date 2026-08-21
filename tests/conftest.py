@@ -45,6 +45,49 @@ def objc_macho_binary(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def objc_rich_macho_binary(tmp_path: Path) -> Path:
+    """A real thin Mach-O exercising protocols, ivars, properties, and
+    categories -- everything `objc.py`'s class-dump-oriented parsing covers
+    beyond the basic class/method/selref walk `objc_macho_binary` gives."""
+    src = tmp_path / "main.m"
+    src.write_text(
+        "#import <Foundation/Foundation.h>\n"
+        "@protocol Greeter\n"
+        "- (void)greet;\n"
+        "@optional\n"
+        "- (void)wave;\n"
+        "@end\n"
+        "@interface Bar : NSObject <Greeter>\n"
+        "{\n"
+        "    int _count;\n"
+        "}\n"
+        "@property (nonatomic, copy) NSString *label;\n"
+        "- (void)greet;\n"
+        "- (void)wave;\n"
+        "@end\n"
+        "@implementation Bar\n"
+        "- (void)greet { }\n"
+        "- (void)wave { }\n"
+        "@end\n"
+        # A category on a class defined in ANOTHER image (Foundation's
+        # NSObject, here) forces a genuine runtime-attached __objc_catlist
+        # entry. A category on Bar itself would compile-time fold into Bar's
+        # own method list (clang optimization for same-TU categories) and
+        # never touch __objc_catlist at all.
+        "@interface NSObject (Extras)\n"
+        "- (void)extraThing;\n"
+        "@end\n"
+        "@implementation NSObject (Extras)\n"
+        "- (void)extraThing { }\n"
+        "@end\n"
+        "int main(void) { return 0; }\n"
+    )
+    out = tmp_path / "objc_rich_binary"
+    subprocess.run(["clang", "-fobjc-arc", "-framework", "Foundation", "-o", str(out), str(src)], check=True)
+    return out
+
+
+@pytest.fixture
 def fat_macho_binary(tmp_path: Path) -> Path:
     """A real universal (arm64 + x86_64) Mach-O binary, for arch-selection tests."""
     src = tmp_path / "fat_main.c"

@@ -23,9 +23,9 @@ import typer
 
 from ipa_forge.bundle.ipa import load_bundle
 from ipa_forge.cli.common import resolve_app_path
-from ipa_forge.hooks.binary import analyze_bundle
 from ipa_forge.hooks.scan import scan_hook_sources
 from ipa_forge.hooks.verify import HookDecl, verify_hooks
+from ipa_forge.machO.objc import analyze_bundle
 from ipa_forge.patch.loader import load_patch_definition
 
 app = typer.Typer(help="Mach-O Objective-C hook verification (catches silent no-ops on version drift).")

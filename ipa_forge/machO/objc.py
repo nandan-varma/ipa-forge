@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Mach-O Objective-C runtime analysis: class table + method lists + selectors.
+"""Mach-O Objective-C runtime analysis: classes, protocols, categories,
+ivars, properties, method lists, and selectors.
 
-Parses the ``__objc_classlist``/``__objc_classname``/``__objc_selrefs``
-sections of an arm64 Mach-O (chained-fixup aware), producing the ground
-truth the hook verifier needs: does this class exist and does it implement
-this selector? Catches the silent hook no-ops that version drift causes.
+Parses the ``__objc_classlist``/``__objc_protolist``/``__objc_catlist``/
+``__objc_classname``/``__objc_selrefs`` sections of an arm64 Mach-O
+(chained-fixup aware). This is the shared ground truth for two consumers:
+``ipa_forge.hooks`` (does this hook target exist and attach?) and
+``ipa_forge.analysis`` (class-dump/strings/diff — general reverse
+engineering of an IPA).
 
 Fat binaries are thinned to the arm64 slice first (lipo); section file
 offsets are then correct for direct data reads.
@@ -22,11 +25,46 @@ from ipa_forge.bundle.models import AppBundle
 
 
 @dataclass
+class MachOIvar:
+    name: str
+    type_encoding: str  # raw Objective-C type-encoding string, e.g. '@"NSString"', 'i', 'q'
+
+
+@dataclass
+class MachOProperty:
+    name: str
+    attributes: str  # raw property attribute string, e.g. 'T@"NSString",C,N'
+
+
+@dataclass
+class MachOProtocol:
+    name: str
+    protocols: set[str] = field(default_factory=set)  # inherited protocols
+    inst: set[str] = field(default_factory=set)  # required instance methods
+    cls: set[str] = field(default_factory=set)  # required class methods
+    opt_inst: set[str] = field(default_factory=set)  # @optional instance methods
+    opt_cls: set[str] = field(default_factory=set)  # @optional class methods
+
+
+@dataclass
+class MachOCategory:
+    name: str
+    class_name: str  # class being extended; "«external»" for a system-class
+    # category (Foundation/UIKit); "" only if the pointer itself is absent
+    inst: set[str] = field(default_factory=set)
+    cls: set[str] = field(default_factory=set)  # class (metaclass) methods
+    protocols: set[str] = field(default_factory=set)
+
+
+@dataclass
 class MachOClass:
     name: str
     super_name: str | None = None  # None = root; "«external»" = defined in another image
     inst: set[str] = field(default_factory=set)
     cls: set[str] = field(default_factory=set)  # class (metaclass) methods
+    protocols: set[str] = field(default_factory=set)
+    ivars: list[MachOIvar] = field(default_factory=list)
+    properties: list[MachOProperty] = field(default_factory=list)
 
 
 @dataclass
@@ -36,6 +74,8 @@ class MachOAnalysis:
     selectors: set[str]  # every selector the image references (selrefs + method lists)
     main_executable: Path | None
     methnames: set[str] = field(default_factory=set)  # every selector DECLARED as a method name (__objc_methname)
+    protocols: dict[str, MachOProtocol] = field(default_factory=dict)  # __objc_protolist, by name
+    categories: list[MachOCategory] = field(default_factory=list)  # __objc_catlist
     # Raw bytes of every analyzed binary, kept so the verifier can cross-check
     # a missing class/selector against the actual string table (a class name or
     # selector present as a cstring but absent from the parsed method lists is
@@ -83,6 +123,9 @@ def analyze_bundle(bundle: AppBundle) -> MachOAnalysis:
             merged.classes.update(analysis.classes)
             merged.classnames |= analysis.classnames
             merged.selectors |= analysis.selectors
+            merged.methnames |= analysis.methnames
+            merged.protocols.update(analysis.protocols)
+            merged.categories.extend(analysis.categories)
             merged.raw_data.extend(analysis.raw_data)
     if merged is None:
         raise ValueError("no analyzable Mach-O found in the app bundle")
@@ -274,9 +317,110 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
                 sels.add(sel)
         return sels
 
+    # ---- pass 2b: protocol/ivar/property lists shared by classes, protocols,
+    # and categories (protocol_list_t / ivar_list_t / property_list_t) ----
+    def parse_ptr_list(list_raw: int | None) -> list[int]:
+        """protocol_list_t: a size_t count followed by `count` pointers."""
+        if not list_raw:
+            return []
+        lp = resolve_ptr(list_raw)
+        if not lp:
+            return []
+        co = vm2off(lp)
+        if co is None or co + 8 > len(data):
+            return []
+        count = struct.unpack_from("<Q", data, co)[0]
+        if count > 100_000:
+            return []
+        ptrs: list[int] = []
+        for i in range(count):
+            raw = rd64(lp + 8 + i * 8)
+            p = resolve_ptr(raw) if raw else None
+            if p:
+                ptrs.append(p)
+        return ptrs
+
+    def protocol_name(proto_ptr: int) -> str | None:
+        np = resolve_ptr(rd64(proto_ptr + 8))  # protocol_t.name
+        return cstr(np) if np else None
+
+    def parse_protocol_names(list_raw: int | None) -> set[str]:
+        return {n for p in parse_ptr_list(list_raw) if (n := protocol_name(p))}
+
+    def parse_ivars(list_raw: int | None) -> list[MachOIvar]:
+        if not list_raw:
+            return []
+        lp = resolve_ptr(list_raw)
+        if not lp:
+            return []
+        ho = vm2off(lp)
+        if ho is None or ho + 8 > len(data):
+            return []
+        entsize = struct.unpack_from("<I", data, ho)[0]
+        count = struct.unpack_from("<I", data, ho + 4)[0]
+        if entsize == 0 or count > 100_000:
+            return []
+        ivars: list[MachOIvar] = []
+        for i in range(count):
+            eo = vm2off(lp + 8 + i * entsize)
+            if eo is None or eo + 24 > len(data):
+                break
+            name_ptr = resolve_ptr(rd64(lp + 8 + i * entsize + 8))  # ivar_t.name
+            type_ptr = resolve_ptr(rd64(lp + 8 + i * entsize + 16))  # ivar_t.type
+            name = cstr(name_ptr) if name_ptr else None
+            if name:
+                ivars.append(MachOIvar(name, (cstr(type_ptr) if type_ptr else None) or ""))
+        return ivars
+
+    def parse_properties(list_raw: int | None) -> list[MachOProperty]:
+        if not list_raw:
+            return []
+        lp = resolve_ptr(list_raw)
+        if not lp:
+            return []
+        ho = vm2off(lp)
+        if ho is None or ho + 8 > len(data):
+            return []
+        entsize = struct.unpack_from("<I", data, ho)[0]
+        count = struct.unpack_from("<I", data, ho + 4)[0]
+        if entsize == 0 or count > 100_000:
+            return []
+        props: list[MachOProperty] = []
+        for i in range(count):
+            eo = vm2off(lp + 8 + i * entsize)
+            if eo is None or eo + 16 > len(data):
+                break
+            name_ptr = resolve_ptr(rd64(lp + 8 + i * entsize))  # property_t.name
+            attr_ptr = resolve_ptr(rd64(lp + 8 + i * entsize + 8))  # property_t.attributes
+            name = cstr(name_ptr) if name_ptr else None
+            if name:
+                props.append(MachOProperty(name, (cstr(attr_ptr) if attr_ptr else None) or ""))
+        return props
+
+    def class_name_from_ptr(raw: int | None) -> str | None:
+        """Resolve a class_t* (isa/superclass/cache/vtable/data) to its name,
+        for category_t.cls -- the same chain pass 1 walks for the classlist.
+        Returns "«external»" (not None) when the pointer is a bind to a class
+        defined in another image -- routine for a category on a system class
+        (NSObject, UIView, ...) and distinct from a genuinely absent pointer."""
+        if not raw:
+            return None
+        p = resolve_ptr(raw)
+        if not p:
+            return "«external»"
+        dp = resolve_ptr(rd64(p + 32))
+        if not dp:
+            return "«external»"
+        np = resolve_ptr(rd64(dp + 24))
+        name = cstr(np) if np else None
+        return name or "«external»"
+
     for name, ro in ro_by_name.items():
         cls = classes[name]
         cls.inst = parse_methods(rd64(ro + 32))  # ro.baseMethods
+        cls.protocols = parse_protocol_names(rd64(ro + 40))  # ro.baseProtocols
+        cls.ivars = parse_ivars(rd64(ro + 48))  # ro.ivars
+        cls.properties = parse_properties(rd64(ro + 64))  # ro.baseProperties
         meta = meta_by_name.get(name)
         if meta:
             mdp = resolve_ptr(rd64(meta + 32))
@@ -308,11 +452,62 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
         _a, sz, o = sections["__objc_methname"]
         methnames.update(s.decode("utf-8", "replace") for s in data[o : o + sz].split(b"\x00") if s)
 
+    # ---- pass 5: protocol table (__objc_protolist) ----
+    # protocol_t: isa@0, name@8, protocols(protocol_list_t*)@16,
+    # instanceMethods@24, classMethods@32, optionalInstanceMethods@40,
+    # optionalClassMethods@48.
+    protocols: dict[str, MachOProtocol] = {}
+    if "__objc_protolist" in sections:
+        _a, sz, o = sections["__objc_protolist"]
+        for i in range(sz // 8):
+            raw = struct.unpack_from("<Q", data, o + i * 8)[0]
+            pp = resolve_ptr(raw)
+            if not pp:
+                continue
+            name = protocol_name(pp)
+            if not name:
+                continue
+            protocols[name] = MachOProtocol(
+                name=name,
+                protocols=parse_protocol_names(rd64(pp + 16)),
+                inst=parse_methods(rd64(pp + 24)),
+                cls=parse_methods(rd64(pp + 32)),
+                opt_inst=parse_methods(rd64(pp + 40)),
+                opt_cls=parse_methods(rd64(pp + 48)),
+            )
+
+    # ---- pass 6: categories (__objc_catlist) ----
+    # category_t: name@0, cls(class_t*)@8, instanceMethods@16, classMethods@24,
+    # protocols(protocol_list_t*)@32, instanceProperties@40.
+    categories: list[MachOCategory] = []
+    if "__objc_catlist" in sections:
+        _a, sz, o = sections["__objc_catlist"]
+        for i in range(sz // 8):
+            raw = struct.unpack_from("<Q", data, o + i * 8)[0]
+            cp = resolve_ptr(raw)
+            if not cp:
+                continue
+            name_ptr = resolve_ptr(rd64(cp))
+            cat_name = cstr(name_ptr) if name_ptr else None
+            if not cat_name:
+                continue
+            categories.append(
+                MachOCategory(
+                    name=cat_name,
+                    class_name=class_name_from_ptr(rd64(cp + 8)) or "",
+                    inst=parse_methods(rd64(cp + 16)),
+                    cls=parse_methods(rd64(cp + 24)),
+                    protocols=parse_protocol_names(rd64(cp + 32)),
+                )
+            )
+
     return MachOAnalysis(
         classes=classes,
         classnames=classnames,
         selectors=selectors,
         methnames=methnames,
+        protocols=protocols,
+        categories=categories,
         main_executable=original,
         raw_data=[data],
     )

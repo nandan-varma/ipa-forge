@@ -12,9 +12,9 @@ from pathlib import Path
 
 from ipa_forge.bundle.ipa import extract_ipa, load_bundle, repack_ipa
 from ipa_forge.bundle.models import AppBundle
-from ipa_forge.hooks.binary import analyze_bundle
 from ipa_forge.hooks.verify import HookDecl, verify_hooks
 from ipa_forge.hooks.verify import failing as hook_failures
+from ipa_forge.machO.objc import analyze_bundle
 from ipa_forge.manifest import Manifest, ProfileManifestEntry, sha256_of
 from ipa_forge.patch.base import PatchContext
 from ipa_forge.patch.engine import apply_all, dry_run_all

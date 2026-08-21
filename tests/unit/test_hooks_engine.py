@@ -8,8 +8,8 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from ipa_forge.hooks.binary import analyze_macho
 from ipa_forge.hooks.scan import scan_hook_sources
+from ipa_forge.machO.objc import analyze_macho
 
 runner = CliRunner()
 
