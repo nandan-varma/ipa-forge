@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ipa_forge.bundle.models import AppBundle
+from ipa_forge.machO.detect import bundle_executable_paths
 
 
 @dataclass
@@ -104,15 +105,10 @@ def analyze_bundle(bundle: AppBundle) -> MachOAnalysis:
     frameworks/dylibs) and merge the results. Hook targets routinely live in
     frameworks (Spotify's SPTDataLoaderService is in SpotifyShared.framework),
     so verification must cover all of them, not just the main executable."""
-    paths: list[Path] = [bundle.root / bundle.main_executable_name]
-    for target in bundle.executables:
-        if target.kind == "framework":
-            paths.append(bundle.extraction_root / Path(target.bundle_relative))
+    paths = bundle_executable_paths(bundle, kinds={"framework"})
 
     merged: MachOAnalysis | None = None
     for binary_path in paths:
-        if not binary_path.is_file():
-            continue
         try:
             analysis = analyze_macho(binary_path)
         except (ValueError, OSError, subprocess.CalledProcessError):
