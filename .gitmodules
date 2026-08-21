@@ -1,0 +1,9 @@
+[submodule "patches/youtube"]
+	path = patches/youtube
+	url = https://github.com/nandan-varma/ipa-forge-patches-youtube.git
+[submodule "patches/spotify"]
+	path = patches/spotify
+	url = https://github.com/nandan-varma/ipa-forge-patches-spotify.git
+[submodule "patches/instagram"]
+	path = patches/instagram
+	url = https://github.com/nandan-varma/ipa-forge-patches-instagram.git
