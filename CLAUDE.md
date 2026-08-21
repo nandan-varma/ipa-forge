@@ -13,17 +13,27 @@ Full design rationale lives in `docs/architecture.md` (component map, the
 17-stage pipeline, two real bugs found empirically during implementation)
 and `docs/extensibility.md` (how to add a patch operation type, known v1
 scope limits). User-facing references: `docs/usage.md` (CLI/GUI workflows),
-`docs/patch-reference.md` (the full YAML patch-definition contract), and
-`docs/troubleshooting.md` (error message -> cause -> fix). Read those before
-making non-trivial changes to `pipeline.py` or `signing/`.
+`docs/patch-reference.md` (the full YAML patch-definition contract),
+`docs/reverse-engineering.md` (`forge analysis`: class-dump, strings,
+symbols, security, diff), and `docs/troubleshooting.md` (error message ->
+cause -> fix). Read those before making non-trivial changes to
+`pipeline.py` or `signing/`. **`STATE.md`** is the project's own
+session-handoff doc (current status, in-flight work, decisions not to
+undo) — read it first in any new session.
 
 ## Documentation map
 
-- `docs/README.md` — the index (which doc for what).
+- `STATE.md` — session state & operating knowledge; read this first.
+- `docs/README.md` — the doc index (which doc for what).
 - `docs/adding-an-app.md` — port a new app end-to-end.
 - `docs/adding-a-feature.md` — add a feature to a hook dylib (conventions).
 - `docs/patch-reference.md` / `docs/usage.md` — YAML + CLI reference.
-- The patch sets (`patches/youtube/`, `patches/spotify/`) each
+- `docs/reverse-engineering.md` — `forge analysis` (class-dump, strings,
+  symbols, security, version diffing).
+- `ROADMAP.md` — deferred work, incl. reverse-engineering roadmap
+  (disassembly, Swift support, etc.) with file/anchor pointers to resume.
+- The patch sets (`patches/youtube/`, `patches/spotify/`,
+  `patches/instagram/` — private submodules, `git clone --recursive`) each
   have a `PLAYBOOK.md` runbook with the app-specific commands and gotchas.
 
 ## Commands
@@ -47,7 +57,14 @@ forge inspect path/to/App.ipa
 forge validate path/to/App.ipa
 forge patch --ipa <ipa> --patches <patches.yaml> --identity <id> --profile <profile> --output <out.ipa> [--dry-run] [--verbose]
 forge export-source --ipa <patched.ipa> --download-url <url> --output source.json
-forge gui   # launches the local FastAPI GUI on 127.0.0.1:8765
+forge gui   # launches the local FastAPI GUI on 127.0.0.1:8765 (+ /analysis RE viewer)
+
+# Hook verification (forge hooks --help): verify | extract | audit | find | manifest | diff
+forge hooks verify --ipa <ipa> --patches <patches.yaml>
+
+# General-purpose IPA reverse engineering (forge analysis --help), see docs/reverse-engineering.md
+forge analysis classdump --ipa <ipa> [--class NAME | --search REGEX]
+forge analysis diff --old <old.ipa> --new <new.ipa>
 
 # Regenerate the synthetic test fixture (only needed if changing its shape)
 scripts/rebuild_fixture.sh
@@ -65,20 +82,33 @@ Lint and typecheck (config lives in `pyproject.toml`): `ruff check .`,
 
 **Dependency direction is one-way and enforced by convention, not tooling**:
 `patch/` and `signing/` both depend on `bundle/` but never on each other.
-`pipeline.py` orchestrates `patch/`, `signing/`, `hooks/`, `validators/`, and
-`manifest.py`.
+`machO/` (arch selection, dylib injection, and the shared ObjC/Mach-O
+analysis engine in `machO/objc.py`) also depends on `bundle/`. `hooks/` and
+`analysis/` are siblings that both depend on `machO/objc.py`'s
+`MachOAnalysis` and never import each other. `pipeline.py` orchestrates
+`patch/`, `signing/`, `hooks/`, `validators/`, and `manifest.py`.
 
 **Hook verification (`ipa_forge/hooks/`)**: the `hooks:` block in a patch
 definition declares the dylib's runtime hook targets; `pipeline.py` verifies
 them against the app's main binary (class table + method lists + selrefs,
-chained-fixup aware) during the dry-run gate and fails when a `required` hook
-can't attach. This is the safety net for version drift — a renamed/removed
-class silently kills a hook otherwise. The CLI surface is `forge hooks
-verify|extract|audit`. `cli/` and `gui/` call into `pipeline.py` for patching —
-neither touches `patch/` or `signing/` directly; `cli/` additionally uses
-`altstore/` (export-source) and `validators/` (inspect/validate) directly,
-and structural IPA validation (stage 1) is run by the pipeline, not by
-`bundle/`.
+chained-fixup aware — parsed by `machO/objc.py`, shared with `analysis/`)
+during the dry-run gate and fails when a `required` hook can't attach. This
+is the safety net for version drift — a renamed/removed class silently
+kills a hook otherwise. The CLI surface is `forge hooks
+verify|extract|audit|find|manifest|diff`. `cli/` and `gui/` call into
+`pipeline.py` for patching — neither touches `patch/` or `signing/`
+directly; `cli/` additionally uses `altstore/` (export-source) and
+`validators/` (inspect/validate) directly, and structural IPA validation
+(stage 1) is run by the pipeline, not by `bundle/`.
+
+**General-purpose reverse engineering (`ipa_forge/analysis/`)**:
+class-dump, strings, symbols, security posture, and version diffing for
+*any* IPA — not tied to a patch definition. Built on the same
+`machO/objc.py` engine `hooks/` uses; CLI surface is `forge analysis
+classdump|strings|symbols|security|diff`, plus a read-only `/analysis`
+page in the GUI. FairPlay decryption and instruction-level disassembly are
+deliberately out of scope — see `ipa_forge/analysis/__init__.py`'s
+docstring and `ROADMAP.md`.
 
 **The core engine is app-agnostic**: it understands patch operation *types*
 (`binary_replace`, `resource_replace`, `dylib_inject`, ...) via the
@@ -123,10 +153,17 @@ implementing it).
 
 ### Linux support boundary
 
-Everything except `ipa_forge/signing/` works without macOS — extraction,
-repacking, plist parsing, patch resolution, resource patching, and Mach-O
-analysis/injection (`bundle/`, `patch/`, `machO/`) have no macOS dependency.
-The boundary is which modules a code path imports, not a runtime OS check.
+`ipa_forge/signing/` needs `codesign`/`security` (macOS only). Less obvious:
+`ipa_forge/machO/objc.py` (the shared ObjC/Mach-O analysis engine —
+`analyze_macho`/`analyze_bundle`) shells out to `otool`/`lipo`, which are
+also macOS-only, unlike the rest of `machO/` (`arch.py`, `injector.py` are
+LIEF-backed and Linux-safe). This means **`hooks/` and `analysis/` are not
+Linux-safe either** — both are built on `machO/objc.py`. Everything else
+(`bundle/`, `patch/`, `machO/arch.py`, `machO/injector.py`, dry-run) works
+without macOS. The boundary is which modules a code path imports, not a
+runtime OS check — no hooks/analysis tests are `@pytest.mark.macos`-gated
+today even though they need Xcode CLT, which is only a gap if someone
+actually runs them on a bare Linux CI runner.
 
 ### Test fixture
 
