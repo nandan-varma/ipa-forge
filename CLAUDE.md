@@ -9,32 +9,40 @@ version-aware patches from external YAML (binary byte patches, resource
 replace/add/remove, dylib injection), and re-sign the result into a
 standard-structure `.ipa` that AltStore Classic can install/refresh.
 
-Full design rationale lives in `docs/architecture.md` (component map, the
-17-stage pipeline, two real bugs found empirically during implementation)
-and `docs/extensibility.md` (how to add a patch operation type, known v1
-scope limits). User-facing references: `docs/usage.md` (CLI/GUI workflows),
-`docs/patch-reference.md` (the full YAML patch-definition contract),
-`docs/reverse-engineering.md` (`forge analysis`: class-dump, strings,
-symbols, security, diff), and `docs/troubleshooting.md` (error message ->
-cause -> fix). Read those before making non-trivial changes to
-`pipeline.py` or `signing/`. **`STATE.md`** is the project's own
-session-handoff doc (current status, in-flight work, decisions not to
-undo) — read it first in any new session.
+**Read [`STATE.md`](STATE.md) first, every session, before anything else in
+this file or in `docs/`.** It is the single source of truth for *current*
+status (which apps/features are shipped vs. beta/untested, where delivered
+IPAs live right now, decisions already made that shouldn't be re-litigated).
+This file (`CLAUDE.md`) covers what doesn't change session to session:
+architecture, hard constraints, and where to find the doc that answers a
+given question. If something here ever conflicts with `STATE.md`, `STATE.md`
+wins — it's updated far more often.
 
 ## Documentation map
 
-- `STATE.md` — session state & operating knowledge; read this first.
-- `docs/README.md` — the doc index (which doc for what).
-- `docs/adding-an-app.md` — port a new app end-to-end.
-- `docs/adding-a-feature.md` — add a feature to a hook dylib (conventions).
-- `docs/patch-reference.md` / `docs/usage.md` — YAML + CLI reference.
-- `docs/reverse-engineering.md` — `forge analysis` (class-dump, strings,
-  symbols, security, version diffing).
-- `ROADMAP.md` — deferred work, incl. reverse-engineering roadmap
-  (disassembly, Swift support, etc.) with file/anchor pointers to resume.
-- The patch sets (`patches/youtube/`, `patches/spotify/`,
-  `patches/instagram/` — private submodules, `git clone --recursive`) each
-  have a `PLAYBOOK.md` runbook with the app-specific commands and gotchas.
+Route by task, don't read everything:
+
+| Task | Read |
+| --- | --- |
+| **Starting a session** | [`STATE.md`](STATE.md) — current status, in-flight work, decisions not to undo |
+| Finding the right doc for anything else | [`docs/README.md`](docs/README.md) — the full doc index, table-of-contents style |
+| Port a **new app** end-to-end | [`docs/adding-an-app.md`](docs/adding-an-app.md) |
+| Add a **feature** to an existing hook dylib | [`docs/adding-a-feature.md`](docs/adding-a-feature.md) |
+| The **YAML patch-definition** contract | [`docs/patch-reference.md`](docs/patch-reference.md) |
+| The **CLI/GUI** reference | [`docs/usage.md`](docs/usage.md) |
+| **Reverse-engineer** any IPA (`forge analysis`: class-dump, strings, symbols, security, diff) | [`docs/reverse-engineering.md`](docs/reverse-engineering.md) |
+| An **error message** | [`docs/troubleshooting.md`](docs/troubleshooting.md) — message → cause → fix |
+| Testing on a **real device** via AltStore | [`docs/altstore_device_testing.md`](docs/altstore_device_testing.md) |
+| **Engine internals** before touching `pipeline.py`/`signing/` | [`docs/architecture.md`](docs/architecture.md) — component map, the 17-stage pipeline, two real bugs found empirically |
+| **Extending** the engine (new operation type, new provider) | [`docs/extensibility.md`](docs/extensibility.md) |
+| **Deferred work** (RE roadmap: disassembly, Swift support, etc.) | [`ROADMAP.md`](ROADMAP.md) — file/anchor pointers to resume |
+| A specific app's **runbook** (build/apply/verify commands, gotchas) | `patches/<app>/PLAYBOOK.md` |
+
+The patch sets (`patches/youtube/`, `patches/spotify/`, `patches/instagram/`)
+are private git submodules — `git clone --recursive` to get them, and
+**commit inside each submodule directory separately** before committing the
+updated submodule pointer in this repo; a plain top-level `git add -A` will
+silently skip submodule content changes.
 
 ## Commands
 
@@ -61,6 +69,10 @@ forge gui   # launches the local FastAPI GUI on 127.0.0.1:8765 (+ /analysis RE v
 
 # Hook verification (forge hooks --help): verify | extract | audit | find | manifest | diff
 forge hooks verify --ipa <ipa> --patches <patches.yaml>
+# Cross-check tweak source against the declared hooks: block -- catches a hook
+# the source calls but the YAML forgot to declare (invisible to --dry-run
+# otherwise; this is how real gaps were found in two of the three patch sets)
+forge hooks audit --ipa <ipa> --dir dylib/ --patches <patches.yaml>
 
 # General-purpose IPA reverse engineering (forge analysis --help), see docs/reverse-engineering.md
 forge analysis classdump --ipa <ipa> [--class NAME | --search REGEX]
@@ -94,7 +106,14 @@ them against the app's main binary (class table + method lists + selrefs,
 chained-fixup aware — parsed by `machO/objc.py`, shared with `analysis/`)
 during the dry-run gate and fails when a `required` hook can't attach. This
 is the safety net for version drift — a renamed/removed class silently
-kills a hook otherwise. The CLI surface is `forge hooks
+kills a hook otherwise, **but only for hooks actually declared in the
+`hooks:` block** — a hook the dylib source calls but the block never
+mentions is invisible to the dry-run gate by construction. `forge hooks
+audit --patches <yaml>` closes that specific gap by cross-checking the
+source scan against the declaration (`ipa_forge/hooks/scan.py` +
+`ipa_forge/cli/hooks.py::hooks_audit`); it isn't run automatically by
+`--dry-run`; run it as a standard part of the verify loop, not just when a
+hook seems broken. The CLI surface is `forge hooks
 verify|extract|audit|find|manifest|diff`. `cli/` and `gui/` call into
 `pipeline.py` for patching — neither touches `patch/` or `signing/`
 directly; `cli/` additionally uses `altstore/` (export-source) and

@@ -334,6 +334,18 @@ does. Check it first when a hook "attaches per verify" but does nothing on
 device. `forge hooks extract --ipa App.ipa --class <name>` prints the FULL
 method list (no truncation) — pipe large config classes through `grep`.
 
+**A hook that everything above verifies still isn't safe if it was never
+added to the `hooks:` block in the first place** — `--dry-run` only checks
+*declared* hooks; a hook the tweak source calls but the block omits is
+invisible to it, no error, no warning. `forge hooks audit --ipa App.ipa
+--dir <dylib-sources> --patches patch.yaml` closes that gap: it scans the
+sources the same way `manifest` does, then diffs what it found against
+what's declared, printing every hook that's missing and exiting 1 if any
+are. Run it as a standard part of the loop above (after `manifest`,
+alongside `--dry-run`), not only when a feature seems broken — this is how
+real, load-bearing hooks were found missing from two of the three shipped
+patch sets after the fact, with `--dry-run` green the whole time.
+
 ## The manifest
 
 Every run produces a structured manifest (`--verbose` prints it; the GUI shows

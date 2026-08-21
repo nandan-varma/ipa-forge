@@ -24,6 +24,29 @@ are soft — the class/selector likely exists but the parser couldn't fully
 confirm (system superclasses, chained-fixup gaps) — verify once on device
 via your tweak's attach logs rather than chasing them.
 
+## A feature does nothing on device, but `--dry-run` and `hooks verify` are green
+
+**Symptom:** the tweak source clearly calls a hook, `forge patch --dry-run`
+shows `0 issue(s)`, everything looks fine — and the feature still silently
+doesn't work on device.
+
+**Cause:** the hook was never added to the `hooks:` block. `--dry-run` only
+verifies *declared* hooks; a hook the source calls but the definition never
+mentions isn't checked at all, isn't reported as missing, and isn't
+reported as anything — it's simply absent from the report, which is easy to
+misread as "nothing to worry about."
+
+**Fix:** `forge hooks audit --ipa App.ipa --dir <dylib-sources> --patches
+patch.yaml` scans the source independently of the definition and diffs the
+two, printing every hook the source calls that isn't declared (exit 1 if
+any). This is a real, recurring mistake, not a hypothetical one — it's how
+load-bearing hooks were found missing from two of this project's three
+shipped patch sets, in both cases with `--dry-run` passing the entire time.
+Add the missing hook(s), re-run `--dry-run` to confirm they attach, and make
+`hooks audit --patches` a standard part of the pre-commit loop from then on
+(see [`patch-reference.md`](patch-reference.md), "The `hooks` block"
+section).
+
 ## Patch definition problems
 
 ### `patch definition '<file>' is invalid: ...`

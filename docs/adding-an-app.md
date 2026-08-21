@@ -2,7 +2,10 @@
 
 This is the canonical "give me an IPA, port everything" procedure. It is
 generic; the per-app runbooks ([YouTube](../patches/youtube/PLAYBOOK.md),
-[Spotify](../patches/spotify/PLAYBOOK.md)) apply it to their apps.
+[Spotify](../patches/spotify/PLAYBOOK.md),
+[Instagram](../patches/instagram/PLAYBOOK.md)) apply it to their apps. Check
+[`STATE.md`](../STATE.md)'s status table first — it's the current source of
+truth for which apps/versions are already ported before you start a new one.
 
 ## Phase 0 — accept the IPA
 
@@ -19,13 +22,20 @@ generic; the per-app runbooks ([YouTube](../patches/youtube/PLAYBOOK.md),
 
 ## Phase 1 — create the patch set
 
+**One canonical directory per app, named after the bundle id's app, not the
+version** — `patches/<app>/`, e.g. `patches/youtube/`. The version lives
+inside `target.version` in the YAML, not in the path. Don't create
+version-suffixed variants (`patches/youtube-21.32.4/`) — if the app updates,
+bump `target.version` in place and re-verify; the old version isn't kept
+around as a separate directory.
+
 ```
-patches/<app>-<version>/
-  <app>-mod.yaml      # the definition: ops + hooks: block
-  dylib/              # the hook dylib sources + build.sh
-  PLAYBOOK.md         # this app's runbook (copy the template below)
-  README.md           # features, build, apply, verify
-  SOURCES.md          # attribution / research lineage
+patches/<app>/
+  <app>.yaml          # the definition: ops + hooks: block (single canonical file)
+  dylib/               # the hook dylib sources + build.sh
+  PLAYBOOK.md          # this app's runbook (copy the template below)
+  README.md            # features, build, apply, verify
+  SOURCES.md           # attribution / research lineage
 ```
 
 The definition's shape is always:
@@ -46,9 +56,11 @@ hooks: [ ... ]        # every hook the dylib relies on (see below)
 ## Phase 2 — build the hook dylib (plain ObjC)
 
 - **Plain ObjC-runtime swizzling only.** No Swift, no substrate, no external
-  frameworks beyond Foundation/UIKit/Security. The two reference dylibs
-  (`patches/*/dylib/`) are the templates; copy the plumbing
-  (`<prefix>Hook.h`: `hookInstance`/`hookClass` inline helpers + os_log).
+  frameworks beyond Foundation/UIKit/Security (plus AVFoundation/Photos if
+  the feature genuinely needs them — see YouTube's `DownloadCore.m` for a
+  precedent). The three existing dylibs (`patches/*/dylib/`) are the
+  templates; copy the plumbing (`<prefix>Hook.h`: `hookInstance`/
+  `hookClass` inline helpers + os_log).
 - **The constructor is inert**: it only schedules the real install on the
   main run loop (`dispatch_async(dispatch_get_main_queue())`). Hooks install
   after launch, when every image is loaded — the substrate-style late-load
@@ -91,16 +103,26 @@ hooks:
   The parser under-reports GPBMessage methods.
 - Porting later: `forge hooks diff --old prev.ipa --new next.ipa --patches Y`
   shows exactly which hooks regressed.
+- **Before every commit**, cross-check the source against the declared
+  block: `forge hooks audit --ipa <ipa> --dir dylib/ --patches Y`. `--dry-run`
+  only verifies *declared* hooks — a hook the source calls but the YAML
+  forgot to declare is invisible to it. This flag is how real gaps were
+  found in two of the three existing patch sets after the fact; run it
+  every time, not just when something seems broken.
 
 ## Phase 4 — build + device loop
 
 ```bash
-patches/<app>-<version>/dylib/build.sh
-forge patch --ipa <base>.ipa --patches patches/<app>-<version>/<app>-mod.yaml \
+patches/<app>/dylib/build.sh
+forge patch --ipa <base>.ipa --patches patches/<app>/<app>.yaml \
   --output /tmp/x.ipa --dry-run     # hooks gate must pass
-forge patch --ipa <base>.ipa --patches patches/<app>-<version>/<app>-mod.yaml \
-  --no-sign --output /Users/nandan/dev/ytlite-ipa/<App>Mod_<version>_unsigned.ipa
+forge patch --ipa <base>.ipa --patches patches/<app>/<app>.yaml \
+  --no-sign --output <delivery-dir>/<App>Mod_<version>_unsigned.ipa
 ```
+
+Where `<delivery-dir>` currently lives is tracked in
+[`STATE.md`](../STATE.md)'s status table, not hardcoded here — it has moved
+between sessions and this doc would go stale if it repeated it.
 
 - User sideloads via AltStore → report. Device logs are the deduction tool:
   give the dylib a unique os_log subsystem (`<prefix>Log`), log every hook
@@ -120,11 +142,16 @@ forge patch --ipa <base>.ipa --patches patches/<app>-<version>/<app>-mod.yaml \
 - Write `README.md` (features, build, apply, verified-on table) and
   `SOURCES.md` (attribution; keep it original-work, no external team names
   unless they ask).
-- Link the new patch set from [`docs/README.md`](README.md).
+- Link the new patch set from [`docs/README.md`](README.md)'s table and the
+  root [`README.md`](../README.md)'s table.
+- **Add a row to [`STATE.md`](../STATE.md)'s status table** — this is the
+  step that's easiest to skip and the one future sessions rely on most; a
+  patch set that exists but isn't in that table is invisible to "read this
+  first."
 
 ## Templates
 
-The dylib plumbing, the `build.sh`, and the definition YAML in the two
+The dylib plumbing, the `build.sh`, and the definition YAML in the three
 existing patch sets are the living templates — copy them, don't reinvent.
 `forge hooks manifest` and `forge hooks diff` keep the hooks surface honest
 as the app updates.

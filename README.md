@@ -20,14 +20,18 @@ Start at [`docs/README.md`](docs/README.md) — the index.
 | [`docs/usage.md`](docs/usage.md) | End-to-end workflow, full CLI + GUI reference, signing identity/profile setup |
 | [`docs/patch-reference.md`](docs/patch-reference.md) | Complete patch-definition reference — every operation type, field, matching rule, and the `hooks:` block |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Every error message mapped to its cause and fix |
+| [`docs/reverse-engineering.md`](docs/reverse-engineering.md) | `forge analysis`: class-dump, strings, symbols, security posture, version diffing for any IPA |
 | [`docs/architecture.md`](docs/architecture.md) | Design rationale, the 17-stage pipeline, hard constraints, hook verification (for developers) |
 | [`docs/extensibility.md`](docs/extensibility.md) | How to add new patch operation types (for developers) |
 | [`docs/altstore_device_testing.md`](docs/altstore_device_testing.md) | Manual AltStore Classic device-test checklist |
 
 ### Worked patch sets
 
-| Set | Runbook | Features |
-| --- | --- | --- |
+Current status (which features are shipped vs. beta/untested) is tracked in
+[`STATE.md`](STATE.md), not repeated here.
+
+| Set | Runbook | Features | Repo |
+| --- | --- | --- | --- |
 | YouTube 21.32.4 | [`patches/youtube/PLAYBOOK.md`](patches/youtube/PLAYBOOK.md) | [`patches/youtube/README.md`](patches/youtube/README.md) | `nandan-varma/ipa-forge-patches-youtube` (private) |
 | Spotify 9.1.72 | [`patches/spotify/PLAYBOOK.md`](patches/spotify/PLAYBOOK.md) | [`patches/spotify/README.md`](patches/spotify/README.md) | `nandan-varma/ipa-forge-patches-spotify` (private) |
 | Instagram 442.0.0 | [`patches/instagram/PLAYBOOK.md`](patches/instagram/PLAYBOOK.md) | [`patches/instagram/README.md`](patches/instagram/README.md) | `nandan-varma/ipa-forge-patches-instagram` (private) |

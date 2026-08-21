@@ -166,6 +166,11 @@ forge hooks extract --ipa App.ipa --search "AdBreak"
 # Scan tweak sources for hook calls and verify each against the binary
 forge hooks audit --ipa App.ipa --dir dylib/
 
+# ...and cross-check against the definition's `hooks:` block: catches a
+# hook the source calls but the author forgot to declare (invisible to
+# --dry-run's safety net otherwise). Exits 1 if any are undeclared.
+forge hooks audit --ipa App.ipa --dir dylib/ --patches patch.yaml
+
 # Reverse lookup: which classes implement a selector?
 forge hooks find didPressVarispeed: --ipa App.ipa
 #   -> -[YTMainAppVideoPlayerOverlayViewController didPressVarispeed:]  (real)
