@@ -35,30 +35,42 @@ without any app-specific logic in the core engine.
 ipa_forge/
   bundle/     AppBundle model, bottom-up executable inventory walker, IPA extract/repack
   patch/      PatchOperation implementations, YAML schema, resolver, dry-run/apply engine
-  machO/      LIEF-backed arch selection and dylib load-command injection
+  machO/      LIEF-backed arch selection, dylib load-command injection, Mach-O
+              detection/enumeration (detect.py), and the shared ObjC runtime
+              analysis engine (objc.py -- class table, protocols, categories,
+              ivars, properties, method lists+type encodings, selrefs)
   signing/    Provisioning profile parsing, entitlement reconciliation, codesign backend,
               SigningProvider abstraction, recursive bottom-up signing orchestration
   validators/ IPA / bundle / archive structural validators
-  hooks/      Mach-O ObjC analysis (class table, method lists, selrefs) and
-              hook verification -- the version-drift safety net
+  hooks/      Hook verification (the version-drift safety net) and tweak-source
+              scanning, built on machO/objc.py's analysis
+  analysis/   General-purpose IPA reverse engineering, also built on
+              machO/objc.py: class-dump rendering, type-encoding decode,
+              strings, symbols, security posture, version diffing -- see
+              docs/reverse-engineering.md
   pipeline.py End-to-end stage orchestration (the 17 stages below)
   manifest.py Structured pre-signing manifest for debugging failed installs
-  cli/        Typer CLI: inspect, validate, patch, export-source, gui, hooks
-  gui/        FastAPI app wrapping the same pipeline in-process
+  cli/        Typer CLI: inspect, validate, patch, export-source, gui, hooks, analysis
+  gui/        FastAPI app wrapping the same pipeline in-process, plus a
+              read-only reverse-engineering viewer (gui/analysis.html)
   altstore/   source.json distribution-metadata export
 ```
 
 Dependency direction is one-way:
 
 ```
-patch/  ──depends on──>  bundle/
-signing/ ──depends on──>  bundle/
-hooks/  ──depends on──>  (none -- pure stdlib Mach-O parsing)
+patch/    ──depends on──>  bundle/
+signing/  ──depends on──>  bundle/
+machO/    ──depends on──>  bundle/ (objc.py/detect.py read AppBundle's executable inventory)
+hooks/    ──depends on──>  machO/ (the ObjC analysis engine)
+analysis/ ──depends on──>  machO/ (the same engine hooks/ uses)
 pipeline.py ──orchestrates──>  patch/, signing/, hooks/, validators/, manifest.py
-cli/, gui/ ──call──>  pipeline.py
+cli/, gui/ ──call──>  pipeline.py, hooks/, analysis/
 ```
 
-`patch/` and `signing/` never import from each other.
+`patch/` and `signing/` never import from each other. `hooks/` and
+`analysis/` are siblings -- both read `machO/objc.py`'s `MachOAnalysis`,
+neither imports the other.
 
 ## The pipeline (`ipa_forge/pipeline.py`)
 
@@ -199,4 +211,5 @@ Apple's signing internals are never reimplemented anywhere, on any platform.
 - [`extensibility.md`](extensibility.md) — extending the engine
 - [`patch-reference.md`](patch-reference.md) — the YAML contract
 - [`usage.md`](usage.md) — CLI
+- [`reverse-engineering.md`](reverse-engineering.md) — `forge analysis` (class-dump, strings, symbols, security, diff)
 - [`README.md`](README.md) — docs index

@@ -216,6 +216,15 @@ forge hooks extract --ipa New.ipa --search "<old class substring>"
 A complete, YouTube-specific runbook lives at
 `patches/youtube/PLAYBOOK.md`.
 
+## Reverse engineering any IPA (`forge analysis`)
+
+`forge hooks` above answers one question — does *this* declared hook
+attach? For general-purpose static analysis of an IPA (class-dump, string
+extraction, symbols, security posture, and a broader version-to-version
+diff that isn't tied to a patch definition's `hooks:` block), see
+[`reverse-engineering.md`](reverse-engineering.md) — the single source for
+that command surface, to avoid duplicating it here.
+
 ### Generating and diffing hook manifests
 
 ```bash
@@ -288,6 +297,10 @@ The GUI is a single-user localhost tool: requests are processed in-process and
 outputs are kept for download (bounded, oldest evicted). It is not designed as
 a hosted multi-user service.
 
+A second page, `/analysis` (linked from this page's subtitle), gives the same
+read-only reverse-engineering views as `forge analysis` — see
+[`reverse-engineering.md`](reverse-engineering.md#the-web-gui-forge-gui--analysis).
+
 ## What you get back
 
 `forge patch` writes a standard `Payload/<App>.app` zip. The manifest
@@ -301,5 +314,6 @@ installing.
 - [`adding-an-app.md`](adding-an-app.md) — port a new app
 - [`adding-a-feature.md`](adding-a-feature.md) — add a feature
 - [`patch-reference.md`](patch-reference.md) — the YAML contract
+- [`reverse-engineering.md`](reverse-engineering.md) — `forge analysis` (class-dump, strings, symbols, security, diff)
 - [`troubleshooting.md`](troubleshooting.md) — errors
 - [`README.md`](README.md) — docs index

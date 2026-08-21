@@ -12,10 +12,12 @@ then come back here for the map.
 | Add a **feature** to an existing hook dylib | [`adding-a-feature.md`](adding-a-feature.md) — the conventions |
 | Understand the **patch definition YAML** (`target`/`patches`/`hooks`) | [`patch-reference.md`](patch-reference.md) |
 | Use the **CLI** (`forge patch`, `forge hooks …`, …) | [`usage.md`](usage.md) |
+| **Reverse engineer** an IPA (`forge analysis …`: class-dump, strings, symbols, security, diff) | [`reverse-engineering.md`](reverse-engineering.md) |
 | Debug an **error message** | [`troubleshooting.md`](troubleshooting.md) |
 | Test on a **real device** via AltStore | [`altstore_device_testing.md`](altstore_device_testing.md) |
 | Understand **how the engine works** (for developers) | [`architecture.md`](architecture.md) |
 | Extend the engine (new operation type, new provider) | [`extensibility.md`](extensibility.md) |
+| See what's **deferred/future work** on the RE tooling (disassembly, etc.) | [`../ROADMAP.md`](../ROADMAP.md) |
 
 ## The patch sets (concrete worked examples)
 
@@ -38,4 +40,5 @@ Patch definitions live in **separate private repos** (submoduled under `patches/
 ## Related
 
 - [`adding-an-app.md`](adding-an-app.md) / [`adding-a-feature.md`](adding-a-feature.md) — the how-to guides
+- [`reverse-engineering.md`](reverse-engineering.md) — `forge analysis` (class-dump, strings, symbols, security, diff)
 - The patch-set `PLAYBOOK.md` files — worked examples

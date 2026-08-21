@@ -147,3 +147,155 @@ git log --oneline
 ```
 
 Then continue at "Remaining work" items 2, 3 (CHANGELOG/URLs), and 5.
+
+---
+
+# Reverse-engineering roadmap (`forge analysis`)
+
+Future phases for `ipa_forge/analysis/` (the general-purpose IPA
+reverse-engineering package — class-dump, strings, symbols, security, diff;
+see [`docs/reverse-engineering.md`](docs/reverse-engineering.md) for what's
+already shipped) that were scoped out of the initial build, in priority
+order. Each entry names the concrete files/anchors a future session needs to
+pick this up cold — point Claude Code at this file and the relevant item.
+
+## 1. Instruction-level disassembly (capstone)
+
+**What**: `forge analysis disasm <selector-or-symbol> --ipa App.ipa` —
+disassemble one method's IMP or an arbitrary symbol's function body (arm64
+only), rendered as an annotated instruction listing (branch targets resolved
+to symbol names where possible).
+
+**Why deferred**: a new heavyweight dependency (`capstone`) and a much larger
+correctness surface than everything shipped so far (arm64 instruction
+decoding, branch-target resolution, ObjC message-send call-site annotation
+i.e. recognizing `bl _objc_msgSend` and decorating it with the resolved
+selector from `x1`/register tracking). Static metadata (what shipped) has a
+much better effort-to-value ratio and was the priority.
+
+**Source of truth for the next session**:
+- `ipa_forge/analysis/symbols.py::analyze_symbols` already resolves a
+  symbol's `.value` (address) via LIEF — the IMP address for a given
+  selector is reachable the same way (`MachOClass` doesn't currently carry
+  method addresses; `parse_methods` in `ipa_forge/machO/objc.py` reads
+  `imp` at entry offset `+16` for non-relative method_t (plain pointer, same
+  as `sel_ptr`/`types_ptr`), or a self-relative 32-bit offset at `+8` for the
+  relative (entsize-12) form — self-relative to that field's own address,
+  same convention already implemented for `sel`/`types` in that function —
+  **not yet extracted**, would need to be added there first).
+- `pyproject.toml`'s `[project.dependencies]` — capstone would be optional
+  (`[project.optional-dependencies]`), following the pattern the `dev` group
+  already uses, since not every consumer needs disassembly.
+- Fat-binary arch selection is already solved: `ipa_forge/machO/arch.py`
+  (`load_macho`, `available_archs`) — reuse directly, same as
+  `analysis/symbols.py` and `analysis/security.py` do.
+- `ipa_forge/analysis/type_encoding.py::decode_method_signature` already
+  reconstructs the C signature around a method — a disassembly view should
+  print that signature as a header above the instruction listing.
+
+## 2. Struct/union field expansion in the type-encoding decoder
+
+**What**: `ipa_forge/analysis/type_encoding.py::decode_type` currently
+renders `{CGRect={CGPoint=dd}{CGSize=dd}}` as just `struct CGRect` (tag name
+only, no field list). Real class-dump tools expand nested field types.
+
+**Why deferred**: correct recursive field-list rendering needs to track
+per-field names too (Objective-C struct encodings often omit field names
+entirely, unlike ivars/properties — the `{CGRect=dd}` form with no field
+names is common), which requires a fallback to a small built-in table of
+well-known Apple struct layouts (CGRect, CGPoint, CGSize, CGAffineTransform,
+UIEdgeInsets, ...) for the common case where the encoding itself doesn't
+carry field names.
+
+**Source of truth**: `ipa_forge/analysis/type_encoding.py` — the `{`/`(`
+branches of `decode_type()` and `read_one_type()`'s balanced-brace tokenizer
+already isolate the exact substring to expand; this is additive parsing
+inside that one function, no data-model changes needed.
+`tests/unit/test_type_encoding.py::test_decode_struct_by_name` is the
+existing behavior to keep passing (tag-name fallback should remain the
+behavior for unrecognized/unnamed-field structs).
+
+## 3. Entitlements diffing
+
+**What**: extend `forge analysis diff` (`ipa_forge/analysis/diff.py`) to
+also report entitlement changes between two builds.
+
+**Why deferred, not just delayed**: reading entitlements requires shelling
+out to `codesign -d --entitlements`, and `ipa_forge/signing/backend.py` is
+the *only* module allowed to invoke `codesign`/`security` — see
+`docs/architecture.md`'s "Hard constraints" section. `analysis/` is
+deliberately signing-independent (works without macOS, no Keychain, no
+identity). A real entitlements diff belongs as a `signing/`-side feature
+(e.g. `forge inspect --entitlements`, reusing
+`signing/backend.py`'s existing shell-out plumbing), not bolted onto
+`analysis/diff.py` by having it import `signing/`.
+
+**Source of truth**: `ipa_forge/signing/backend.py` (the codesign wrapper),
+`ipa_forge/signing/provider.py::LocalIdentityProvider` (for the pattern of
+shelling to `security`/`codesign` and parsing output).
+`ipa_forge/analysis/diff.py`'s module docstring already documents this
+boundary — read it first.
+
+## 4. Swift-native class support
+
+**What**: classes with no Objective-C interop (pure Swift, no `@objc`) are
+invisible to `machO/objc.py`'s classlist walker entirely — it only walks
+`__objc_classlist`. Swift's own metadata format (`__swift5_types`,
+`__swift5_fieldmd`, etc.) is a different, more complex layout.
+
+**Why deferred**: a substantial second parser, and most iOS apps worth
+patching (the existing YouTube/Spotify/Instagram patch sets) are
+predominantly Objective-C at the UI/hook-target layer even when Swift is
+used elsewhere — the existing gap is already called out honestly rather
+than silently mis-parsed (see `ipa_forge/hooks/verify.py`'s handling of
+`_TtC`-mangled class names: reported `unverified`, never guessed).
+
+**Source of truth**: `ipa_forge/hooks/verify.py`'s `_TtC` handling (search
+for `startswith("_Tt")`) is the current honest-gap behavior to preserve.
+`ipa_forge/machO/objc.py::_analyze_thin` is where a Swift metadata pass
+would be added, structurally parallel to the existing
+`__objc_protolist`/`__objc_catlist` passes.
+
+## 5. Re-symbolication against a local dyld shared cache
+
+**What**: on a real device dump, many imported symbols resolve into the
+dyld shared cache rather than a standalone dylib — `forge analysis symbols`
+reports them as bare imports with no further context. A `--shared-cache
+<path>` option could resolve those against an extracted shared cache (the
+`ipsw` tool's approach).
+
+**Why deferred**: needs a shared-cache extraction/parsing dependency and
+only matters for on-device dumps, not the App-Store-IPA-plus-tweak workflow
+this project centers on.
+
+**Source of truth**: `ipa_forge/analysis/symbols.py::analyze_symbols` is
+where the resolution step would hook in (currently just lists
+`imported_symbols` by name via LIEF's `CATEGORY.UNDEFINED` symbols).
+
+## 6. `--format json` on the analysis commands
+
+**What**: `forge analysis classdump/strings/symbols/security/diff --format
+json` emitting the underlying dataclasses as JSON, for scripting/CI use —
+today only the human-readable `render_*` text functions are exposed at the
+CLI layer.
+
+**Why deferred**: lowest priority of this list; the text output is
+already `grep`-friendly per the project's established convention (see
+`cli/hooks.py`'s `hooks_extract` comment on not truncating output), and no
+consumer has asked for structured output yet.
+
+**Source of truth**: every `analyze_*`/`diff_analyses` function already
+returns a plain dataclass (`ipa_forge/analysis/{classdump,strings,symbols,
+security,diff}.py`) — a `--format json` flag is a `dataclasses.asdict()` +
+`json.dumps()` away in `ipa_forge/cli/analysis.py`, no engine changes
+needed. `manifest.py::Manifest.to_json()` is the existing precedent for
+this pattern elsewhere in the codebase.
+
+## Explicitly not on this roadmap
+
+**FairPlay/App Store DRM decryption** — not a scope-limited future phase,
+a hard boundary. Every command in `analysis/` assumes an already-decrypted
+`.ipa`, same as the rest of ipa-forge; decryption is DRM-circumvention
+tooling, a different risk category from static analysis of a binary you
+already have rights to inspect. See `ipa_forge/analysis/__init__.py`'s
+module docstring.

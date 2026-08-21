@@ -5,7 +5,9 @@ what this project is, what works, where things live, decisions that matter,
 and how to resume. The full documentation map is in
 [`docs/README.md`](docs/README.md); the how-to guides are
 [`docs/adding-an-app.md`](docs/adding-an-app.md) and
-[`docs/adding-a-feature.md`](docs/adding-a-feature.md).
+[`docs/adding-a-feature.md`](docs/adding-a-feature.md). Deferred
+reverse-engineering work (disassembly, etc.) is tracked in
+[`ROADMAP.md`](ROADMAP.md) — point a future session there to resume it.
 
 ## What this is
 
@@ -30,7 +32,7 @@ Delivered IPAs live in `/Users/nandan/dev/ytlite-ipa/`:
 
 | Path | What |
 | --- | --- |
-| `ipa_forge/` | The patcher: `pipeline.py` (17-stage), `patch/` (operations), `signing/`, `hooks/` (Mach-O analysis + verification + source scanner), `patches.py` (patch-set registry), `cli/` (`forge`, `forge hooks`), `gui/` (novice web UI), `bundle/`, `validators/`, `machO/` |
+| `ipa_forge/` | The patcher: `pipeline.py` (17-stage), `patch/` (operations), `signing/`, `machO/objc.py` (shared ObjC/Mach-O analysis engine), `hooks/` (hook verification + source scanner, built on `machO/objc.py`), `analysis/` (general-purpose IPA reverse engineering: class-dump, strings, symbols, security, diff — also built on `machO/objc.py`; see `docs/reverse-engineering.md`), `patches.py` (patch-set registry), `cli/` (`forge`, `forge hooks`, `forge analysis`), `gui/` (novice patch UI + read-only `/analysis` RE viewer), `bundle/`, `validators/` |
 | `patches/youtube/`, `patches/spotify/` | The patch sets: `<app>.yaml` (single canonical definition, version inside), `dylib/` (hook sources + build.sh), `PLAYBOOK.md`/`README.md`/`SOURCES.md` |
 | `docs/` | Documentation map + how-to guides + reference |
 | `/tmp/eevee3`, `/tmp/spotc_ipa.ipa` | Reference material (EeveeSpotify source, a working SpotC IPA) — reclone if missing |
