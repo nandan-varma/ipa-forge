@@ -56,6 +56,7 @@
       }
       h1 { font-size: 22px; margin: 0 0 4px; }
       .subtitle { color: var(--text-secondary); font-size: 13px; margin: 0 0 20px; }
+      .subtitle a { color: var(--accent); }
       .drop {
         border: 2px dashed var(--border);
         border-radius: 12px;
@@ -110,7 +111,10 @@
   <body>
     <div class="card">
       <h1>ipa-forge</h1>
-      <p class="subtitle">Select an IPA to patch it with the matching patch set. Output is unsigned — ready for AltStore.</p>
+      <p class="subtitle">
+        Select an IPA to patch it with the matching patch set. Output is unsigned — ready for AltStore.
+        Just want to inspect an IPA? <a href="/analysis">Reverse engineering tools</a>.
+      </p>
 
       <div class="drop" id="drop">
         <span id="dropText">Click or drop your .ipa file here</span>

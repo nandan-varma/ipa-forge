@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>ipa-forge — Reverse Engineering</title>
+    <style>
+      :root {
+        --accent: #0071e3;
+        --accent-hover: #0077ed;
+        --bg: #f5f5f7;
+        --card: #ffffff;
+        --text: #1d1d1f;
+        --text-secondary: #6e6e73;
+        --border: rgba(0, 0, 0, 0.12);
+        --shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+        --danger: #ff3b30;
+        --danger-bg: rgba(255, 59, 48, 0.12);
+        --mono-bg: #f5f5f7;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #000000;
+          --card: #1c1c1e;
+          --text: #f5f5f7;
+          --text-secondary: #98989d;
+          --border: rgba(255, 255, 255, 0.16);
+          --shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+          --accent: #0a84ff;
+          --accent-hover: #3a9bff;
+          --mono-bg: #000000;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        padding: 24px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        padding: 32px;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      .subtitle { color: var(--text-secondary); font-size: 13px; margin: 0 0 20px; }
+      .subtitle a { color: var(--accent); }
+      label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
+      select, input[type="text"], input[type="number"], input[type="file"] {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--text);
+        font-size: 14px;
+      }
+      .row { display: flex; gap: 12px; }
+      .row > * { flex: 1; }
+      .hidden { display: none; }
+      button {
+        margin-top: 18px;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 12px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover { background: var(--accent-hover); }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .status {
+        margin-top: 14px;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 13px;
+        display: none;
+      }
+      .status.error { display: block; background: var(--danger-bg); color: var(--danger); }
+      pre {
+        margin-top: 16px;
+        background: var(--mono-bg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+        max-height: 60vh;
+        overflow: auto;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>ipa-forge — Reverse Engineering</h1>
+      <p class="subtitle">Read-only static analysis of an IPA. Back to <a href="/">the patcher</a>.</p>
+
+      <label for="action">Action</label>
+      <select id="action">
+        <option value="classdump">Class-dump (Objective-C runtime metadata)</option>
+        <option value="strings">Strings</option>
+        <option value="security">Security posture</option>
+        <option value="diff">Diff two versions</option>
+      </select>
+
+      <div id="fieldsSingle">
+        <label for="fileSingle">IPA</label>
+        <input type="file" id="fileSingle" accept=".ipa" />
+      </div>
+
+      <div id="fieldsDiff" class="hidden">
+        <label for="fileOld">Old-version IPA</label>
+        <input type="file" id="fileOld" accept=".ipa" />
+        <label for="fileNew">New-version IPA</label>
+        <input type="file" id="fileNew" accept=".ipa" />
+      </div>
+
+      <div id="fieldsClassdump" class="row">
+        <div>
+          <label for="className">Class name (exact)</label>
+          <input type="text" id="className" placeholder="e.g. YTPlayerViewController" />
+        </div>
+        <div>
+          <label for="classSearch">Search (regex)</label>
+          <input type="text" id="classSearch" placeholder="e.g. ^YT" />
+        </div>
+      </div>
+
+      <div id="fieldsStrings" class="row hidden">
+        <div>
+          <label for="minLen">Min length</label>
+          <input type="number" id="minLen" value="4" min="1" />
+        </div>
+        <div>
+          <label for="stringsSearch">Search (regex)</label>
+          <input type="text" id="stringsSearch" placeholder="e.g. https?://" />
+        </div>
+      </div>
+
+      <button id="runBtn">Run</button>
+      <div class="status error" id="status"></div>
+      <pre id="output" class="hidden"></pre>
+    </div>
+
+    <script>
+      const action = document.getElementById("action");
+      const fieldsSingle = document.getElementById("fieldsSingle");
+      const fieldsDiff = document.getElementById("fieldsDiff");
+      const fieldsClassdump = document.getElementById("fieldsClassdump");
+      const fieldsStrings = document.getElementById("fieldsStrings");
+      const runBtn = document.getElementById("runBtn");
+      const status = document.getElementById("status");
+      const output = document.getElementById("output");
+
+      function updateFields() {
+        const a = action.value;
+        fieldsSingle.classList.toggle("hidden", a === "diff");
+        fieldsDiff.classList.toggle("hidden", a !== "diff");
+        fieldsClassdump.classList.toggle("hidden", a !== "classdump");
+        fieldsStrings.classList.toggle("hidden", a !== "strings");
+      }
+      action.addEventListener("change", updateFields);
+      updateFields();
+
+      runBtn.addEventListener("click", async () => {
+        status.style.display = "none";
+        output.classList.add("hidden");
+        const a = action.value;
+        const fd = new FormData();
+        let url = "/analysis/" + a;
+
+        if (a === "diff") {
+          const oldFile = document.getElementById("fileOld").files[0];
+          const newFile = document.getElementById("fileNew").files[0];
+          if (!oldFile || !newFile) {
+            status.textContent = "Select both IPAs.";
+            status.style.display = "block";
+            return;
+          }
+          fd.append("old", oldFile);
+          fd.append("new", newFile);
+        } else {
+          const file = document.getElementById("fileSingle").files[0];
+          if (!file) {
+            status.textContent = "Select an IPA.";
+            status.style.display = "block";
+            return;
+          }
+          fd.append("ipa", file);
+          if (a === "classdump") {
+            const cn = document.getElementById("className").value.trim();
+            const cs = document.getElementById("classSearch").value.trim();
+            if (cn) fd.append("class_name", cn);
+            if (cs) fd.append("search", cs);
+          } else if (a === "strings") {
+            fd.append("min_len", document.getElementById("minLen").value || "4");
+            const ss = document.getElementById("stringsSearch").value.trim();
+            if (ss) fd.append("search", ss);
+          }
+        }
+
+        runBtn.disabled = true;
+        try {
+          const res = await fetch(url, { method: "POST", body: fd });
+          const data = await res.json();
+          if (!res.ok) {
+            status.textContent = data.error || "Request failed.";
+            status.style.display = "block";
+            return;
+          }
+          output.textContent = data.text || "(empty)";
+          output.classList.remove("hidden");
+        } finally {
+          runBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

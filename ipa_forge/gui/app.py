@@ -24,7 +24,12 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
+from ipa_forge.analysis.classdump import render_analysis
+from ipa_forge.analysis.diff import diff_analyses, render_diff
+from ipa_forge.analysis.security import analyze_security, render_security_posture
+from ipa_forge.analysis.strings import strings_in_bundle
 from ipa_forge.bundle.ipa import load_bundle, validate_and_extract
+from ipa_forge.machO.objc import analyze_bundle
 from ipa_forge.patches import find_patch_sets_for_bundle
 from ipa_forge.pipeline import PipelineError, run_pipeline
 from ipa_forge.validators.ipa_validator import IpaValidationError
@@ -34,6 +39,10 @@ app = FastAPI(title="ipa-forge")
 _WORK_DIR = Path(tempfile.mkdtemp(prefix="ipa_forge_gui_"))
 _outputs: dict[str, tuple[Path, str]] = {}
 _OUTPUTS_MAX = 20
+# GUI textarea sanity cap -- the CLI (forge analysis strings) has no limit
+# and pipes to grep instead; a browser tab rendering a multi-million-line
+# response is a different failure mode worth guarding against here only.
+_STRINGS_GUI_LIMIT = 2000
 
 
 def _package_version() -> str:
@@ -46,11 +55,19 @@ def _package_version() -> str:
 _FORM_HTML = (
     (Path(__file__).parent / "index.html").read_text(encoding="utf-8").replace("__VERSION__", _package_version())
 )
+_ANALYSIS_HTML = (
+    (Path(__file__).parent / "analysis.html").read_text(encoding="utf-8").replace("__VERSION__", _package_version())
+)
 
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     return _FORM_HTML
+
+
+@app.get("/analysis", response_class=HTMLResponse)
+def analysis_page() -> str:
+    return _ANALYSIS_HTML
 
 
 @app.post("/detect")
@@ -179,3 +196,109 @@ def download(token: str) -> FileResponse | JSONResponse:
     if not path.is_file():
         return JSONResponse(status_code=404, content={"error": "not found"})
     return FileResponse(path, filename=display_name)
+
+
+async def _extract_uploaded(request_dir: Path, ipa: UploadFile, name: str = "upload.ipa") -> Path | JSONResponse:
+    """Save + extract an uploaded IPA; returns the app path or a 400
+    JSONResponse on a structural/plist error, for the analysis endpoints
+    below to return directly."""
+    ipa_path = request_dir / Path(ipa.filename or name).name
+    ipa_path.write_bytes(await ipa.read())
+    try:
+        return validate_and_extract(ipa_path, request_dir / "extracted")
+    except (ValueError, IpaValidationError) as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+
+@app.post("/analysis/classdump")
+async def analysis_classdump(
+    ipa: UploadFile = File(...),
+    class_name: str | None = Form(None),
+    search: str | None = Form(None),
+) -> JSONResponse:
+    """Read-only Objective-C class-dump view -- same engine as
+    `forge analysis classdump`, browsable without installing the CLI."""
+    request_dir = _WORK_DIR / uuid.uuid4().hex
+    request_dir.mkdir(parents=True)
+    try:
+        app_path = await _extract_uploaded(request_dir, ipa)
+        if isinstance(app_path, JSONResponse):
+            return app_path
+        analysis = analyze_bundle(load_bundle(app_path))
+        text = render_analysis(analysis, class_filter=class_name or None, search=search or None)
+        return JSONResponse({"text": text or "no matching classes/protocols/categories found"})
+    finally:
+        shutil.rmtree(request_dir, ignore_errors=True)
+
+
+@app.post("/analysis/strings")
+async def analysis_strings(
+    ipa: UploadFile = File(...),
+    min_len: int = Form(4),
+    search: str | None = Form(None),
+) -> JSONResponse:
+    """Printable-string extraction across every executable in the bundle,
+    capped at `_STRINGS_GUI_LIMIT` matches for the browser (the CLI has no
+    such cap)."""
+    request_dir = _WORK_DIR / uuid.uuid4().hex
+    request_dir.mkdir(parents=True)
+    try:
+        app_path = await _extract_uploaded(request_dir, ipa)
+        if isinstance(app_path, JSONResponse):
+            return app_path
+        found = strings_in_bundle(load_bundle(app_path), min_len=min_len)
+        if search:
+            import re
+
+            pat = re.compile(search)
+            found = [s for s in found if pat.search(s.value)]
+        total = len(found)
+        found = found[:_STRINGS_GUI_LIMIT]
+        text = "\n".join(f"[{s.binary}] {s.value}" for s in found)
+        if total > len(found):
+            text += f"\n… truncated ({total} total; use the CLI for the full list)"
+        return JSONResponse({"text": text or "no strings found"})
+    finally:
+        shutil.rmtree(request_dir, ignore_errors=True)
+
+
+@app.post("/analysis/security")
+async def analysis_security(ipa: UploadFile = File(...)) -> JSONResponse:
+    """PIE/encryption-flag/stack-protector/ARC posture of the main
+    executable -- detection only, this never decrypts anything."""
+    request_dir = _WORK_DIR / uuid.uuid4().hex
+    request_dir.mkdir(parents=True)
+    try:
+        app_path = await _extract_uploaded(request_dir, ipa)
+        if isinstance(app_path, JSONResponse):
+            return app_path
+        bundle = load_bundle(app_path)
+        posture = analyze_security(bundle.root / bundle.main_executable_name)
+        return JSONResponse({"text": render_security_posture(posture)})
+    finally:
+        shutil.rmtree(request_dir, ignore_errors=True)
+
+
+@app.post("/analysis/diff")
+async def analysis_diff(old: UploadFile = File(...), new: UploadFile = File(...)) -> JSONResponse:
+    """Version-to-version survey between two uploaded builds -- same engine
+    as `forge analysis diff`."""
+    request_dir = _WORK_DIR / uuid.uuid4().hex
+    (request_dir / "old").mkdir(parents=True)
+    (request_dir / "new").mkdir(parents=True)
+    try:
+        old_path = await _extract_uploaded(request_dir / "old", old, "old.ipa")
+        if isinstance(old_path, JSONResponse):
+            return old_path
+        new_path = await _extract_uploaded(request_dir / "new", new, "new.ipa")
+        if isinstance(new_path, JSONResponse):
+            return new_path
+        bundle_old = load_bundle(old_path)
+        bundle_new = load_bundle(new_path)
+        diff = diff_analyses(
+            analyze_bundle(bundle_old), analyze_bundle(bundle_new), bundle_old.info_plist, bundle_new.info_plist
+        )
+        header = f"{bundle_old.bundle_id} {bundle_old.version} -> {bundle_new.version}\n"
+        return JSONResponse({"text": header + render_diff(diff)})
+    finally:
+        shutil.rmtree(request_dir, ignore_errors=True)
