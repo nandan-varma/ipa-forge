@@ -14,12 +14,14 @@ def _analysis() -> MachOAnalysis:
             "YTChild": MachOClass(name="YTChild", super_name="YTThing"),
             "YTCustom": MachOClass(name="YTCustom", super_name="«external»"),
             "YTView": MachOClass(name="YTView", super_name="«external»", inst={"setHidden:": "v@:B"}),
+            "YTWindow": MachOClass(name="YTWindow", super_name="«external»", inst={"motionEnded:withEvent:": "v@:q@"}),
         },
         classnames={"YTThing", "YTChild", "YTGone", "YTWalkMissed"},
         selectors={
             "doIt:",
             "makeIt",
             "setHidden:",
+            "motionEnded:withEvent:",
             "playerAdsArray",
             "orphan:",
             "externalOnly:",
@@ -27,7 +29,7 @@ def _analysis() -> MachOAnalysis:
         },
         # methnames = selectors DECLARED as methods somewhere (protocols etc.);
         # a selector referenced but absent here is dead (no IMP to swizzle).
-        methnames={"doIt:", "makeIt", "setHidden:", "playerAdsArray", "declaredButUnparsed:"},
+        methnames={"doIt:", "makeIt", "setHidden:", "motionEnded:withEvent:", "playerAdsArray", "declaredButUnparsed:"},
         main_executable=None,
         # raw bytes: the name/selector cstrings the verifier cross-checks
         raw_data=[b"\x00YTBytePresent\x00\x00YTByteSelector:\x00\x00other\x00"],
@@ -124,6 +126,19 @@ def test_system_superclass_method_is_ok_inherited():
     a = _analysis()
     # YTCustom's super is external; setHidden: is a UIKit method -> attaches
     r = verify_hooks(a, [HookDecl("YTCustom", "setHidden:")])
+    assert r[0].status == "ok-inherited" and r[0].ok
+
+
+def test_uiresponder_event_method_on_external_ancestry_is_ok_inherited():
+    # Found on the real Instagram 442.0.0 binary: IGRootViewController hooks
+    # motionEnded:withEvent: (a shake gesture) for a settings shortcut. The
+    # selector is only implemented on unrelated window classes (here:
+    # YTWindow), so before motionEnded:withEvent: was added to
+    # _SYSTEM_SELECTORS this misclassified as "elsewhere" (real no-op risk)
+    # even though every UIViewController inherits a default UIResponder
+    # implementation and the hook attaches fine at runtime.
+    a = _analysis()
+    r = verify_hooks(a, [HookDecl("YTCustom", "motionEnded:withEvent:")])
     assert r[0].status == "ok-inherited" and r[0].ok
 
 
