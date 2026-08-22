@@ -22,8 +22,8 @@ actual binary, and emits an unsigned IPA that AltStore signs at install.
 
 | App | Version | Patch set | Status |
 | --- | --- | --- | --- |
-| YouTube | 21.32.4 | `patches/youtube/youtube.yaml` | ✅ adblock + sign-in + ~75 settings toggles; sideloaded & tested. Plus three new beta features (default OFF, **not yet on-device tested**): native share sheet, Return YouTube Dislikes, custom downloads — see `patches/youtube/ROADMAP.md` G15/G16/G17 |
-| Spotify | 9.1.72 | `patches/spotify/spotify.yaml` | ✅ premium unlock + adblock + session protection + settings; sideloaded & tested |
+| YouTube | 21.32.4 | `patches/youtube/youtube.yaml` | ✅ adblock + sign-in + settings toggles; core + curated Player/Navigation defaults sideloaded & confirmed working (see `patches/youtube/TESTING.md`). Mute button, pinch-to-fullscreen, and the two native-settings-row unlocks (reduce overlays / HQ audio) were removed after on-device testing found them broken or not worth the indirection. Old quality picker / extra speeds still broken after two root-cause fixes — left default OFF under Advanced → Beta with a TODO. Bulk of the ~90-row catalog (Advanced player, Feed/Shorts/Navbar hiding, System, Menu items, Settings-section hiding) still **not yet on-device tested**. Three beta features (default OFF, **not yet on-device tested**): native share sheet, Return YouTube Dislikes, custom downloads — see `patches/youtube/ROADMAP.md` G15/G16/G17 |
+| Spotify | 9.1.72 | `patches/spotify/spotify.yaml` | ✅ v0.1.0 — premium unlock + adblock + session protection + settings; core features sideloaded & tested. Plus three new beta features (device-test loop in progress): startup tab selection, force-max-quality, settings export/import — see `patches/spotify/TESTING.md` |
 | Instagram | 442.0.0 | `patches/instagram/instagram.yaml` | ✅ v0.3.0 — adblock + story privacy + media save (feed/stories/reels/avatars) + settings; hook-verified (43/43), **not yet reported on-device tested** in this file |
 
 **Delivery location has moved twice across sessions — this line is the
