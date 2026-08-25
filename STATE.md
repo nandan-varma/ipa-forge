@@ -28,11 +28,11 @@ actual binary, and emits an unsigned IPA that AltStore signs at install.
 
 **Delivery location has moved twice across sessions — this line is the
 current source of truth, not the docs that reference it.** Current build
-inputs (decrypted, undefined source IPAs) live in `/Users/nandan/dev/ipa/`;
-rebuilt unsigned mods are delivered to `/Users/nandan/dev/ipa/mod/`
+inputs (decrypted, undefined source IPAs) live in `~/dev/ipa/`;
+rebuilt unsigned mods are delivered to `~/dev/ipa/mod/`
 (`com.google.ios.youtube_21.32.4_mod.ipa`, `com.spotify.client_9.1.72_mod.ipa`,
 `com.burbn.instagram_442.0.0_mod.ipa`). Earlier sessions used
-`/Users/nandan/dev/ytlite-ipa/` (`YouTubeMod_21.32.4_unsigned.ipa`,
+`~/dev/ytlite-ipa/` (`YouTubeMod_21.32.4_unsigned.ipa`,
 `SpotifyMod_9.1.72_unsigned.ipa`) — that directory may still exist but is
 not where the current builds are.
 
@@ -110,7 +110,7 @@ not where the current builds are.
   (`com.nandan.ytfreedom` / `com.nandan.spotifymod` / `com.nandan.igmod`)
   drives the fix.
 - A static audit pass (`forge hooks verify`/`audit` across all three patch
-  sets against their target IPAs in `/Users/nandan/dev/ipa/`) found real
+  sets against their target IPAs in `~/dev/ipa/`) found real
   undeclared-hook gaps in two of the three sets — both fixed:
   - **Spotify**: 3 hooks (Settings UI injection, Encore TabsView layout)
     existed in `dylib/*.m` but weren't in `spotify.yaml`'s `hooks:` block.

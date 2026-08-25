@@ -40,16 +40,30 @@ Run `pytest tests/` to confirm before continuing.
   `bundle/inventory.py`), not import stubs.
 - Also added `pyrightconfig.json` (venv pin) for LSP-based editors.
 
-### 2. GitHub Actions CI workflow — NOT STARTED
+### 2. GitHub Actions CI workflow — DONE
 
-- `.github/workflows/ci.yml`, matrix: `ubuntu-latest` running
-  `pytest tests/ -m "not macos"`, and `macos-latest` running the full
-  `pytest tests/` (macOS-marked tests that need a real Keychain identity will
-  skip gracefully via `pytest.skip()` on a bare CI runner — confirmed this
-  behavior is already in place in `tests/conftest.py`'s `synthetic_profile`
-  fixture and `test_signing.py`'s `_first_apple_development_identity()`).
-- Also run `ruff check`, `ruff format --check`, and `mypy` as CI steps once
-  item 1 is done.
+- `.github/workflows/ci.yml`: two jobs, `lint` (ubuntu-latest: `ruff check`,
+  `ruff format --check`, `mypy`) and `test` (macos-latest only, matrix
+  Python 3.11/3.12/3.13: full `pytest tests/`).
+- **Deviates from the original plan above**: as the unit test suite grew
+  (72 -> 209 tests), most of it started depending on `tests/conftest.py`
+  fixtures (`compiled_macho_binary`, `objc_macho_binary`,
+  `objc_rich_macho_binary`, `fat_macho_binary`) that compile real Mach-O
+  binaries with `clang` and inspect them with `otool`/`lipo` — none of
+  those tests are `@pytest.mark.macos`-gated (only 5 integration modules
+  are), so `pytest -m "not macos"` on `ubuntu-latest` would still fail.
+  Rather than retrofit markers across ~10 unit test files, `pytest` now
+  only runs on `macos-latest`; `ubuntu-latest` runs the OS-independent
+  static checks only. macOS-marked integration tests that need a real
+  Keychain identity self-skip via `pytest.skip()`
+  (`tests/conftest.py::synthetic_profile`) since GitHub's `macos-latest`
+  runners don't have one.
+- Neither job checks out the private patch submodules (`patches/*`) —
+  the test suite never needs them (`IPA_FORGE_PATCHES_DIR` env var override
+  is used instead); the previous workflow's `submodules: recursive` step
+  was actually broken (the default `GITHUB_TOKEN` can't clone other private
+  repos), which made every CI run fail at checkout since the submodule
+  split.
 
 ### 3. PyPI packaging metadata + CHANGELOG + build validation — PARTIAL
 
@@ -59,8 +73,7 @@ Run `pytest tests/` to confirm before continuing.
   guessed GitHub URLs in `pyproject.toml` (see note below).
 - `pyproject.toml` already has most metadata (classifiers, authors, keywords,
   project URLs — **note: the GitHub URLs currently point at a guessed
-  `github.com/nandanvarma/ipa-forge`; confirm the actual intended
-  org/username before this goes further**).
+  `github.com/nandan-varma/ipa-forge` -- now confirmed and live**).
 
 ### 4. Update docs to reflect closed gaps; security review pass — DONE
 
@@ -89,12 +102,8 @@ Run `pytest tests/` to confirm before continuing.
 
 ### 5. Confirm + execute GitHub public repo push and PyPI publish
 
-- **Ask the user for the actual GitHub org/username and desired repo name**
-  before running `gh repo create` — the `pyproject.toml` URLs currently
-  guess `nandanvarma/ipa-forge`, which needs explicit confirmation, not
-  silent adoption.
-- Confirm visibility (public), then `git remote add origin ...` and
-  `git push -u origin main`.
+- **Done**: org/username confirmed as `nandan-varma`; repo is live at
+  `github.com/nandan-varma/ipa-forge` (public).
 - For PyPI: confirm the user has `twine` credentials configured
   (`~/.pypirc` or `TWINE_USERNAME`/`TWINE_PASSWORD`/token env vars) and
   wants to publish now vs. later; only then run `twine upload dist/*`.
@@ -138,7 +147,7 @@ regression test. Suite grew 72 → 91.
 ## Quick resume checklist
 
 ```bash
-cd /Users/nandan/dev/ipa-forge
+cd ~/dev/ipa-forge
 source .venv/bin/activate
 pytest tests/                     # 72 passing as of this revision
 ruff check . && ruff format --check .
