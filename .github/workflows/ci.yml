@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11" # matches pyproject.toml's requires-python floor / [tool.mypy] python_version
           cache: pip
       - name: Install
         run: pip install -e ".[dev]"
@@ -32,16 +32,17 @@ jobs:
   # macOS-marked integration tests that need a real Keychain signing
   # identity self-skip gracefully (tests/conftest.py::synthetic_profile) --
   # GitHub's macos-latest runners don't have one, so those run as skips.
+  # Single Python version (matches pyproject.toml's requires-python floor):
+  # macOS runner minutes are the expensive GH-hosted tier, and this repo
+  # doesn't carry per-version-specific code paths worth multiplying CI cost
+  # across the whole 3.11-3.13 support range to catch.
   test:
     runs-on: macos-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
           cache: pip
       - name: Install
         run: pip install -e ".[dev]"

@@ -9,6 +9,7 @@ synthetic fixture. None of them reach the signing stages (patch is always
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -22,13 +23,20 @@ _FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 _FIXTURE_IPA = _FIXTURES / "synthetic_app.ipa"
 _FIXTURE_PATCH = _FIXTURES / "patches" / "example.yaml"
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
 
 def test_help_lists_all_commands():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
+    # Rich (Typer's --help renderer) auto-detects the GITHUB_ACTIONS env var
+    # and forces ANSI color even without a real tty, which can split a
+    # literal substring like "--version" across escape codes -- strip them
+    # so this assertion is stable in CI and locally alike.
+    output = _ANSI_RE.sub("", result.stdout)
     for command in ("inspect", "validate", "patch", "export-source", "gui"):
-        assert command in result.stdout
-    assert "--version" in result.stdout
+        assert command in output
+    assert "--version" in output
 
 
 def test_version_flag():
