@@ -3,6 +3,36 @@
 All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.1] - 2026-08-26
+
+Documentation-focused release: the docs are now a published site with
+AI-agent support, and the PyPI page reflects the corrected install story.
+No engine behavior changes.
+
+### Added
+
+- Full documentation site at [ipa-forge.nandan.fyi](https://ipa-forge.nandan.fyi),
+  replacing the flat in-repo Markdown docs.
+- AI-agent support: `/llms.txt` (site index), `/llms-full.txt` (full site as
+  Markdown), `<page>.md` for any doc page, and in-page "Copy Markdown" /
+  "Open in ChatGPT/Claude/Cursor" actions.
+- `Documentation` and `Changelog` project URLs on PyPI.
+
+### Fixed
+
+- README and docs now lead with `pip`/`pipx install ipa-forge` as the
+  primary install path; `pip install -e .` is documented only as the
+  from-source path for engine contributors. The previous version only
+  documented the editable/source install, with no mention of the published
+  package.
+- Docs corrected against the actual current CLI/GUI behavior: `forge patch
+  --no-sign` is now documented, every `forge hooks`/`forge analysis`
+  subcommand has a complete flag reference, and the web GUI docs no longer
+  describe a manual YAML/zip-upload flow that was removed from the code
+  before 0.1.0 shipped.
+- Removed remaining references to specific third-party app names from code
+  comments, docstrings, and the GUI.
+
 ## [0.1.0] - 2026-08-25
 
 Initial public release.
