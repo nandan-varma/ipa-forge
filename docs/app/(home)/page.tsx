@@ -43,33 +43,33 @@ const jsonLd = {
 
 export default function HomePage() {
   return (
-    <main className="mx-auto flex max-w-4xl flex-1 flex-col px-6 py-12">
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-8 sm:px-6 sm:py-12">
       {/* eslint-disable-next-line @next/next/no-page-custom-font */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <h1 className="text-4xl font-bold tracking-tight">ipa-forge</h1>
-      <p className="mt-3 max-w-xl text-lg text-fd-muted-foreground">
+      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">ipa-forge</h1>
+      <p className="mt-3 max-w-xl text-base text-fd-muted-foreground sm:text-lg">
         The iOS IPA patcher built for AI agents. Install with pip, point an
         agent at the docs, and it patches, verifies, and signs — unattended.
       </p>
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
         <Link
           href="/docs"
-          className="rounded-lg bg-fd-primary px-5 py-2.5 font-medium text-fd-primary-foreground transition-opacity hover:opacity-90"
+          className="col-span-2 rounded-lg bg-fd-primary px-5 py-2.5 text-center font-medium text-fd-primary-foreground transition-opacity hover:opacity-90 sm:col-span-1"
         >
           Read the docs
         </Link>
         <a
           href="https://github.com/nandan-varma/ipa-forge"
-          className="rounded-lg border px-5 py-2.5 font-medium transition-colors hover:bg-fd-accent"
+          className="rounded-lg border px-5 py-2.5 text-center font-medium transition-colors hover:bg-fd-accent"
         >
           GitHub
         </a>
         <a
           href="https://pypi.org/project/ipa-forge/"
-          className="rounded-lg border px-5 py-2.5 font-medium transition-colors hover:bg-fd-accent"
+          className="rounded-lg border px-5 py-2.5 text-center font-medium transition-colors hover:bg-fd-accent"
         >
           PyPI
         </a>
@@ -80,7 +80,7 @@ export default function HomePage() {
           <p className="text-sm text-fd-muted-foreground">
             Give an agent a decrypted IPA and this prompt:
           </p>
-          <pre className="mt-3 overflow-x-auto rounded-lg border bg-fd-card p-4 text-sm">
+          <pre className="mt-3 overflow-x-auto rounded-lg border bg-fd-card p-3 text-xs sm:p-4 sm:text-sm">
             <code>{`Use https://ipa-forge.nandan.fyi/llms.txt.
 Here's a decrypted App.ipa, and here's the specific
 feature I want changed: <describe it>.`}</code>
@@ -95,7 +95,7 @@ feature I want changed: <describe it>.`}</code>
           </p>
         </Tab>
         <Tab value="For Humans">
-          <pre className="overflow-x-auto rounded-lg border bg-fd-card p-4 text-sm">
+          <pre className="overflow-x-auto rounded-lg border bg-fd-card p-3 text-xs sm:p-4 sm:text-sm">
             <code>{`pip install ipa-forge
 
 forge inspect path/to/App.ipa
