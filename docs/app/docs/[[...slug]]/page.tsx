@@ -7,6 +7,7 @@ import {
 } from "fumadocs-ui/page";
 import { notFound } from "next/navigation";
 import { getMDXComponents } from "@/mdx-components";
+import { MarkdownCopyButton, ViewOptionsPopover } from "@/components/ai/page-actions";
 import type { Metadata } from "next";
 
 export default async function Page(props: {
@@ -17,6 +18,8 @@ export default async function Page(props: {
   if (!page) notFound();
 
   const MDXContent = page.data.body;
+  const markdownUrl = `${page.url}.md`;
+  const githubUrl = `https://github.com/nandan-varma/ipa-forge/blob/main/docs/content/docs/${page.path}`;
 
   return (
     <DocsPage
@@ -32,6 +35,10 @@ export default async function Page(props: {
     >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
+      <div className="flex flex-row items-center gap-2 border-b pt-2 pb-6">
+        <MarkdownCopyButton markdownUrl={markdownUrl} />
+        <ViewOptionsPopover markdownUrl={markdownUrl} githubUrl={githubUrl} />
+      </div>
       <DocsBody>
         <MDXContent components={getMDXComponents()} />
       </DocsBody>
