@@ -8,20 +8,20 @@ export const metadata: Metadata = {
 
 const features = [
   {
-    title: "Data-driven patch definitions",
-    body: "Binary byte patches, resource replace/add/remove, plist edits, and dylib injection — all declared in external YAML, never hardcoded to an app.",
+    title: "Data-driven patches",
+    body: "Every patch is declared in external YAML — never hardcoded to an app.",
   },
   {
     title: "Hook verification",
-    body: "Every dylib hook target is checked against the app's actual Mach-O class/method tables before signing, so a renamed class fails loudly instead of silently dying at runtime.",
+    body: "Every hook is checked against the real binary before signing.",
   },
   {
-    title: "Real code signing, not reimplemented",
-    body: "Apple's CodeDirectory/CMS/entitlements format is never touched directly — every signature is produced by the real codesign/security tools.",
+    title: "Real code signing",
+    body: "Signatures come from Apple's own codesign — never reimplemented.",
   },
   {
     title: "Built-in reverse engineering",
-    body: "forge analysis gives you class-dump, strings, symbols, security posture, and version-to-version diffing for any decrypted IPA.",
+    body: "Class-dump, strings, symbols, and version diffing via forge analysis.",
   },
 ];
 
@@ -50,11 +50,9 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <h1 className="text-4xl font-bold tracking-tight">ipa-forge</h1>
-      <p className="mt-4 max-w-2xl text-lg text-fd-muted-foreground">
-        A data-driven iOS IPA patcher built for AI agents. Install it with
-        pip, point an agent at the docs, and it can patch, verify, and
-        re-sign an <code>.ipa</code> for AltStore Classic sideloading
-        unattended. Drive it yourself instead, if you'd rather.
+      <p className="mt-3 max-w-xl text-lg text-fd-muted-foreground">
+        The iOS IPA patcher built for AI agents. Install with pip, point an
+        agent at the docs, and it patches, verifies, and signs — unattended.
       </p>
       <div className="mt-6 flex flex-wrap gap-3">
         <Link
@@ -67,43 +65,33 @@ export default function HomePage() {
           href="https://github.com/nandan-varma/ipa-forge"
           className="rounded-lg border px-5 py-2.5 font-medium transition-colors hover:bg-fd-accent"
         >
-          View on GitHub
+          GitHub
         </a>
         <a
           href="https://pypi.org/project/ipa-forge/"
           className="rounded-lg border px-5 py-2.5 font-medium transition-colors hover:bg-fd-accent"
         >
-          Install from PyPI
+          PyPI
         </a>
       </div>
 
-      <Tabs items={["For AI Agents", "For Humans"]} className="mt-10">
+      <Tabs items={["For AI Agents", "For Humans"]} className="mt-8">
         <Tab value="For AI Agents">
           <p className="text-sm text-fd-muted-foreground">
-            Every doc page is plain Markdown:{" "}
-            <a href="/llms.txt" className="underline">
-              /llms.txt
-            </a>{" "}
-            indexes the whole site,{" "}
-            <a href="/llms-full.txt" className="underline">
-              /llms-full.txt
-            </a>{" "}
-            is all of it concatenated, and any page works with{" "}
-            <code>.md</code> appended to its URL — no scraping rendered HTML.
-            Give an agent a decrypted IPA and a feature to change, and it can
-            run <code>forge analysis</code> / <code>forge hooks extract</code>{" "}
-            to find hook targets, write the dylib, verify with{" "}
-            <code>forge patch --dry-run</code>, and build the output.
+            Give an agent a decrypted IPA and this prompt:
           </p>
-          <pre className="mt-4 overflow-x-auto rounded-lg border bg-fd-card p-4 text-sm">
+          <pre className="mt-3 overflow-x-auto rounded-lg border bg-fd-card p-4 text-sm">
             <code>{`Use https://ipa-forge.nandan.fyi/llms.txt.
 Here's a decrypted App.ipa, and here's the specific
 feature I want changed: <describe it>.`}</code>
           </pre>
           <p className="mt-3 text-xs text-fd-muted-foreground">
-            ipa-forge doesn't decrypt IPAs or ship any app-specific
-            knowledge — you supply both, and you're responsible for whether
-            patching that app is something you're allowed to do.
+            Every page is plain Markdown (append <code>.md</code>, or see{" "}
+            <a href="/llms.txt" className="underline">
+              /llms.txt
+            </a>
+            ). ipa-forge supplies neither the decryption nor the app-specific
+            knowledge — that part's on you.
           </p>
         </Tab>
         <Tab value="For Humans">
@@ -114,43 +102,24 @@ forge inspect path/to/App.ipa
 forge patch --ipa <ipa> --patches <patches.yaml> \\
   --identity <id> --profile <profile> --output <out.ipa>`}</code>
           </pre>
-          <p className="mt-3 text-sm text-fd-muted-foreground">
-            Or skip the YAML entirely and use the local web GUI —{" "}
-            <code>forge gui</code> drops an IPA in and produces an unsigned
-            output for AltStore. See{" "}
+          <p className="mt-3 text-xs text-fd-muted-foreground">
+            Prefer a GUI? <code>forge gui</code> drops an IPA in, no YAML
+            required. See{" "}
             <Link href="/docs/installation" className="underline">
               Installation
-            </Link>{" "}
-            and{" "}
-            <Link href="/docs/usage" className="underline">
-              Usage
             </Link>{" "}
             for the full walkthrough.
           </p>
         </Tab>
       </Tabs>
 
-      <div className="mt-12 grid gap-6 sm:grid-cols-2">
+      <div className="mt-10 grid gap-4 sm:grid-cols-2">
         {features.map((f) => (
-          <div key={f.title} className="rounded-lg border p-5">
-            <h2 className="font-semibold">{f.title}</h2>
-            <p className="mt-2 text-sm text-fd-muted-foreground">{f.body}</p>
+          <div key={f.title} className="rounded-lg border p-4">
+            <h2 className="text-sm font-semibold">{f.title}</h2>
+            <p className="mt-1 text-sm text-fd-muted-foreground">{f.body}</p>
           </div>
         ))}
-      </div>
-
-      <div className="mt-12 rounded-lg border p-5">
-        <h2 className="font-semibold">Hard constraint</h2>
-        <p className="mt-2 text-sm text-fd-muted-foreground">
-          Apple&apos;s code signature format (CodeDirectory, CMS, SuperBlob,
-          DER entitlements) is never reimplemented. A single module is the
-          only code path allowed to invoke <code>codesign</code>/
-          <code>security</code> — everything else shells out through it. See{" "}
-          <Link href="/docs/architecture" className="underline">
-            the architecture doc
-          </Link>{" "}
-          for why.
-        </p>
       </div>
     </main>
   );
