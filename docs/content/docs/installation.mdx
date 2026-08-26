@@ -1,0 +1,124 @@
+---
+title: "Installation"
+description: "Install ipa-forge from PyPI and run your first patch in under a minute."
+---
+
+ipa-forge is a published PyPI package. You don't need to clone the repository
+to use it — that's only needed if you're building patch definitions
+alongside their assets in a git-tracked project, or contributing to the
+engine itself.
+
+## Install
+
+<Tabs items={['pipx (recommended)', 'pip', 'uv']}>
+  <Tab value="pipx (recommended)">
+
+    [pipx](https://pipx.pypa.io) installs `forge` as an isolated, globally
+    available command — the standard way to install a Python CLI tool
+    without touching your other projects' environments.
+
+    ```bash
+    pipx install ipa-forge
+    ```
+
+  </Tab>
+  <Tab value="pip">
+
+    Inside a virtual environment:
+
+    ```bash
+    python3 -m venv .venv && source .venv/bin/activate
+    pip install ipa-forge
+    ```
+
+  </Tab>
+  <Tab value="uv">
+
+    ```bash
+    uv tool install ipa-forge
+    ```
+
+  </Tab>
+</Tabs>
+
+Either way, this installs the `forge` command:
+
+```bash
+forge --version
+```
+
+<Callout type="warn" title="Signing needs macOS">
+`forge inspect`, `forge validate`, `forge patch --dry-run`, and `forge
+analysis` work on any OS. Real signing (`forge patch` without `--dry-run`)
+shells out to Apple's `codesign`/`security` and requires macOS with Xcode
+Command Line Tools (`xcode-select -p` should print a path).
+</Callout>
+
+## Requirements
+
+<TypeTable
+  type={{
+    Python: { type: "3.11+", required: true, description: "Checked at install time by pip's requires-python constraint" },
+    macOS: { type: "for signing only", description: "Xcode Command Line Tools, for codesign/security. Not needed for inspect/validate/dry-run/analysis" },
+    "Codesigning identity": { type: "Keychain", description: "security find-identity -v -p codesigning — needed only for a real (non-dry-run) forge patch" },
+    "Provisioning profile": { type: ".mobileprovision", description: "From Xcode or AltServer's account pairing — needed only for a real (non-dry-run) forge patch" },
+  }}
+/>
+
+## Verify it works
+
+No app of your own needed yet — the repository ships a synthetic test
+fixture you can patch immediately after installing:
+
+```bash
+curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/synthetic_app.ipa
+curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/patches/example.yaml
+mkdir -p assets && curl -Lo assets/patched_asset.txt \
+  https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/patches/assets/patched_asset.txt
+
+forge inspect synthetic_app.ipa
+forge patch --ipa synthetic_app.ipa --patches example.yaml \
+  --output /tmp/patched.ipa --dry-run
+```
+
+A clean `Dry run OK` confirms the install works end to end, no signing
+identity required.
+
+## Next steps
+
+<Cards>
+  <Card
+    title="Usage"
+    description="The forge CLI and web GUI, end to end"
+    href="/docs/usage"
+  />
+  <Card
+    title="Patch Reference"
+    description="Write your own patch definition YAML"
+    href="/docs/patch-reference"
+  />
+  <Card
+    title="Adding a New App"
+    description="Build a complete patch set for an app you want to modify"
+    href="/docs/adding-an-app"
+  />
+</Cards>
+
+## Installing from source
+
+<Callout type="info" title="Only needed to develop ipa-forge itself">
+Contributing to the engine (a new patch operation type, a signing provider,
+a bug fix) needs an editable install against a clone of the repository —
+regular usage never does.
+</Callout>
+
+```bash
+git clone https://github.com/nandan-varma/ipa-forge.git
+cd ipa-forge
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+pytest tests/
+```
+
+See [Architecture](/docs/architecture) and [Extensibility](/docs/extensibility)
+before making engine changes.

@@ -7,11 +7,27 @@ ipa-forge extracts a user-supplied `.ipa`, applies version-aware patches
 declared in external YAML — binary byte patches, resource replace/add/remove,
 plist edits, dylib injection — and re-signs the result into a
 standard-structure `.ipa` that AltStore Classic can install and refresh.
-Pick a starting point below.
+It's published on PyPI (`pipx install ipa-forge`) — cloning this repository
+is never required just to use it. Pick a starting point below.
 
 ## I want to...
 
 <Cards>
+  <Card
+    title="Install ipa-forge"
+    description="pipx/pip install from PyPI, verify it works — under a minute"
+    href="/docs/installation"
+  />
+  <Card
+    title="Use the CLI or GUI"
+    description="forge patch, forge hooks, forge gui — full command reference"
+    href="/docs/usage"
+  />
+  <Card
+    title="Write a patch definition"
+    description="Every operation type, field, and matching rule in the target/patches/hooks YAML"
+    href="/docs/patch-reference"
+  />
   <Card
     title="Port a new app"
     description="The end-to-end playbook: new IPA, new bundle id, from zero to a working patch set"
@@ -21,16 +37,6 @@ Pick a starting point below.
     title="Add a feature"
     description="Conventions for adding a feature to an existing hook dylib"
     href="/docs/adding-a-feature"
-  />
-  <Card
-    title="Write a patch definition"
-    description="Every operation type, field, and matching rule in the target/patches/hooks YAML"
-    href="/docs/patch-reference"
-  />
-  <Card
-    title="Use the CLI or GUI"
-    description="forge patch, forge hooks, forge gui — full command reference"
-    href="/docs/usage"
   />
   <Card
     title="Reverse engineer an IPA"
@@ -78,26 +84,27 @@ See [Adding a New App](/docs/adding-an-app) for the shape a patch set follows.
 <Steps>
 <Step>
 
-### Port the app
+### Install
+
+[Installation](/docs/installation) — `pipx install ipa-forge`, then
+`forge --version` to confirm.
+
+</Step>
+<Step>
+
+### Learn the CLI/GUI
+
+[Usage](/docs/usage) covers `forge patch`, `forge hooks`, and `forge gui`
+end to end — this is the primary way most people use ipa-forge.
+
+</Step>
+<Step>
+
+### Build a patch set (optional)
 
 [Adding a New App](/docs/adding-an-app) if the task is "here's an IPA, port
-everything."
-
-</Step>
-<Step>
-
-### Or add one feature
-
-[Adding a Feature](/docs/adding-a-feature) if the task is "add X to an
-existing mod."
-
-</Step>
-<Step>
-
-### Learn the exact surface
-
-[Patch Reference](/docs/patch-reference) + [Usage](/docs/usage) for the
-YAML/CLI contract.
+everything," or just [Patch Reference](/docs/patch-reference) if you only
+need the YAML contract.
 
 </Step>
 <Step>

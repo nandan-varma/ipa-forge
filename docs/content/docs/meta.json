@@ -2,6 +2,7 @@
   "title": "Documentation",
   "pages": [
     "index",
+    "installation",
     "---Guides---",
     "adding-an-app",
     "adding-a-feature",
@@ -10,11 +11,10 @@
     "patch-reference",
     "reverse-engineering",
     "troubleshooting",
-    "---Advanced---",
+    "altstore-device-testing",
+    "---Contributing to ipa-forge---",
     "architecture",
     "extensibility",
-    "altstore-device-testing",
-    "---Project---",
     "releasing"
   ]
 }

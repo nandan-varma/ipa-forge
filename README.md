@@ -18,6 +18,7 @@ for the raw `.mdx`).
 
 | Doc | What it covers |
 | --- | --- |
+| [Installation](https://ipa-forge.nandan.fyi/docs/installation) | `pip`/`pipx install ipa-forge` and a 1-minute smoke test |
 | [Adding a new app](https://ipa-forge.nandan.fyi/docs/adding-an-app) | **Port a new app** end-to-end (the "give me an IPA" playbook) |
 | [Adding a feature](https://ipa-forge.nandan.fyi/docs/adding-a-feature) | **Add a feature** to a hook dylib (conventions) |
 | [Usage](https://ipa-forge.nandan.fyi/docs/usage) | End-to-end workflow, full CLI + GUI reference, signing identity/profile setup |
@@ -37,40 +38,43 @@ patch set (YAML definition + optional hook dylib) lives under a
 [Adding a new app](https://ipa-forge.nandan.fyi/docs/adding-an-app) for the
 shape one follows and how the engine discovers it.
 
+## Install
+
+```bash
+pipx install ipa-forge     # recommended: isolated, globally available `forge` command
+# or: pip install ipa-forge   (inside your own virtualenv)
+```
+
+This installs the `forge` CLI — `forge --version` to confirm. Full install
+options (uv, editable/source installs for development) and requirements are
+at [Installation](https://ipa-forge.nandan.fyi/docs/installation).
+
+## Requirements
+
+- Python 3.11+
+- macOS with Xcode Command Line Tools (`xcode-select -p` should print a
+  path) -- **only for signing**: real (non-dry-run) `forge patch` shells out
+  to Apple's `codesign`/`security` tools, never reimplementing them.
+  `forge inspect`/`validate`/`patch --dry-run`/`analysis` all work on Linux;
+  see [`extensibility`](https://ipa-forge.nandan.fyi/docs/extensibility).
+- For real signing: a codesigning identity in your Keychain
+  (`security find-identity -v -p codesigning`) and a matching
+  `.mobileprovision`, obtained the normal way through Xcode or AltServer's
+  own account pairing.
+
 ## Quick start (novice — the GUI)
 
-1. **Install**: `python3 -m venv .venv && source .venv/bin/activate && pip install -e .`
-2. **Launch the GUI**: `forge gui` → open <http://127.0.0.1:8765>
-3. **Drop your .ipa** into the box. The GUI detects the app and the matching
+1. **Launch the GUI**: `forge gui` → open <http://127.0.0.1:8765>
+2. **Drop your .ipa** into the box. The GUI detects the app and the matching
    patch set, shows a small warning if the patch set targets a different
    version (patching is still allowed — hook verification is the safety
    net), and presents one **Patch** button.
-4. **Download** the patched IPA (unsigned — ready for AltStore).
+3. **Download** the patched IPA (unsigned — ready for AltStore).
 
 No YAML editing, no signing identity, no provisioning profiles needed for
 the AltStore path.
 
-## Requirements
-
-- macOS with Xcode Command Line Tools (`xcode-select -p` should print a
-  path) -- signing requires Apple's own `codesign`/`security` tools and is
-  not reimplemented. Everything up through patch dry-run also works on
-  Linux; see [`extensibility`](https://ipa-forge.nandan.fyi/docs/extensibility).
-- Python 3.11+
-- A codesigning identity in your Keychain (`security find-identity -v -p codesigning`)
-  and a matching `.mobileprovision`, obtained the normal way through Xcode or
-  AltServer's own account pairing.
-
-## Install
-
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
-```
-
-This installs the `forge` CLI.
-
-## Quickstart
+## Quickstart (CLI)
 
 ```bash
 # Inspect an IPA's bundle id, version, and executable inventory
@@ -97,10 +101,16 @@ identity's name (as shown by `security find-identity -v -p codesigning`) --
 it fails loudly, listing candidates, if the substring is ambiguous or
 matches nothing.
 
-Try it against the checked-in synthetic test fixture (no real app required):
+Try it against the repo's synthetic test fixture — no real app required, and
+no need to clone the repo, just download the files:
 
 ```bash
-forge patch --ipa fixtures/synthetic_app.ipa --patches fixtures/patches/example.yaml \
+curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/synthetic_app.ipa
+curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/patches/example.yaml
+mkdir -p assets && curl -Lo assets/patched_asset.txt \
+  https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/patches/assets/patched_asset.txt
+
+forge patch --ipa synthetic_app.ipa --patches example.yaml \
   --identity "Apple Development" --profile <your .mobileprovision> \
   --output /tmp/patched.ipa --verbose
 ```

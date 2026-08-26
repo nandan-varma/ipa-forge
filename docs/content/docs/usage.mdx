@@ -3,31 +3,10 @@ title: "Usage"
 description: "Full CLI and web GUI reference for forge: patch, inspect, validate, hooks, and analysis commands, plus signing identity and profile setup."
 ---
 
-Complete walkthrough of installing, patching, signing, and distributing an IPA
-with ipa-forge — via the `forge` CLI and the local web GUI.
-
-## Requirements
-
-<Callout type="warn" title="Signing requires macOS">
-Signing shells out to Apple's own `codesign`/`security` and is never
-reimplemented, so it requires macOS with Xcode Command Line Tools
-(`xcode-select -p` prints a path). Everything up to and including patch
-dry-run also works on Linux — see [Extensibility](/docs/extensibility).
-</Callout>
-
-- **Python 3.11+**.
-- A **codesigning identity** in your Keychain and a matching
-  **provisioning profile** (see [Signing identity & profile](#signing-identity--profile)).
-
-## Install
-
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
-forge --version
-```
-
-This installs the `forge` CLI.
+Complete walkthrough of patching, signing, and distributing an IPA with
+ipa-forge — via the `forge` CLI and the local web GUI. Not installed yet?
+See [Installation](/docs/installation) first (`pipx install ipa-forge` is the
+recommended path).
 
 ## End-to-end workflow
 
