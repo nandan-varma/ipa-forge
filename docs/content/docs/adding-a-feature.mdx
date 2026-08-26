@@ -3,17 +3,16 @@ title: "Adding a Feature"
 description: Conventions for adding a feature to an existing ipa-forge hook dylib, key, default, implementation, settings row, hooks declaration.
 ---
 
-The conventions a feature follows in a hook dylib. Adding a feature is: a
-key, a default, a settings row, an implementation in the right file, and a
-hooks declaration — in that order.
+Every feature in a hook dylib follows the same five steps, in order: a key,
+a default, the implementation, a settings row, and a hooks declaration.
 
 <Steps>
 <Step>
 
-## The key
+## Give it a key
 
-Every user-facing feature is an `NSUserDefaults` key. Give each patch set
-its own prefix and enabled-check macro, e.g.:
+Every user-facing feature is an `NSUserDefaults` key. Use your patch set's
+existing prefix and enabled-check macro:
 
 ```objc
 #define kMyModNewFeature @"MyModNewFeature"
@@ -24,28 +23,28 @@ Declare it in the shared header (`dylib/<App>Hook.h`).
 </Step>
 <Step>
 
-## The default
+## Set a default
 
 Register the default in the constructor (`dylib/<App>Hook.m`), inside the
-`registerDefaults:` dictionary. New features default **ON** unless there is
-a reason not to (e.g. a behavior change users might not want).
+`registerDefaults:` dictionary. Default new features **ON** — unless the
+feature changes behavior in a way users might not expect, in which case
+default it off.
 
-<Callout type="warn" title="Standing exception">
-A feature built via reverse engineering with no reference source to check
-against and no on-device confirmation yet defaults **OFF** and is labeled
-beta in the settings row. Flip it to default-ON once a device pass confirms
-it works.
+<Callout type="warn" title="Features built from reverse engineering default OFF">
+If you had no reference source to check your work against and haven't
+confirmed it on-device yet, default the feature **OFF** and label it beta
+in the settings row. Flip it to default-ON once a device pass confirms it
+works.
 </Callout>
 
 </Step>
 <Step>
 
-## The implementation
+## Implement it
 
-- One file per feature area; add the feature to the matching file
-  (`AdBlock.m`, `SessionProtection.m`, `Settings.m`, …) or create a new
-  `Feature.m`.
-- Gate it on the key at the top of its init:
+Add the feature to the file that already owns its area (`AdBlock.m`,
+`SessionProtection.m`, `Settings.m`, …), or create a new one. Gate it on the
+key at the top of its init function:
 
 ```objc
 void MyModNewFeatureInit(void) {
@@ -54,95 +53,132 @@ void MyModNewFeatureInit(void) {
 }
 ```
 
-- **One hook per method across the dylib.** If your feature needs a method
-  another feature already hooks, put the logic in the existing owner file
-  and call a shared helper — a second `hookInstance` on the same method
-  silently replaces the first.
-- **No local reference source for the internal API you need, or the object
-  graph is too deep/uncertain to hardcode an accessor chain?** Don't guess
-  property names. Do a bounded breadth-first walk of the object graph from
-  a known, reachable anchor — collect anything whose *shape* matches what
-  you need (responds to the right selectors), not anything with a specific
-  class/property name. This survives internal renames the same way a
-  hardcoded chain wouldn't.
-- Verify the target exists before writing it:
-  `forge hooks extract --ipa <ipa> --class <Class>` / `--search <regex>`,
-  and cross-check suspicious selectors with `strings` (the parser
-  under-reports GPBMessage methods).
-- Prefer pure ObjC-runtime swizzling.
-
-<Callout type="error" title="No C-level rebinding">
-Fishhook-style rebinding is a real crash source and should be avoided unless
-unavoidable; if you must, defer it past launch and guard every resolved
-original pointer.
+<Callout type="info" title="Share a method's hook across features">
+If your feature needs a method another feature already hooks, add your
+logic to that file and call a shared helper instead of hooking it again —
+a second `hookInstance` call on the same method silently replaces the
+first at runtime, so only one owner per method.
 </Callout>
 
-- Wrap the init in the existing `@try`-isolation so a failure degrades.
+**No reference source for the API you need, or the object graph is too deep
+to hardcode an accessor chain?** Walk the object graph instead of guessing
+property names: start from a known, reachable anchor (a touched view, the
+current view controller) and do a bounded breadth-first search for anything
+whose *shape* matches what you need — responds to the right selectors,
+regardless of class or property name. This keeps working across internal
+renames that would break a hardcoded chain.
+
+Before you write a hook target, confirm it exists:
+
+```bash
+forge hooks extract --ipa <ipa> --class <Class>
+forge hooks extract --ipa <ipa> --search <regex>
+```
+
+For a selector that seems missing, cross-check with `forge analysis
+strings` — the class-table parser can under-report methods on some
+code-generated classes (protobuf message types, for example), so a real
+selector can still show up as a plain string even when the parser missed it
+as a method.
+
+Stick to pure ObjC-runtime swizzling for the hook itself.
+
+<Callout type="error" title="Avoid C-level function rebinding">
+Low-level rebinding (e.g. fishhook-style symbol patching) is a real crash
+source — it has caused crashes in this project before. Use it only if
+there's truly no ObjC-level way to intercept the call, defer it until after
+launch, and guard every resolved original function pointer.
+</Callout>
+
+Wrap the init in the dylib's existing `@try`-isolation helper so a failure
+degrades instead of taking the app down.
 
 </Step>
 <Step>
 
-## The settings row
+## Add a settings row
 
-Add the toggle to the in-app settings screen. Title + one-line detail + the
-key. The screen should say "changes apply on relaunch" (toggles are read
-at hook-install time).
+Add the toggle to the in-app settings screen: title, one-line detail, and
+the key. Note that toggles are read at hook-install time, so the screen
+should say "changes apply on relaunch."
 
 </Step>
 <Step>
 
-## The hooks declaration
+## Declare the hook
 
-Add the new hook target(s) to the definition's `hooks:` block
-(`<app>.yaml`). If the hook is load-bearing (feature silently dies when
-the class/selector is renamed in a future app version), mark
-`required: true`. Regenerate or hand-update:
+Add the new hook target(s) to the definition's `hooks:` block (`<app>.yaml`).
+Mark `required: true` when the feature would silently die if the
+class/selector gets renamed in a future app version.
 
 ```bash
 forge hooks manifest --dir dylib/ --required hooks-required.txt   # direct calls
-# helper/loop-based hooks: hand-declare in the yaml
+# helper/loop-based hooks: add these to the yaml by hand
 ```
 
-<Callout type="warn" title="Don't skip this, even for an 'obvious' hook">
-Confirm nothing was missed with `forge hooks audit --ipa <ipa> --dir dylib/
---patches <app>.yaml` — it fails (exit 1) if any hook the source calls isn't
-in the `hooks:` block yet. `--dry-run` alone won't catch this — the gap is
-invisible to it by construction.
+<Callout type="warn" title="Confirm nothing was missed">
+Even a hook that looks "obviously fine" should go through:
+
+```bash
+forge hooks audit --ipa <ipa> --dir dylib/ --patches <app>.yaml
+```
+
+This fails (exit 1) if any hook the source calls isn't in the `hooks:`
+block — a gap that `--dry-run` alone can't see, by construction.
 </Callout>
 
 </Step>
 <Step>
 
-## Verify + commit
+## Verify and commit
 
 ```bash
 dylib/build.sh
 forge hooks audit --ipa <base>.ipa --dir dylib/ --patches <app>.yaml
-# -> all source hooks declared, 0 undeclared (see step 5)
+# -> all source hooks declared, 0 undeclared
 forge patch --ipa <base>.ipa --patches <app>.yaml --dry-run
-# -> must show the new hook attach (or an honest unverified for system APIs)
+# -> the new hook attaches (or shows an honest unverified for a system API)
 forge patch --ipa <base>.ipa --patches <app>.yaml --no-sign --output <out>.ipa
 ```
 
-Then: device test (the dylib's `os_log` subsystem shows the feature's
-`ready`/`disabled` line). If a device isn't available yet, default the
-feature OFF and mark it beta in the settings row instead of skipping it —
-don't claim it works before it's confirmed. Update the patch set's
-`README.md` feature list, and commit — **including the patch submodule
-itself**, if the patch set lives in a separate git repo.
+Then test on a real device — the dylib's `os_log` subsystem shows the
+feature's `ready`/`disabled` line. No device available yet? Default the
+feature OFF and mark it beta in the settings row, and treat it as unproven
+until it's actually been confirmed. Update the patch set's `README.md`
+feature list, and commit — **including the patch submodule itself**, if the
+patch set lives in a separate git repo.
 
 </Step>
 </Steps>
 
 ## Debugging a feature that doesn't work
 
-1. Does the hook attach? The install log prints every
-   `hooked -[Class method]` line.
-2. Does the code path fire? Add an `os_log` in the block.
-3. Is it a server/A-B surface? Config-flag hooks chain to the server value
-   when off — log the effective value.
-4. Is it a hook-point drift? `forge hooks diff --old <old>.ipa --new <new>.ipa
-   --patches <yaml>` shows what regressed between versions.
+<Steps>
+<Step>
+
+**Does the hook attach?** The install log prints every `hooked
+-[Class method]` line — check the feature's target is in there.
+
+</Step>
+<Step>
+
+**Does the code path fire?** Add an `os_log` inside the hook block and
+reproduce.
+
+</Step>
+<Step>
+
+**Is it a server-controlled surface?** Config-flag hooks chain to the
+server's value when off — log the effective value to rule this out.
+
+</Step>
+<Step>
+
+**Did the hook point drift?** `forge hooks diff --old <old>.ipa --new
+<new>.ipa --patches <yaml>` shows what regressed between versions.
+
+</Step>
+</Steps>
 
 ## Related
 

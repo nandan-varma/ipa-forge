@@ -302,7 +302,7 @@ hooks:
     kind: instance        # instance (default) | class
   - class: "PlaybackResponse"
     selector: "extraDataArray"
-    added: true           # the tweak ADDS this method (logos' %new)
+    added: true           # the tweak adds this method itself, it doesn't exist in the app
   - class: "SessionService"
     selector: "urlFromURL:withAdditionalFragmentParameters:"
     required: true        # fail the run if this hook can't attach
@@ -362,9 +362,10 @@ When a class or selector the walk missed is still present as a string in some
 binary image (the old manual `strings <binary> | grep` cross-check), the
 report says so — "class-name string present … the walk missed it (likely
 attaches)" / "selector declared as a method somewhere … (likely attaches)".
-The parser under-reports GPBMessage methods and large Swift class tables this
-way; Swift-mangled (`_TtC…`) classes absent from the parsed table are always
-reported `unverified`, never mislabeled as system classes.
+The parser under-reports methods on protobuf-generated message classes and
+large Swift class tables this way; Swift-mangled (`_TtC…`) classes absent
+from the parsed table are always reported `unverified`, never mislabeled as
+system classes.
 </Callout>
 
 Porting to a new app version becomes: bump `target.version`, run
