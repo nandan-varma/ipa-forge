@@ -96,6 +96,41 @@ forge patch --ipa <ipa> --patches <patches.yaml> \\
       </div>
 
       <div className="mt-16 rounded-lg border p-5">
+        <h2 className="font-semibold">Built for AI agents, not just people</h2>
+        <p className="mt-2 text-sm text-fd-muted-foreground">
+          Every doc page is available as plain Markdown —{" "}
+          <a href="/llms.txt" className="underline">
+            /llms.txt
+          </a>{" "}
+          indexes the whole site,{" "}
+          <a href="/llms-full.txt" className="underline">
+            /llms-full.txt
+          </a>{" "}
+          is all of it concatenated, and any page works with <code>.md</code>{" "}
+          appended to its URL. A tool-using agent can read the CLI/GUI
+          reference, the patch-definition format, and the hook-verification
+          loop directly — no scraping rendered HTML required.
+        </p>
+        <p className="mt-3 text-sm text-fd-muted-foreground">
+          Give it a decrypted IPA and a specific feature to change, and it
+          can run <code>forge analysis</code> / <code>forge hooks extract</code>{" "}
+          to find the right hook targets, write the dylib, verify with{" "}
+          <code>forge patch --dry-run</code>, and build the output —
+          unattended:
+        </p>
+        <pre className="mt-4 overflow-x-auto rounded-lg border bg-fd-card p-4 text-sm">
+          <code>{`Use https://ipa-forge.nandan.fyi/llms.txt.
+Here's a decrypted App.ipa, and here's the specific
+feature I want changed: <describe it>.`}</code>
+        </pre>
+        <p className="mt-3 text-xs text-fd-muted-foreground">
+          ipa-forge doesn't decrypt IPAs or ship any app-specific
+          knowledge — you supply both, and you're responsible for whether
+          patching that app is something you're allowed to do.
+        </p>
+      </div>
+
+      <div className="mt-16 rounded-lg border p-5">
         <h2 className="font-semibold">Hard constraint</h2>
         <p className="mt-2 text-sm text-fd-muted-foreground">
           Apple&apos;s code signature format (CodeDirectory, CMS, SuperBlob,
