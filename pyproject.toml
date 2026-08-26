@@ -68,6 +68,24 @@ forge = "ipa_forge.cli.main:app"
 [tool.hatch.build.targets.wheel]
 packages = ["ipa_forge"]
 
+[tool.hatch.build.targets.sdist]
+# Without an explicit include list, hatchling's default sdist walk includes
+# the whole repo tree and only honors the root .gitignore, not nested ones
+# -- it silently swept in docs/node_modules and docs/.next (a separate
+# Node.js project, not part of this package) and produced a 126MB sdist
+# that PyPI rejected. docs/ is never needed to build or test the Python
+# package, so it's excluded entirely rather than relying on ignore rules.
+include = [
+  "/ipa_forge",
+  "/tests",
+  "/fixtures",
+  "/scripts",
+  "/README.md",
+  "/CHANGELOG.md",
+  "/LICENSE",
+  "/pyproject.toml",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["macos: requires macOS codesign/security tooling"]
