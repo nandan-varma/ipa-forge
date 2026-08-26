@@ -22,9 +22,9 @@ generic; a per-app runbook (`PLAYBOOK.md`) applies it to a specific app.
 ## Phase 1 — create the patch set
 
 **One canonical directory per app, named after the bundle id's app, not the
-version** — `patches/<app>/`, e.g. `patches/youtube/`. The version lives
+version** — `patches/<app>/`, e.g. `patches/myapp/`. The version lives
 inside `target.version` in the YAML, not in the path. Don't create
-version-suffixed variants (`patches/youtube-21.32.4/`) — if the app updates,
+version-suffixed variants (`patches/myapp-1.2.3/`) — if the app updates,
 bump `target.version` in place and re-verify; the old version isn't kept
 around as a separate directory.
 

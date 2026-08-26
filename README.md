@@ -28,13 +28,14 @@ for the raw `.mdx`).
 | [Extensibility](https://ipa-forge.nandan.fyi/docs/extensibility) | How to add new patch operation types (for developers) |
 | [AltStore device testing](https://ipa-forge.nandan.fyi/docs/altstore-device-testing) | Manual AltStore Classic device-test checklist |
 
-### Worked patch sets
+### Patch sets
 
-| Set | Runbook | Features | Repo |
-| --- | --- | --- | --- |
-| YouTube 21.32.4 | [`patches/youtube/PLAYBOOK.md`](patches/youtube/PLAYBOOK.md) | [`patches/youtube/README.md`](patches/youtube/README.md) | `nandan-varma/ipa-forge-patches-youtube` (private) |
-| Spotify 9.1.72 | [`patches/spotify/PLAYBOOK.md`](patches/spotify/PLAYBOOK.md) | [`patches/spotify/README.md`](patches/spotify/README.md) | `nandan-varma/ipa-forge-patches-spotify` (private) |
-| Instagram 442.0.0 | [`patches/instagram/PLAYBOOK.md`](patches/instagram/PLAYBOOK.md) | [`patches/instagram/README.md`](patches/instagram/README.md) | `nandan-varma/ipa-forge-patches-instagram` (private) |
+ipa-forge ships no patch definitions or reverse-engineered specifics for any
+third-party app — it's the engine, not a collection of mods. An app-specific
+patch set (YAML definition + optional hook dylib) lives under a
+`patches/<app>/` directory you provide yourself; see
+[Adding a new app](https://ipa-forge.nandan.fyi/docs/adding-an-app) for the
+shape one follows and how the engine discovers it.
 
 ## Quick start (novice — the GUI)
 
@@ -54,7 +55,7 @@ the AltStore path.
 - macOS with Xcode Command Line Tools (`xcode-select -p` should print a
   path) -- signing requires Apple's own `codesign`/`security` tools and is
   not reimplemented. Everything up through patch dry-run also works on
-  Linux; see `docs/extensibility.md`.
+  Linux; see [`extensibility`](https://ipa-forge.nandan.fyi/docs/extensibility).
 - Python 3.11+
 - A codesigning identity in your Keychain (`security find-identity -v -p codesigning`)
   and a matching `.mobileprovision`, obtained the normal way through Xcode or
@@ -149,7 +150,7 @@ for complete, working examples run by the test suite against
 `resource_replace`/`add`/`remove`, `dylib_inject`, `plist_edit`), every field,
 version-matching semantics, the dry-run gate, ordering rules, and a
 common-mistakes checklist — is in
-[`docs/patch-reference.md`](docs/patch-reference.md).
+[`patch-reference`](https://ipa-forge.nandan.fyi/docs/patch-reference).
 
 ## Getting certificates and provisioning profiles for AltStore
 
@@ -158,7 +159,7 @@ development credentials, obtained through AltServer's own pairing flow --
 ipa-forge doesn't manage your Apple account. How to find your codesigning
 identity and a matching `.mobileprovision`, and how ipa-forge selects
 profiles (exact match, wildcard, per-extension), is documented in
-[`docs/usage.md`](docs/usage.md#signing-identity--profile). In short:
+[`usage`](https://ipa-forge.nandan.fyi/docs/usage#signing-identity--profile). In short:
 
 1. Pair AltServer with your device (or use a certificate + profile from your
    own Xcode account).
@@ -187,12 +188,12 @@ binary artifact; re-run the script only if you need to change its shape.
 
 Real-device AltStore Classic install/launch/refresh cannot be automated in
 this environment -- see
-[`docs/altstore_device_testing.md`](docs/altstore_device_testing.md) for the
+[`altstore-device-testing`](https://ipa-forge.nandan.fyi/docs/altstore-device-testing) for the
 manual checklist.
 
 ## Disclaimer
 
-For educational and research purposes only. You must supply your own legally obtained `.ipa`. Not affiliated with Apple, Google/YouTube, Spotify, or Meta/Instagram. No copyrighted binaries are distributed — patch definitions only. Sideloading may violate an app's Terms of Service.
+For educational and research purposes only. You must supply your own legally obtained `.ipa`. ipa-forge is not affiliated with, endorsed by, or sponsored by Apple or by the vendor of any application you choose to patch. It distributes no copyrighted app binaries and no reverse-engineered specifics of any third-party app — only a generic patching engine that operates on YAML you supply. Patching or sideloading an app may violate that app's Terms of Service; that risk is yours to assess.
 
 ## License
 

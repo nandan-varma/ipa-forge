@@ -72,7 +72,7 @@ _SYSTEM_SELECTORS = {
     # inherits a default implementation, so hooking one on an app class whose
     # superclass chain ends external (UIViewController/UIView) attaches fine
     # even though no app class overrides it. Found via a real false-positive
-    # `elsewhere` classification on IGRootViewController -[motionEnded:
+    # `elsewhere` classification on a root view controller's -[motionEnded:
     # withEvent:] (a shake-gesture hook): the selector is only implemented on
     # unrelated UIWindow/UIApplication subclasses in that binary, which the
     # ancestry walk (rightly) doesn't associate with a UIViewController.

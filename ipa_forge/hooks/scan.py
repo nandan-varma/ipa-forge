@@ -6,11 +6,11 @@ inline ``NSClassFromString(@"X")`` (or a file-scoped, unambiguous
 ``cls = NSClassFromString(@"X")`` assignment), plus class names passed
 through a local resolver helper — any function whose body calls
 ``NSClassFromString`` and that is invoked as ``resolver("X")`` at the hook
-call site (e.g. ``igHookInstance(igClass("YTSettings"), ...)``).
+call site (e.g. ``myHookInstance(myClass("SomeClass"), ...)``).
 
 Helper/loop-based hooks whose class is *passed into another function* before
-reaching the hook call (``hookParserNil(igClass("X"))`` → ``igHookInstance(cls,
-...)`` inside ``hookParserNil``) are not traced across function boundaries —
+reaching the hook call (``resolverHelper(myClass("X"))`` → ``myHookInstance(cls,
+...)`` inside ``resolverHelper``) are not traced across function boundaries —
 declare those manually in the definition's ``hooks:`` block, exactly as the
 docs say.
 """

@@ -31,11 +31,12 @@ read everything:
 | Cutting a **release** (PyPI + GitHub Release) | [`docs/content/docs/releasing.mdx`](docs/content/docs/releasing.mdx) |
 | A specific app's **runbook** (build/apply/verify commands, gotchas) | `patches/<app>/PLAYBOOK.md` |
 
-The patch sets (`patches/youtube/`, `patches/spotify/`, `patches/instagram/`)
-are private git submodules — `git clone --recursive` to get them, and
-**commit inside each submodule directory separately** before committing the
-updated submodule pointer in this repo; a plain top-level `git add -A` will
-silently skip submodule content changes.
+Any app-specific patch sets under `patches/<app>/` are private git
+submodules (run `ls patches/` to see which are currently present) —
+`git clone --recursive` to get them, and **commit inside each submodule
+directory separately** before committing the updated submodule pointer in
+this repo; a plain top-level `git add -A` will silently skip submodule
+content changes.
 
 ## Commands
 

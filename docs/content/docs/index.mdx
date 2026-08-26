@@ -20,14 +20,14 @@ Which document to read, for what.
 | Extend the engine (new operation type, new provider) | [`extensibility`](/docs/extensibility) |
 | Cut a new **release** (PyPI + GitHub Release) | [`releasing`](/docs/releasing) |
 
-## The patch sets (concrete worked examples)
+## Patch sets
 
 The engine is app-agnostic — it understands patch operation *types*, never a
-specific bundle id or byte pattern. Concrete patch sets (YouTube, Spotify,
-Instagram) that use it are maintained as separate, private repositories,
-since they embed reverse-engineered specifics of third-party apps. See
-[`adding-an-app`](/docs/adding-an-app) for the shape a patch set follows if
-you want to build your own.
+specific bundle id or byte pattern. Any app-specific patch set (the YAML
+definition plus, optionally, a hook dylib) lives entirely outside this repo,
+under a `patches/<app>/` directory you provide yourself; ipa-forge ships no
+patch definitions or reverse-engineered specifics for any third-party app.
+See [`adding-an-app`](/docs/adding-an-app) for the shape a patch set follows.
 
 ## The reading order for a new project
 

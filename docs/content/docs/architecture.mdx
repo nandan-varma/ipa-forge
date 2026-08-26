@@ -134,7 +134,8 @@ The analyzer also resolves class **superclass** pointers (so a plain-UIView
 view class is distinguishable from an `_ASDisplayView` one — the difference
 between an id-hook that fires and one that never sees the view) and parses
 relative (REL-flag) method lists, which carry the bulk of modern app config
-classes (e.g. a 7,000-getter `YTColdConfig` facade). `forge hooks find
+classes (some apps ship a single facade class with thousands of generated
+getters). `forge hooks find
 <selector>` is the reverse lookup used when a hook attaches per verify but
 does nothing on device.
 

@@ -29,7 +29,7 @@ def patches_root() -> Path:
 
 @dataclass(frozen=True)
 class PatchSet:
-    name: str  # directory name, e.g. "youtube"
+    name: str  # directory name, e.g. "myapp"
     definition: Path  # path to the canonical <app>.yaml
     bundle_id: str
     version_spec: str  # "exact: 21.32.4" or "min: … max: …" summary

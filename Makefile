@@ -4,16 +4,16 @@
 #   make type    — mypy
 #   make format  — ruff format
 #   make gui     — launch the novice web GUI
-#   make dry-youtube YOUTUBE_IPA=path/to/App.ipa — hooks-gate dry-run
-#   make dry-spotify SPOTIFY_IPA=path/to/App.ipa — hooks-gate dry-run
-#   make build-youtube / build-spotify — rebuild the hook dylibs
+#   make dry-patch APP=<app> IPA=path/to/App.ipa — hooks-gate dry-run against patches/<app>/<app>.yaml
+#   make build-dylib APP=<app> — rebuild patches/<app>/dylib/'s hook dylib
 
-.PHONY: test lint type format check gui dry-youtube dry-spotify build-youtube build-spotify
+.PHONY: test lint type format check gui dry-patch build-dylib
 
-# No default: each developer's source IPA lives at a different local path.
-# Pass it on the command line, e.g. `make dry-youtube YOUTUBE_IPA=~/ipa/App.ipa`.
-YOUTUBE_IPA :=
-SPOTIFY_IPA :=
+# No default: each developer's source IPA lives at a different local path,
+# and APP selects which patches/<app>/ directory to use.
+# Pass both on the command line, e.g. `make dry-patch APP=myapp IPA=~/ipa/App.ipa`.
+APP :=
+IPA :=
 
 test:
 	python3 -m pytest tests/ -q
@@ -33,16 +33,11 @@ check: lint type
 gui:
 	forge gui
 
-dry-youtube:
-	@test -n "$(YOUTUBE_IPA)" || { echo "usage: make dry-youtube YOUTUBE_IPA=path/to/App.ipa" >&2; exit 1; }
-	forge patch --ipa $(YOUTUBE_IPA) --patches patches/youtube/youtube.yaml --output /tmp/dry.ipa --dry-run
+dry-patch:
+	@test -n "$(APP)" || { echo "usage: make dry-patch APP=<app> IPA=path/to/App.ipa" >&2; exit 1; }
+	@test -n "$(IPA)" || { echo "usage: make dry-patch APP=<app> IPA=path/to/App.ipa" >&2; exit 1; }
+	forge patch --ipa $(IPA) --patches patches/$(APP)/$(APP).yaml --output /tmp/dry.ipa --dry-run
 
-dry-spotify:
-	@test -n "$(SPOTIFY_IPA)" || { echo "usage: make dry-spotify SPOTIFY_IPA=path/to/App.ipa" >&2; exit 1; }
-	forge patch --ipa $(SPOTIFY_IPA) --patches patches/spotify/spotify.yaml --output /tmp/dry.ipa --dry-run
-
-build-youtube:
-	patches/youtube/dylib/build.sh
-
-build-spotify:
-	patches/spotify/dylib/build.sh
+build-dylib:
+	@test -n "$(APP)" || { echo "usage: make build-dylib APP=<app>" >&2; exit 1; }
+	patches/$(APP)/dylib/build.sh

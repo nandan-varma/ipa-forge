@@ -103,8 +103,9 @@ def analyze_macho(path: Path) -> MachOAnalysis:
 def analyze_bundle(bundle: AppBundle) -> MachOAnalysis:
     """Analyze every executable in an AppBundle (main binary + embedded
     frameworks/dylibs) and merge the results. Hook targets routinely live in
-    frameworks (Spotify's SPTDataLoaderService is in SpotifyShared.framework),
-    so verification must cover all of them, not just the main executable."""
+    embedded frameworks rather than the main executable (a networking or
+    data-loading class defined in its own vendored .framework is a common
+    case), so verification must cover all of them."""
     paths = bundle_executable_paths(bundle, kinds={"framework"})
 
     merged: MachOAnalysis | None = None

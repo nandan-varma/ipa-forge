@@ -260,14 +260,14 @@ so `forge` can verify it against the actual binary before anything mutates:
 
 ```yaml
 hooks:
-  - class: "YTColdConfig"
-    selector: "iosEnableMuteButtonPlayerControl"
+  - class: "AppConfig"
+    selector: "isFeatureFlagEnabled"
     kind: instance        # instance (default) | class
-  - class: "YTPlayerResponse"
-    selector: "playerAdsArray"
+  - class: "PlaybackResponse"
+    selector: "extraDataArray"
     added: true           # the tweak ADDS this method (logos' %new)
-  - class: "SSORPCService"
-    selector: "URLFromURL:withAdditionalFragmentParameters:"
+  - class: "SessionService"
+    selector: "urlFromURL:withAdditionalFragmentParameters:"
     required: true        # fail the run if this hook can't attach
 ```
 
@@ -276,7 +276,7 @@ Per hook:
 | Field | Meaning |
 | --- | --- |
 | `class` | ObjC class name the hook targets. |
-| `selector` | Selector, colons included (`didReceiveAdBreakResponse:fromAdBreakSlot:`). |
+| `selector` | Selector, colons included (`didReceiveResponse:fromSlot:`). |
 | `kind` | `instance` (default) or `class` (metaclass method). |
 | `added` | The tweak adds the method itself (`%new`). Absence is *expected* and counts as a pass; if the binary's selrefs reference the selector, the report confirms the app calls it and your add is load-bearing. |
 | `required` | Fail the run when this hook can't attach. Leave unset (or `false`) for nice-to-have hooks — they warn instead. |
@@ -290,7 +290,7 @@ re-extraction when iterating on the same app.
 ```
 Dry run OK -- 4 operation(s) would apply.
 Hooks: 151/159 attach (8 issue(s))
-  ! YTSettings -[areHintsDisabled]: unverified -- class exists ... walk missed it
+  ! SettingsController -[isHintsDisabled]: unverified -- class exists ... walk missed it
 ```
 
 Statuses: `ok` (on the class), `ok-inherited` (on an ancestor or a system
@@ -305,8 +305,8 @@ selector (selrefs / `NSSelectorFromString` / optional protocol sends) but does
 not declare it as a method anywhere (`__objc_methname` has no such name), so
 there is no IMP to swizzle and `class_getInstanceMethod` returns NULL — the
 hook cannot attach. This is the classic "the verify says it attaches but the
-feature does nothing" trap (selectors like `didPressVarispeed:` in some builds
-are referenced by the app but implemented by nothing). Distinguish it from
+feature does nothing" trap (some selectors are referenced by the app but
+implemented by nothing in a given build). Distinguish it from
 `unverified`, which means the selector *is* declared as a method somewhere (a
 protocol, a category, or a method list the walker did not decode) — the hook
 may well attach.
@@ -326,7 +326,7 @@ Porting to a new app version becomes: bump `target.version`, run
 from the tweak sources (inline `NSClassFromString` calls, unambiguous
 variable assignments, class names passed through a local resolver helper — a
 function whose body calls `NSClassFromString` invoked as `resolver("X")` at
-the hook call site — and `ytfHookConfigBool` config-flag getters); pass
+the hook call site — and `<prefix>HookConfigBool` config-flag getters); pass
 `--inplace patch.yaml` to write the block straight into the patch definition.
 `forge hooks diff --old A.ipa --new B.ipa --patches patch.yaml` shows which
 hooks regressed between two versions.

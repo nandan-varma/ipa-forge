@@ -117,8 +117,9 @@ def hooks_extract(
     for cls in targets:
         typer.echo(f"{cls.name} : {cls.super_name}  (inst={len(cls.inst)} cls={len(cls.cls)})")
         # Full method lists, not truncated: a `[:40]` slice silently hid real
-        # methods on large config classes (e.g. YTColdConfig's 7k getters) and
-        # sent users greping for selectors that WERE there. Pipe to grep.
+        # methods on large config classes (some apps have thousands of
+        # generated getters) and sent users greping for selectors that WERE
+        # there. Pipe to grep.
         if cls.inst:
             typer.echo("  inst: " + ", ".join(sorted(cls.inst)))
         if cls.cls:
@@ -185,7 +186,7 @@ def hooks_audit(
 
 @app.command("find")
 def hooks_find(
-    selector: str = typer.Argument(..., help="Selector to look up, e.g. 'didPressVarispeed:'"),
+    selector: str = typer.Argument(..., help="Selector to look up, e.g. 'someMethod:'"),
     ipa: Path | None = typer.Option(None, "--ipa", exists=True, help="Input .ipa (not needed when --app-dir is given)"),
     app_dir: Path | None = typer.Option(
         None,
@@ -261,7 +262,7 @@ def hooks_manifest(
     block goes into the patch definition's `hooks:` section so dry-run
     verifies every hook against the real binary. With --inplace the block is
     written straight into the patch definition (replacing the old hooks).
-    Covers ytfHookInstance/ytfHookClass/ytfHookConfigBool/ytfAddInstanceMethod."""
+    Covers any `<prefix>HookInstance/HookClass/ConfigBool/AddInstanceMethod` naming convention."""
     decls = scan_hook_sources(dylib_src)
     if not decls:
         typer.echo("No hook calls found in the sources.")

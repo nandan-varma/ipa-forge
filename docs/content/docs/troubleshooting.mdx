@@ -20,8 +20,8 @@ a silent no-op on device (feature stops working, no crash). This is exactly
 what the `hooks:` block exists to catch.
 
 **Fix:** find the new name: `forge hooks extract --ipa App.ipa --search
-"<substring of old class>"` shows what replaced it (e.g. `YTWatchBreakController`
-→ `YTAdsControlFlowManagerImpl`). Update the hook target (and the tweak
+"<substring of old class>"` shows what replaced it (e.g. `PlaybackController`
+→ `PlaybackControllerImpl`). Update the hook target (and the tweak
 source), then re-run `--dry-run`. Statuses `unverified` and `ok-inherited`
 are soft — the class/selector likely exists but the parser couldn't fully
 confirm (system superclasses, chained-fixup gaps) — verify once on device

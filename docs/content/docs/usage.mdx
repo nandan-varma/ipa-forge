@@ -163,8 +163,8 @@ targets. Three commands turn that into a checkable report:
 forge hooks verify --ipa App.ipa --patches patch.yaml
 
 # Dump the ObjC class table (classes, superclasses, method lists)
-forge hooks extract --ipa App.ipa --class YTPlayerResponse
-forge hooks extract --ipa App.ipa --search "AdBreak"
+forge hooks extract --ipa App.ipa --class PlaybackResponse
+forge hooks extract --ipa App.ipa --search "Config"
 
 # Scan tweak sources for hook calls and verify each against the binary
 forge hooks audit --ipa App.ipa --dir dylib/
@@ -175,8 +175,8 @@ forge hooks audit --ipa App.ipa --dir dylib/
 forge hooks audit --ipa App.ipa --dir dylib/ --patches patch.yaml
 
 # Reverse lookup: which classes implement a selector?
-forge hooks find didPressVarispeed: --ipa App.ipa
-#   -> -[YTMainAppVideoPlayerOverlayViewController didPressVarispeed:]  (real)
+forge hooks find someFeatureAction: --ipa App.ipa
+#   -> -[MainOverlayViewController someFeatureAction:]  (real)
 #   -> REFERENCED-ONLY ... no class declares it (the hook cannot attach)
 
 # Regenerate the `hooks:` block from sources, straight into the definition
@@ -253,7 +253,7 @@ a local resolver helper — any function whose body calls `NSClassFromString`
 and that is invoked as `resolver("X")` at the hook call site. Helper/loop-
 based hooks whose class is *passed into another function* before reaching the
 hook call are not traced and must be declared manually in the definition's
-`hooks:` block — which is what the YouTube/Spotify/Instagram patch sets do.
+`hooks:` block instead.
 
 ## Signing identity & profile
 

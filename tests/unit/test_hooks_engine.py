@@ -36,14 +36,14 @@ def test_scan_hook_sources_direct_and_variable(tmp_path: Path) -> None:
     (tmp_path / "tweak.m").write_text(
         "#import <Foundation/Foundation.h>\n"
         "static void a(void) {\n"
-        '    ytfHookInstance(NSClassFromString(@"Thing"), @selector(doIt:), ^void(id self) {});\n'
+        '    demoHookInstance(NSClassFromString(@"Thing"), @selector(doIt:), ^void(id self) {});\n'
         "}\n"
         "static void b(void) {\n"
         '    Class c = NSClassFromString(@"Other");\n'
-        "    ytfHookClass(c, @selector(makeIt), ^id(id self){return nil;});\n"
+        "    demoHookClass(c, @selector(makeIt), ^id(id self){return nil;});\n"
         "}\n"
         "static void c(void) {\n"
-        '    ytfAddInstanceMethod(NSClassFromString(@"Third"),\n'
+        '    demoAddInstanceMethod(NSClassFromString(@"Third"),\n'
         '        sel_registerName("addedThing"), ^id(id self){return nil;}, "@@:");\n'
         "}\n"
     )
@@ -58,17 +58,17 @@ def test_scan_hook_sources_direct_and_variable(tmp_path: Path) -> None:
 
 
 def test_scan_captures_config_bool(tmp_path: Path) -> None:
-    """ytfHookConfigBool hooks (config-flag getters) must land in the manifest
+    """demoHookConfigBool hooks (config-flag getters) must land in the manifest
     so the dry-run verifies them — they were silently skipped before."""
     (tmp_path / "tweak.m").write_text(
         "#import <Foundation/Foundation.h>\n"
         "static void a(void) {\n"
-        '    ytfHookConfigBool(NSClassFromString(@"YTColdConfig"),\n'
-        "        @selector(iosEnableMuteButtonPlayerControl), ^BOOL { return YES; });\n"
+        '    demoHookConfigBool(NSClassFromString(@"DemoConfig"),\n'
+        "        @selector(enableExtraFeature), ^BOOL { return YES; });\n"
         "}\n"
     )
     decls = scan_hook_sources(tmp_path)
-    assert [d for d in decls if d.class_name == "YTColdConfig" and d.selector == "iosEnableMuteButtonPlayerControl"]
+    assert [d for d in decls if d.class_name == "DemoConfig" and d.selector == "enableExtraFeature"]
 
 
 def test_cli_find_reports_implementing_classes(objc_macho_binary: Path, tmp_path: Path) -> None:
@@ -187,7 +187,7 @@ def test_cli_diff_identical_no_regressions(objc_macho_binary: Path, tmp_path: Pa
 
 def test_cli_manifest_emits_block(tmp_path: Path) -> None:
     (tmp_path / "tweak.m").write_text(
-        'static void a(void) { ytfHookInstance(NSClassFromString(@"Thing"), @selector(doIt:), ^void(id self) {}); }\n'
+        'static void a(void) { demoHookInstance(NSClassFromString(@"Thing"), @selector(doIt:), ^void(id self) {}); }\n'
     )
     result = runner.invoke(
         __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
@@ -255,7 +255,7 @@ def test_cli_verify_bad_ipa_clean_error(tmp_path: Path) -> None:
 def test_cli_audit_reports_statuses(objc_macho_binary: Path, tmp_path: Path) -> None:
     ipa = _pack_ipa(objc_macho_binary, tmp_path)
     (tmp_path / "tweak.m").write_text(
-        'static void a(void) { ytfHookInstance(NSClassFromString(@"Foo"), @selector(doIt:), ^void(id self) {}); }\n'
+        'static void a(void) { demoHookInstance(NSClassFromString(@"Foo"), @selector(doIt:), ^void(id self) {}); }\n'
     )
     src_dir = tmp_path / "tweak_src"
     src_dir.mkdir()
@@ -285,7 +285,7 @@ def test_cli_audit_patches_flag_all_declared(objc_macho_binary: Path, tmp_path: 
     src_dir = tmp_path / "tweak_src"
     src_dir.mkdir()
     (src_dir / "tweak.m").write_text(
-        'static void a(void) { ytfHookInstance(NSClassFromString(@"Foo"), @selector(doIt:), ^void(id self) {}); }\n'
+        'static void a(void) { demoHookInstance(NSClassFromString(@"Foo"), @selector(doIt:), ^void(id self) {}); }\n'
     )
     hooks = _hooks_yaml(tmp_path, "Foo", "doIt:")
     result = runner.invoke(
@@ -298,14 +298,14 @@ def test_cli_audit_patches_flag_all_declared(objc_macho_binary: Path, tmp_path: 
 
 def test_cli_audit_patches_flag_catches_undeclared_hook(objc_macho_binary: Path, tmp_path: Path) -> None:
     """A hook the source calls but the definition's `hooks:` block omits is
-    invisible to --dry-run's safety net -- this is exactly the Spotify gap
-    a manual audit found (three real hooks missing from spotify.yaml)."""
+    invisible to --dry-run's safety net -- this is exactly the kind of gap
+    a manual audit against a real patch set has found in practice."""
     ipa = _pack_ipa(objc_macho_binary, tmp_path)
     src_dir = tmp_path / "tweak_src"
     src_dir.mkdir()
     (src_dir / "tweak.m").write_text(
-        'static void a(void) { ytfHookInstance(NSClassFromString(@"Foo"), @selector(doIt:), ^void(id self) {}); }\n'
-        'static void b(void) { ytfHookClass(NSClassFromString(@"Foo"), @selector(makeIt),\n'
+        'static void a(void) { demoHookInstance(NSClassFromString(@"Foo"), @selector(doIt:), ^void(id self) {}); }\n'
+        'static void b(void) { demoHookClass(NSClassFromString(@"Foo"), @selector(makeIt),\n'
         "    ^id(id self){return nil;}); }\n"
     )
     hooks = _hooks_yaml(tmp_path, "Foo", "doIt:")  # only declares one of the two
@@ -320,7 +320,7 @@ def test_cli_audit_patches_flag_catches_undeclared_hook(objc_macho_binary: Path,
 
 def test_cli_manifest_marks_required(tmp_path: Path) -> None:
     (tmp_path / "tweak.m").write_text(
-        'static void a(void) { ytfHookInstance(NSClassFromString(@"Thing"), @selector(doIt:), ^void(id self) {}); }\n'
+        'static void a(void) { demoHookInstance(NSClassFromString(@"Thing"), @selector(doIt:), ^void(id self) {}); }\n'
     )
     required = tmp_path / "required.txt"
     required.write_text("# comment\nThing doIt:\n\nOther makeIt\n")
@@ -383,7 +383,7 @@ def test_scan_resolves_class_through_resolver_helper(tmp_path: Path) -> None:
         "#import <Foundation/Foundation.h>\n"
         "static Class clsOf(const char *name) { return NSClassFromString(@(name)); }\n"
         "static void a(void) {\n"
-        '    ytfHookInstance(clsOf("Thing"), @selector(doIt:), ^void(id self) {});\n'
+        '    demoHookInstance(clsOf("Thing"), @selector(doIt:), ^void(id self) {});\n'
         "}\n"
     )
     decls = scan_hook_sources(tmp_path)
@@ -397,7 +397,7 @@ def test_scan_ignores_calls_to_non_resolver_functions(tmp_path: Path) -> None:
     (tmp_path / "tweak.m").write_text(
         "#import <Foundation/Foundation.h>\n"
         "static void a(void) {\n"
-        '    ytfHookInstance(moduleFor("Thing"), @selector(doIt:), ^void(id self) {});\n'
+        '    demoHookInstance(moduleFor("Thing"), @selector(doIt:), ^void(id self) {});\n'
         "}\n"
     )
     decls = scan_hook_sources(tmp_path)

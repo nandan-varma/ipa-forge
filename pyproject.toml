@@ -56,9 +56,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/nandan-varma/ipa-forge"
+Homepage = "https://ipa-forge.nandan.fyi"
+Documentation = "https://ipa-forge.nandan.fyi/docs"
 Repository = "https://github.com/nandan-varma/ipa-forge"
 Issues = "https://github.com/nandan-varma/ipa-forge/issues"
+Changelog = "https://github.com/nandan-varma/ipa-forge/blob/main/CHANGELOG.md"
 
 [project.scripts]
 forge = "ipa_forge.cli.main:app"
