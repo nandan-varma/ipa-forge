@@ -26,6 +26,16 @@ every class (superclass, protocol conformance, ivars, properties, full
 method signatures reconstructed from type encodings), protocol
 declarations, and categories.
 
+<TypeTable
+  type={{
+    "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
+    "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
+    "--class <name>": { type: "string", description: "Restrict to one class (exact name)" },
+    "--search <regex>": { type: "string", description: "Only classes whose name matches this regex" },
+    "--output <path>, -o": { type: "path", description: "Write to a file instead of stdout" },
+  }}
+/>
+
 ```bash
 forge analysis classdump --ipa App.ipa
 forge analysis classdump --ipa App.ipa --class MainPlayerViewController
@@ -50,6 +60,16 @@ Printable-ASCII string extraction across every executable in the bundle
 (main + frameworks + dylibs + extensions), tagged with which binary each
 string came from.
 
+<TypeTable
+  type={{
+    "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
+    "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
+    "--min-len <n>": { type: "number", default: "4", description: "Minimum printable-ASCII run length to report" },
+    "--search <regex>": { type: "string", description: "Only strings matching this regex" },
+    "--binary <substring>": { type: "string", description: "Restrict to one executable (bundle-relative substring match)" },
+  }}
+/>
+
 ```bash
 forge analysis strings --ipa App.ipa --min-len 6
 forge analysis strings --ipa App.ipa --search 'https?://' --binary MainExecutable
@@ -63,9 +83,16 @@ browser sanity).
 
 Linked libraries and imported/exported symbols for one executable in the
 bundle (`otool -L` + `nm`, backed by LIEF's structured symbol table instead
-of parsing text) — default target is the main executable; `--binary
-<substring>` selects another (a framework, an extension, a standalone
-dylib). `--arch` is required if the target is a universal binary.
+of parsing text).
+
+<TypeTable
+  type={{
+    "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
+    "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
+    "--binary <substring>": { type: "string", default: "main executable", description: "Which executable to inspect (a framework, extension, or standalone dylib), by bundle-relative substring" },
+    "--arch <name>": { type: "string", description: "Architecture slice; required if the target is a universal binary" },
+  }}
+/>
 
 ```bash
 forge analysis symbols --ipa App.ipa
@@ -80,6 +107,15 @@ only, never decryption**), stack protector, an ARC heuristic
 (`_objc_storeStrong`/`_objc_release` imported — not definitive), min-OS,
 and platform.
 
+<TypeTable
+  type={{
+    "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
+    "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
+    "--binary <substring>": { type: "string", default: "main executable", description: "Which executable to inspect, by bundle-relative substring" },
+    "--arch <name>": { type: "string", description: "Architecture slice; required if the target is a universal binary" },
+  }}
+/>
+
 ```bash
 forge analysis security --ipa App.ipa
 ```
@@ -91,13 +127,22 @@ protocols added/removed, per-class method churn, and `Info.plist` key
 changes. Purely informational — exit code is always 0 regardless of
 findings.
 
+<TypeTable
+  type={{
+    "--old <path>": { type: "path", description: "Previous-version .ipa (omit when --old-app-dir is given)" },
+    "--new <path>": { type: "path", description: "New-version .ipa (omit when --new-app-dir is given)" },
+    "--old-app-dir <path>": { type: "path", description: "Extracted Payload/<App>.app of the old build, instead of --old" },
+    "--new-app-dir <path>": { type: "path", description: "Extracted Payload/<App>.app of the new build, instead of --new" },
+  }}
+/>
+
 ```bash
 forge analysis diff --old App_1.0.ipa --new App_2.0.ipa
 ```
 
 <Callout type="info" title="forge analysis diff vs. forge hooks diff">
 This is **broader but shallower** than `forge hooks diff`
-(see [Usage](/docs/usage#generating-and-diffing-hook-manifests)): `forge
+(see [Usage](/docs/usage#forge-hooks-diff)): `forge
 hooks diff` only re-checks one patch definition's *declared* hook targets
 and is a pass/fail gate (exit 1 on a required-hook regression); `forge
 analysis diff` surveys everything that changed, independent of any patch
@@ -117,7 +162,10 @@ this read-only, signing-independent package.
 The same four views (class-dump, strings, security, diff), browsable
 without installing the CLI: `forge gui` → open the link in the main
 patcher page's subtitle, or navigate directly to
-`http://127.0.0.1:8765/analysis`. Single-user, local-only, same as the
+`http://127.0.0.1:8765/analysis`. Unlike the main patcher page, `/analysis`
+needs no patch-set setup and works on any IPA — upload it and pick an
+action. Strings output is capped at 2000 matches in the browser (the CLI has
+no such cap). Single-user, local-only, same as the
 patch-flow page — see [Usage](/docs/usage#the-web-gui).
 
 ## Related

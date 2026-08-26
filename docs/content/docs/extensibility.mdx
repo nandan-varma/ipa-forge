@@ -79,27 +79,28 @@ There is no runtime OS check gating this; it falls out naturally from which
 modules a given code path imports.
 </Callout>
 
-## Shipped v1 additions
+## Worked examples of the extension seams above
 
-The three scope limits listed in earlier revisions of this file are closed in
-0.1.0, each following the same extension seams described above:
+Two features shipped by following exactly the steps described above,
+concrete enough to copy from:
 
-- **GUI zip upload**: `gui/uploads.py::resolve_patch_definition` accepts a
-  zip of a patch directory (definition + `assets/`), so
-  `resource_replace`/`resource_add` work from the GUI exactly as from the
-  CLI. `safe_extract_zip` enforces zip-slip and size/member caps.
 - **Per-extension provisioning profiles**: `signing/profile.py::ProfilePool`
   matches each profile-bearing target (app, app extension, watch app) to its
   own `.mobileprovision` by its own bundle id; a single profile still signs
   everything, exactly as before (see `signing/pipeline.py::sign_bundle`).
 - **`plist_edit`**: a `PatchOperation` (`patch/plist.py`) for set/remove on
   bundle-relative plists — a compact worked example of the steps above.
-- **The `hooks:` block**: a patch definition may declare runtime hook targets
-  (class/selector/kind/added/required) that `pipeline.py` verifies against
-  the app's main binary during the dry-run gate (`ipa_forge/hooks/`). No new
-  operation type — it is a verification surface, driven by the same
-  definition file. `forge hooks verify|extract|audit` expose it on the CLI.
-  `added: true` declares a method the tweak adds itself (logos' %new).
+
+The `hooks:` block (declare runtime hook targets that `pipeline.py` verifies
+during the dry-run gate — see [Patch Reference](/docs/patch-reference)) is
+not a new operation type; it's a verification surface layered on top of the
+same definition file, which is why it needed no changes to the extension
+seams above.
+
+<Callout type="info">
+For the full history of what shipped in each release, see
+[`CHANGELOG.md`](https://github.com/nandan-varma/ipa-forge/blob/main/CHANGELOG.md).
+</Callout>
 
 ## Related
 

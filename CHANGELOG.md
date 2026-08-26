@@ -23,8 +23,9 @@ Initial public release.
   viewer in the local GUI.
 - Per-extension provisioning-profile signing (repeatable `--profile`,
   `ProfilePool`).
-- Local FastAPI GUI (`forge gui`) for novice-friendly patch application and
-  zip-based asset uploads.
+- Local FastAPI GUI (`forge gui`) for novice-friendly patch application:
+  drop an IPA, auto-detect a matching locally-discovered patch set, produce
+  an unsigned output for AltStore.
 - GPLv3-or-later license.
 
 ### Known limitations

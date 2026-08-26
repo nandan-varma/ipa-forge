@@ -134,9 +134,14 @@ is present — without patching or signing anything.
     "--profile <path>": { type: "path", description: ".mobileprovision, repeatable (one per extension/watch app). Not needed for --dry-run; at least one required otherwise" },
     "--output <path>": { type: "path", required: true, description: "Output .ipa path" },
     "--dry-run": { type: "flag", description: "Validate patches without mutating or signing anything" },
+    "--no-sign": { type: "flag", description: "Apply patches and repackage without codesigning, for AltStore-style installers that sign at install time. Mutually exclusive with real signing; --identity/--profile are ignored" },
     "--verbose": { type: "flag", description: "Print the full manifest on success" },
   }}
 />
+
+`--identity`/`--profile` are required unless `--dry-run` or `--no-sign` is
+set — those two flags are the only ways to produce output without a
+Keychain identity and provisioning profile on hand.
 
 Exit codes: `0` success, `1` any error (with a single-line `error:` message on
 stderr — no tracebacks).
@@ -163,36 +168,12 @@ Prints the installed version.
 ## Hook verification (`forge hooks`)
 
 Dylib tweaks silently break when a new app version renames/removes hook
-targets. Three commands turn that into a checkable report:
-
-```bash
-# Verify every hook declared in a patch definition's `hooks:` block
-forge hooks verify --ipa App.ipa --patches patch.yaml
-
-# Dump the ObjC class table (classes, superclasses, method lists)
-forge hooks extract --ipa App.ipa --class PlaybackResponse
-forge hooks extract --ipa App.ipa --search "Config"
-
-# Scan tweak sources for hook calls and verify each against the binary
-forge hooks audit --ipa App.ipa --dir dylib/
-
-# ...and cross-check against the definition's `hooks:` block: catches a
-# hook the source calls but the author forgot to declare (invisible to
-# --dry-run's safety net otherwise). Exits 1 if any are undeclared.
-forge hooks audit --ipa App.ipa --dir dylib/ --patches patch.yaml
-
-# Reverse lookup: which classes implement a selector?
-forge hooks find someFeatureAction: --ipa App.ipa
-#   -> -[MainOverlayViewController someFeatureAction:]  (real)
-#   -> REFERENCED-ONLY ... no class declares it (the hook cannot attach)
-
-# Regenerate the `hooks:` block from sources, straight into the definition
-forge hooks manifest --dir dylib/ --inplace patch.yaml
-```
+targets. Six commands turn that into a checkable report, all built on the
+same Mach-O/ObjC analysis engine `forge analysis` uses.
 
 <Callout type="info" title="Fast iteration with --app-dir">
-Every command re-extracts the full IPA (seconds to tens of seconds on a large
-app) unless you point it at an already-extracted bundle instead — pass
+Every one of these re-extracts the full IPA (seconds to tens of seconds on a
+large app) unless you point it at an already-extracted bundle instead — pass
 `--app-dir Payload/<App>.app` (and then omit `--ipa`) and the
 analyze/verify/fix loop becomes instant:
 
@@ -201,6 +182,136 @@ forge patch --ipa App.ipa --patches patch.yaml --output /tmp/x.ipa --dry-run
 forge hooks verify --app-dir /tmp/x.app --patches patch.yaml   # no re-extract
 ```
 </Callout>
+
+### `forge hooks verify`
+
+Verify every hook declared in a patch definition's `hooks:` block against the
+app binary. Exit code `0` if every `required` hook attaches, `1` otherwise.
+
+<TypeTable
+  type={{
+    "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
+    "--patches <path>": { type: "path", required: true, description: "Patch definition with a hooks: section" },
+    "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
+    "--required-only": { type: "flag", description: "Only print hooks that fail to attach" },
+  }}
+/>
+
+```bash
+forge hooks verify --ipa App.ipa --patches patch.yaml
+```
+
+### `forge hooks extract`
+
+Dump the Objective-C class table: class names, superclasses, and
+instance/class method lists (chained-fixup aware, full method lists — pipe
+to `grep` for large config classes).
+
+<TypeTable
+  type={{
+    "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
+    "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
+    "--class <name>": { type: "string", description: "Restrict to one class (exact name)" },
+    "--search <regex>": { type: "string", description: "Only classes whose name matches this regex" },
+    "--limit <n>": { type: "number", default: "60", description: "Max classes to print; 0 = no limit" },
+  }}
+/>
+
+```bash
+forge hooks extract --ipa App.ipa --class PlaybackResponse
+forge hooks extract --ipa App.ipa --search "Config" --limit 0
+```
+
+### `forge hooks audit`
+
+Scan ObjC tweak sources for hook calls and verify each target against the
+app binary — catches hooks the author wrote but a newer app version broke.
+With `--patches`, also cross-checks the source scan against the definition's
+`hooks:` block and flags any hook the source calls that isn't declared there
+(invisible to `--dry-run` otherwise). Exits `1` if any are undeclared.
+
+<TypeTable
+  type={{
+    "--dir <path>": { type: "path", required: true, description: "Directory of tweak sources (*.m/*.h) to scan" },
+    "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
+    "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
+    "--patches <path>": { type: "path", description: "Patch definition to cross-check the source scan against" },
+  }}
+/>
+
+```bash
+forge hooks audit --ipa App.ipa --dir dylib/
+forge hooks audit --ipa App.ipa --dir dylib/ --patches patch.yaml
+```
+
+### `forge hooks find`
+
+Reverse lookup: which classes implement a selector? The first check when a
+hook "attaches per verify" but does nothing on device — distinguishes a real
+method (swizzle-able) from a bare reference (`REFERENCED-ONLY`: no IMP
+exists, the hook cannot attach). Also lists selectors containing the lookup
+text, to catch renames.
+
+<TypeTable
+  type={{
+    "selector": { type: "argument", required: true, description: "Selector to look up, e.g. someMethod:" },
+    "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
+    "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
+  }}
+/>
+
+```bash
+forge hooks find someFeatureAction: --ipa App.ipa
+#   -> -[MainOverlayViewController someFeatureAction:]  (real)
+#   -> REFERENCED-ONLY ... no class declares it (the hook cannot attach)
+```
+
+### `forge hooks manifest`
+
+Emit a `hooks:` YAML block from the hook calls in tweak sources, to paste (or
+write directly) into a patch definition.
+
+<TypeTable
+  type={{
+    "--dir <path>": { type: "path", required: true, description: "Directory of tweak sources (*.m) to scan" },
+    "--required <path>": { type: "path", description: 'File of "ClassName selector" lines (one per line, # comments allowed) to mark required: true' },
+    "--inplace <path>": { type: "path", description: "Patch definition YAML to update in place: replace its hooks: block with the generated one" },
+  }}
+/>
+
+```bash
+forge hooks manifest --dir dylib/ --required hooks-required.txt
+forge hooks manifest --dir dylib/ --inplace patch.yaml
+```
+
+The scanner recognizes any `<prefix>HookInstance/HookClass/ConfigBool/AddInstanceMethod`
+call with an inline `NSClassFromString(@"X")` (or a file-scoped
+`cls = NSClassFromString(@"X")` assignment), plus class names passed through
+a local resolver helper — any function whose body calls `NSClassFromString`
+and that is invoked as `resolver("X")` at the hook call site. Helper/loop-
+based hooks whose class is *passed into another function* before reaching the
+hook call are not traced and must be declared manually in the definition's
+`hooks:` block instead.
+
+### `forge hooks diff`
+
+Compare hook attachment between two IPAs — the porting aid. Shows every hook
+whose status changed, highlighting ones that regressed (would no-op on the
+new version). Exit `1` if a required hook regressed.
+
+<TypeTable
+  type={{
+    "--patches <path>": { type: "path", required: true, description: "Patch definition with a hooks: section" },
+    "--old <path>": { type: "path", description: "Previously-working .ipa (omit when --old-app-dir is given)" },
+    "--new <path>": { type: "path", description: "New .ipa (omit when --new-app-dir is given)" },
+    "--old-app-dir <path>": { type: "path", description: "Extracted Payload/<App>.app of the old build, instead of --old" },
+    "--new-app-dir <path>": { type: "path", description: "Extracted Payload/<App>.app of the new build, instead of --new" },
+  }}
+/>
+
+```bash
+forge hooks diff --old prev.ipa --new next.ipa --patches patch.yaml
+```
 
 A class or selector that the class-table walk *missed* (a parser gap, not a
 rename) is now reported honestly: when the name exists as a string somewhere
@@ -241,28 +352,6 @@ extraction, symbols, security posture, and a broader version-to-version
 diff that isn't tied to a patch definition's `hooks:` block), see
 [Reverse Engineering](/docs/reverse-engineering) — the single source for
 that command surface, to avoid duplicating it here.
-
-### Generating and diffing hook manifests
-
-```bash
-# Emit a `hooks:` block from the tweak sources (direct + unambiguous
-# variable-resolved hook calls); mark load-bearing ones required:
-forge hooks manifest --dir dylib/ --required hooks-required.txt
-
-# Porting aid: compare hook attachment between two IPAs, highlight hooks
-# that regressed (would no-op on the new version), exit 1 if a required
-# hook broke:
-forge hooks diff --old prev.ipa --new next.ipa --patches patch.yaml
-```
-
-The scanner recognizes any `<prefix>HookInstance/HookClass/AddInstanceMethod`
-call with an inline `NSClassFromString(@"X")` (or a file-scoped
-`cls = NSClassFromString(@"X")` assignment), plus class names passed through
-a local resolver helper — any function whose body calls `NSClassFromString`
-and that is invoked as `resolver("X")` at the hook call site. Helper/loop-
-based hooks whose class is *passed into another function* before reaching the
-hook call are not traced and must be declared manually in the definition's
-`hooks:` block instead.
 
 ## Signing identity & profile
 
@@ -317,18 +406,59 @@ Profile selection rules (see `signing/profile.py::ProfilePool`):
 
 `forge gui` → open [http://127.0.0.1:8765](http://127.0.0.1:8765).
 
-<TypeTable
-  type={{
-    "IPA": { type: "file", required: true, description: "The .ipa to patch" },
-    "Patch definition": { type: "file", required: true, description: "A single .yaml/.yml/.json, or a zip of the patch directory (definition + its assets/ folder) when you use resource_replace/resource_add. The zip must contain exactly one top-level definition file; its assets/ resolve relative to it." },
-    "Provisioning profile(s)": { type: "file[]", description: "Select several to sign each extension/watch app with its own profile" },
-    "Signing identity": { type: "string", description: "SHA-1 or name substring" },
-    "Dry run switch": { type: "boolean", description: "Validates only, no signing; the profile/identity fields gray out. Not needed for dry runs." },
-  }}
-/>
+The GUI is deliberately minimal — it does not accept an arbitrary patch
+definition. It drops an IPA, auto-detects which locally-discovered patch set
+applies, and produces an **unsigned** output for AltStore. There is no
+identity/profile input in the UI at all.
 
-The **result card** shows "Patched"/"Dry Run OK", the bundle/version, a
-per-operation status list, and a **Download patched.ipa** button.
+<Steps>
+<Step>
+
+### Drop the IPA
+
+The GUI reads the bundle id and version, then looks up a matching patch set
+by scanning `patches/<app>/<app>.yaml` under the **patch-set root** (see
+below). If none matches the bundle id, patching is disabled with an error.
+If one matches the bundle id but targets a different version, you get a
+non-blocking warning — hook verification is the safety net either way.
+
+</Step>
+<Step>
+
+### Patch
+
+One **Patch** button. The request always sets `no_sign` — the GUI never
+signs; it produces the same unsigned, standard-structure output as
+`forge patch --no-sign`, ready for AltStore to sign at install.
+
+</Step>
+<Step>
+
+### Download
+
+The result shows how many operations applied and a **Download** link for
+the patched `.ipa`.
+
+</Step>
+</Steps>
+
+<Callout type="warn" title="The GUI needs a patch-set root to find anything">
+Patch-set discovery scans `patches/<app>/<app>.yaml` relative to the
+installed package by default — for a `pip`/`pipx` install that directory
+almost certainly doesn't exist, so the GUI will report "no patch set found"
+for every IPA until you point it at one:
+
+```bash
+export IPA_FORGE_PATCHES_DIR=/path/to/your/patches
+forge gui
+```
+
+Where `/path/to/your/patches` contains one `<app>/<app>.yaml` per app (see
+[Adding a New App](/docs/adding-an-app)). The **CLI has no such
+restriction** — `forge patch --patches any/path/to/definition.yaml` works
+regardless of location. Use the CLI for a one-off patch; set up a patch-set
+root only if you want the drop-and-go GUI flow for apps you patch repeatedly.
+</Callout>
 
 <Callout type="info">
 The GUI is a single-user localhost tool: requests are processed in-process and
@@ -337,7 +467,8 @@ a hosted multi-user service.
 </Callout>
 
 A second page, `/analysis` (linked from this page's subtitle), gives the same
-read-only reverse-engineering views as `forge analysis` — see
+read-only reverse-engineering views as `forge analysis` — no patch set or
+signing involved, works on any IPA. See
 [Reverse Engineering](/docs/reverse-engineering#the-web-gui-forge-gui--analysis).
 
 ## What you get back
