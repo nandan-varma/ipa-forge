@@ -1,5 +1,5 @@
 ---
-title: "Patch Definition Reference"
+title: "Patch Reference"
 description: "Complete reference for ipa-forge patch definition YAML: every operation type, field, version-matching rule, and the hooks block."
 ---
 
@@ -27,19 +27,23 @@ patches:           # one or more operations (required, non-empty)
     # ... type-specific fields ...
 ```
 
+<Callout type="info">
 Definitions are loaded with `yaml.safe_load` (no arbitrary code execution) and
 validated against a pydantic schema; a file that fails validation produces a
 single-line actionable error, never a traceback. An **empty `patches:` list is
 rejected** — a definition with no operations is always a mistake.
+</Callout>
 
 ## The `target` block — matching
 
 The definition only applies when *both* conditions hold:
 
-| Field | Meaning | Matching rule |
-| --- | --- | --- |
-| `bundle_id` | `CFBundleIdentifier` of the app | exact string equality |
-| `version` | `CFBundleShortVersionString` of the app | see below |
+<TypeTable
+  type={{
+    bundle_id: { type: "string", description: "CFBundleIdentifier of the app — exact string equality" },
+    version: { type: "object", description: "CFBundleShortVersionString of the app — see Version matching below" },
+  }}
+/>
 
 ### Version matching
 
@@ -71,10 +75,12 @@ operations resolve:
 
 ## Common fields
 
-| Field | Required | Meaning |
-| --- | --- | --- |
-| `id` | yes | Unique identifier for the operation; reported in the manifest and error messages |
-| `type` | yes | Discriminates the operation type (below) |
+<TypeTable
+  type={{
+    id: { type: "string", required: true, description: "Unique identifier for the operation; reported in the manifest and error messages" },
+    type: { type: "string", required: true, description: "Discriminates the operation type (below)" },
+  }}
+/>
 
 ## Operation types
 
@@ -93,13 +99,15 @@ replacement.
   expected_matches: 1          # optional, default 1
 ```
 
-| Field | Required | Meaning |
-| --- | --- | --- |
-| `executable` | yes | Basename of the target Mach-O (main executable, a framework's binary, a dylib) as found by the inventory walker |
-| `pattern` | yes | Space-separated hex bytes; `??` is a single wildcard byte (`ca fe ?? 0d` matches any byte in that position) |
-| `replacement` | yes | Same number of tokens as `pattern`; **no wildcards allowed** and the length must match exactly |
-| `expected_matches` | no | Number of matches required for success (default `1`). Fails loudly on any other count (0 = pattern not present; >1 = ambiguous) |
-| `arch` | no | Architecture slice to search (see below) |
+<TypeTable
+  type={{
+    executable: { type: "string", required: true, description: "Basename of the target Mach-O (main executable, a framework's binary, a dylib) as found by the inventory walker" },
+    pattern: { type: "string", required: true, description: 'Space-separated hex bytes; "??" is a single wildcard byte ("ca fe ?? 0d" matches any byte in that position)' },
+    replacement: { type: "string", required: true, description: "Same number of tokens as pattern; no wildcards allowed and the length must match exactly" },
+    expected_matches: { type: "number", default: "1", description: "Number of matches required for success. Fails loudly on any other count (0 = pattern not present; >1 = ambiguous)" },
+    arch: { type: "string", description: "Architecture slice to search (see below)" },
+  }}
+/>
 
 Semantics:
 
@@ -124,10 +132,12 @@ Semantics:
   source: "assets/patched_asset.txt"      # relative to the definition file
 ```
 
-| Field | Required | Meaning |
-| --- | --- | --- |
-| `path` | yes | Bundle-relative destination path (inside `Payload/<App>.app/`). Must already exist as a file |
-| `source` | yes | Path to the replacement file, **relative to the definition file's own directory** |
+<TypeTable
+  type={{
+    path: { type: "string", required: true, description: "Bundle-relative destination path (inside Payload/<App>.app/). Must already exist as a file" },
+    source: { type: "string", required: true, description: "Path to the replacement file, relative to the definition file's own directory" },
+  }}
+/>
 
 - `source` may also be an absolute path or `../` reference — the definition,
   the IPA, and the signing credentials are all supplied by the same trusted
@@ -157,9 +167,11 @@ Semantics:
   path: "obsolete.txt"
 ```
 
-| Field | Required | Meaning |
-|---|---|---|
-| `path` | yes | Bundle-relative file or directory to remove. Directories are removed recursively |
+<TypeTable
+  type={{
+    path: { type: "string", required: true, description: "Bundle-relative file or directory to remove. Directories are removed recursively" },
+  }}
+/>
 
 - Fails in dry run if the destination doesn't exist or is a directory.
 
@@ -177,14 +189,16 @@ runtime loads the named dylib.
   load_command: "LC_LOAD_DYLIB"     # optional; or LC_LOAD_WEAK_DYLIB
 ```
 
-| Field | Required | Meaning |
-| --- | --- | --- |
-| `executable` | yes | Basename of the Mach-O to modify |
-| `install_name` | yes | The exact load path added to the binary (e.g. `@rpath/libHook.dylib`) |
-| `arch` | no | Architecture slice; required for fat/universal binaries |
-| `load_command` | no | `LC_LOAD_DYLIB` (default) or `LC_LOAD_WEAK_DYLIB` |
+<TypeTable
+  type={{
+    executable: { type: "string", required: true, description: "Basename of the Mach-O to modify" },
+    install_name: { type: "string", required: true, description: "The exact load path added to the binary (e.g. @rpath/libHook.dylib)" },
+    arch: { type: "string", description: "Architecture slice; required for fat/universal binaries" },
+    load_command: { type: "string", default: "LC_LOAD_DYLIB", description: "LC_LOAD_DYLIB or LC_LOAD_WEAK_DYLIB" },
+  }}
+/>
 
-Critical pairing — **this operation does not copy the dylib into the bundle.**
+<Callout type="warn" title="This operation does not copy the dylib into the bundle">
 The dylib file must already be present (shipped with the app, or placed there
 with a `resource_add`). The standard pattern is:
 
@@ -199,19 +213,24 @@ patches:
     executable: "TestApp"
     install_name: "@rpath/libHook.dylib"
 ```
+</Callout>
 
 Outcomes (reported per-operation in the manifest):
 
-| Status | Meaning |
-| --- | --- |
-| `INJECTED` | Load command added |
-| `INJECTION_SKIPPED` | The dylib is already loaded — no change needed (idempotent) |
-| `INJECTION_UNSUPPORTED` | Target is not a parseable Mach-O |
-| `INJECTION_FAILED` | Ambiguous/missing arch, unknown load_command, or LIEF failed |
+<TypeTable
+  type={{
+    INJECTED: { type: "status", required: true, description: "Load command added" },
+    INJECTION_SKIPPED: { type: "status", required: true, description: "The dylib is already loaded — no change needed (idempotent)" },
+    INJECTION_UNSUPPORTED: { type: "status", required: true, description: "Target is not a parseable Mach-O" },
+    INJECTION_FAILED: { type: "status", required: true, description: "Ambiguous/missing arch, unknown load_command, or LIEF failed" },
+  }}
+/>
 
+<Callout type="info">
 Dylib injection is deliberately the **most fragile** operation — it rewrites
 Mach-O load commands and forces a full re-sign. Prefer `binary_replace` or
 resource operations when they can express the change.
+</Callout>
 
 ### `plist_edit` — set/remove Info.plist keys
 
@@ -224,29 +243,47 @@ resource operations when they can express the change.
   path: "Info.plist"       # optional, bundle-relative, defaults to Info.plist
 ```
 
-| Field | Required | Meaning |
-| --- | --- | --- |
-| `action` | yes | `set` (create or overwrite the key) or `remove` (delete it) |
-| `key` | yes | The plist key |
-| `value` | only for `set` | Any plist value (string, number, boolean, list, mapping) — a `set` with a null value is rejected |
-| `path` | no | Bundle-relative plist path; defaults to the app's `Info.plist` |
+<TypeTable
+  type={{
+    action: { type: "string", required: true, description: '"set" (create or overwrite the key) or "remove" (delete it)' },
+    key: { type: "string", required: true, description: "The plist key" },
+    value: { type: "any", description: 'Any plist value (string, number, boolean, list, mapping) — required for "set"; a "set" with a null value is rejected' },
+    path: { type: "string", default: "Info.plist", description: "Bundle-relative plist path" },
+  }}
+/>
 
 - `remove` fails in dry run if the key is not present.
 - Works on binary or XML plists transparently.
 
 ## How operations run: the dry-run gate and ordering
 
+<Callout type="warn" title="The dry-run gate">
 `forge patch` never mutates anything until **every** operation has reported
-`dry_run_ok` (the "dry-run gate"). If any operation would fail, the whole patch
-is rejected before a single file changes.
+`dry_run_ok`. If any operation would fail, the whole patch is rejected before
+a single file changes.
+</Callout>
 
 When applying, operations run in a fixed order:
 
-1. Resource operations (`resource_replace`/`resource_add`/`resource_remove`)
-   and `plist_edit` — they don't touch Mach-O layout.
-2. `binary_replace` — raw byte edits.
-3. `dylib_inject` — **last**, because LIEF's load-command rewrites can shift
-   byte offsets that binary patches depend on.
+<Steps>
+<Step>
+
+**Resource operations and plist edits** — `resource_replace`/`resource_add`/`resource_remove`
+and `plist_edit` run first; they don't touch Mach-O layout.
+
+</Step>
+<Step>
+
+**Binary patches** — `binary_replace` raw byte edits.
+
+</Step>
+<Step>
+
+**Dylib injection** — `dylib_inject` runs **last**, because LIEF's load-command
+rewrites can shift byte offsets that binary patches depend on.
+
+</Step>
+</Steps>
 
 Order within a group follows the order in the YAML file.
 
@@ -271,15 +308,15 @@ hooks:
     required: true        # fail the run if this hook can't attach
 ```
 
-Per hook:
-
-| Field | Meaning |
-| --- | --- |
-| `class` | ObjC class name the hook targets. |
-| `selector` | Selector, colons included (`didReceiveResponse:fromSlot:`). |
-| `kind` | `instance` (default) or `class` (metaclass method). |
-| `added` | The tweak adds the method itself (`%new`). Absence is *expected* and counts as a pass; if the binary's selrefs reference the selector, the report confirms the app calls it and your add is load-bearing. |
-| `required` | Fail the run when this hook can't attach. Leave unset (or `false`) for nice-to-have hooks — they warn instead. |
+<TypeTable
+  type={{
+    class: { type: "string", required: true, description: "ObjC class name the hook targets" },
+    selector: { type: "string", required: true, description: "Selector, colons included (didReceiveResponse:fromSlot:)" },
+    kind: { type: "string", default: "instance", description: '"instance" or "class" (metaclass method)' },
+    added: { type: "boolean", default: "false", description: 'The tweak adds the method itself (%new). Absence is expected and counts as a pass; if the binary\'s selrefs reference the selector, the report confirms the app calls it and your add is load-bearing.' },
+    required: { type: "boolean", default: "false", description: "Fail the run when this hook can't attach. Leave unset for nice-to-have hooks — they warn instead." },
+  }}
+/>
 
 `forge patch --dry-run` verifies every declared hook against the app's main
 binary (class table + method lists + selrefs, chained-fixup aware) and prints
@@ -293,12 +330,21 @@ Hooks: 151/159 attach (8 issue(s))
   ! SettingsController -[isHintsDisabled]: unverified -- class exists ... walk missed it
 ```
 
-Statuses: `ok` (on the class), `ok-inherited` (on an ancestor or a system
-superclass like UIView), `ok-system` (system class, selector referenced by the
-app), `added` (the tweak provides it), `unverified` (class/selector exists but
-the parser couldn't fully confirm — treat as a soft warning), `missing-class` /
-`missing-selector` / `elsewhere` (the hook would silently no-op — these fail
-the run when `required`).
+### Hook statuses
+
+<TypeTable
+  type={{
+    ok: { type: "pass", required: true, description: "Declared on the class" },
+    "ok-inherited": { type: "pass", required: true, description: "On an ancestor or a system superclass like UIView" },
+    "ok-system": { type: "pass", required: true, description: "System class, selector referenced by the app" },
+    added: { type: "pass", required: true, description: "The tweak provides it (added: true)" },
+    unverified: { type: "soft warning", required: true, description: "Class/selector exists but the parser couldn't fully confirm" },
+    "missing-class": { type: "fails if required", required: true, description: "The hook would silently no-op" },
+    "missing-selector": { type: "fails if required", required: true, description: "The hook would silently no-op" },
+    elsewhere: { type: "fails if required", required: true, description: "The hook would silently no-op" },
+    "referenced-only": { type: "dead hook", required: true, description: "Selector is referenced but not declared as a method anywhere — no IMP to swizzle" },
+  }}
+/>
 
 `referenced-only` is the dead-hook detector: the binary *references* the
 selector (selrefs / `NSSelectorFromString` / optional protocol sends) but does
@@ -311,14 +357,15 @@ implemented by nothing in a given build). Distinguish it from
 protocol, a category, or a method list the walker did not decode) — the hook
 may well attach.
 
-The `unverified` bucket is where parser *gaps* land rather than real drift:
-when a class or selector the walk missed is still present as a string in some
+<Callout type="info" title="unverified is usually a parser gap, not real drift">
+When a class or selector the walk missed is still present as a string in some
 binary image (the old manual `strings <binary> | grep` cross-check), the
 report says so — "class-name string present … the walk missed it (likely
 attaches)" / "selector declared as a method somewhere … (likely attaches)".
 The parser under-reports GPBMessage methods and large Swift class tables this
 way; Swift-mangled (`_TtC…`) classes absent from the parsed table are always
 reported `unverified`, never mislabeled as system classes.
+</Callout>
 
 Porting to a new app version becomes: bump `target.version`, run
 `--dry-run`, read the hook report, and fix exactly the hooks the report flags.
@@ -337,17 +384,17 @@ does. Check it first when a hook "attaches per verify" but does nothing on
 device. `forge hooks extract --ipa App.ipa --class <name>` prints the FULL
 method list (no truncation) — pipe large config classes through `grep`.
 
-**A hook that everything above verifies still isn't safe if it was never
-added to the `hooks:` block in the first place** — `--dry-run` only checks
-*declared* hooks; a hook the tweak source calls but the block omits is
-invisible to it, no error, no warning. `forge hooks audit --ipa App.ipa
+<Callout type="error" title="A hook not declared in the hooks: block is invisible to --dry-run">
+`--dry-run` only checks *declared* hooks; a hook the tweak source calls but the
+block omits produces no error, no warning. `forge hooks audit --ipa App.ipa
 --dir <dylib-sources> --patches patch.yaml` closes that gap: it scans the
 sources the same way `manifest` does, then diffs what it found against
 what's declared, printing every hook that's missing and exiting 1 if any
 are. Run it as a standard part of the loop above (after `manifest`,
 alongside `--dry-run`), not only when a feature seems broken — this is how
-real, load-bearing hooks were found missing from two of the three shipped
-patch sets after the fact, with `--dry-run` green the whole time.
+real, load-bearing hooks have been found missing from shipped patch sets
+after the fact, with `--dry-run` green the whole time.
+</Callout>
 
 ## The manifest
 
@@ -374,26 +421,42 @@ Use it to verify exactly what changed (and what didn't) before installing.
 
 ## Common mistakes
 
-- **Typo'd `bundle_id`** → real runs fail with "refusing to produce an
-  unpatched IPA" (or dry-run warns). Check the target block first.
-- **`expected_matches` wrong** → `binary_replace` reports
-  "expected N match(es), found M at offsets [...]". Bump to the real count, or
-  fix the pattern.
-- **Replacement length mismatch** → `binary_replace` fails; count the hex
-  tokens in `pattern` vs `replacement`.
-- **Missing `arch` on a fat binary** → add `arch: arm64` (or whichever slice
-  you intend).
-- **`resource_add` to an existing path** → use `resource_replace`.
-- **`resource_replace` to a missing path** → use `resource_add`.
-- **`dylib_inject` without staging the dylib** → pair it with `resource_add`
-  (see above); the load will fail at runtime if the file isn't in the bundle.
-- **Forgetting the dylib must also be signed** — it is: flat dylibs are signed
-  individually and frameworks via their bundle directory.
+<Accordions>
+  <Accordion title="Typo'd bundle_id">
+    Real runs fail with "refusing to produce an unpatched IPA" (or dry-run
+    warns). Check the target block first.
+  </Accordion>
+  <Accordion title="expected_matches wrong">
+    `binary_replace` reports "expected N match(es), found M at offsets
+    [...]". Bump to the real count, or fix the pattern.
+  </Accordion>
+  <Accordion title="Replacement length mismatch">
+    `binary_replace` fails; count the hex tokens in `pattern` vs `replacement`.
+  </Accordion>
+  <Accordion title="Missing arch on a fat binary">
+    Add `arch: arm64` (or whichever slice you intend).
+  </Accordion>
+  <Accordion title="resource_add to an existing path">
+    Use `resource_replace` instead.
+  </Accordion>
+  <Accordion title="resource_replace to a missing path">
+    Use `resource_add` instead.
+  </Accordion>
+  <Accordion title="dylib_inject without staging the dylib">
+    Pair it with `resource_add` (see above); the load will fail at runtime if
+    the file isn't in the bundle.
+  </Accordion>
+  <Accordion title="Forgetting the dylib must also be signed">
+    It is: flat dylibs are signed individually and frameworks via their
+    bundle directory.
+  </Accordion>
+</Accordions>
 
 ## Related
 
-- [`adding-an-app`](/docs/adding-an-app) — end-to-end porting
-- [`adding-a-feature`](/docs/adding-a-feature) — per-feature conventions
-- [`usage`](/docs/usage) — CLI
-- [`troubleshooting`](/docs/troubleshooting) — errors
-- [`README`](/docs) — docs index
+<Cards>
+  <Card title="Adding a New App" description="End-to-end porting" href="/docs/adding-an-app" />
+  <Card title="Adding a Feature" description="Per-feature conventions" href="/docs/adding-a-feature" />
+  <Card title="Usage" description="CLI reference" href="/docs/usage" />
+  <Card title="Troubleshooting" description="Errors" href="/docs/troubleshooting" />
+</Cards>

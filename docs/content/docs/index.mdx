@@ -1,42 +1,111 @@
 ---
-title: Documentation
+title: "Introduction"
 description: Documentation index for ipa-forge, a data-driven iOS IPA patcher for AltStore Classic sideloading.
 ---
 
-Which document to read, for what.
+ipa-forge extracts a user-supplied `.ipa`, applies version-aware patches
+declared in external YAML — binary byte patches, resource replace/add/remove,
+plist edits, dylib injection — and re-signs the result into a
+standard-structure `.ipa` that AltStore Classic can install and refresh.
+Pick a starting point below.
 
-## For humans adding a new app, feature, or patch
+## I want to...
 
-| You want to... | Read |
-| --- | --- |
-| Port a **new app** (new IPA, new bundle id) | [`adding-an-app`](/docs/adding-an-app) — the end-to-end playbook |
-| Add a **feature** to an existing hook dylib | [`adding-a-feature`](/docs/adding-a-feature) — the conventions |
-| Understand the **patch definition YAML** (`target`/`patches`/`hooks`) | [`patch-reference`](/docs/patch-reference) |
-| Use the **CLI** (`forge patch`, `forge hooks …`, …) | [`usage`](/docs/usage) |
-| **Reverse engineer** an IPA (`forge analysis …`: class-dump, strings, symbols, security, diff) | [`reverse-engineering`](/docs/reverse-engineering) |
-| Debug an **error message** | [`troubleshooting`](/docs/troubleshooting) |
-| Test on a **real device** via AltStore | [`altstore-device-testing`](/docs/altstore-device-testing) |
-| Understand **how the engine works** (for developers) | [`architecture`](/docs/architecture) |
-| Extend the engine (new operation type, new provider) | [`extensibility`](/docs/extensibility) |
-| Cut a new **release** (PyPI + GitHub Release) | [`releasing`](/docs/releasing) |
+<Cards>
+  <Card
+    title="Port a new app"
+    description="The end-to-end playbook: new IPA, new bundle id, from zero to a working patch set"
+    href="/docs/adding-an-app"
+  />
+  <Card
+    title="Add a feature"
+    description="Conventions for adding a feature to an existing hook dylib"
+    href="/docs/adding-a-feature"
+  />
+  <Card
+    title="Write a patch definition"
+    description="Every operation type, field, and matching rule in the target/patches/hooks YAML"
+    href="/docs/patch-reference"
+  />
+  <Card
+    title="Use the CLI or GUI"
+    description="forge patch, forge hooks, forge gui — full command reference"
+    href="/docs/usage"
+  />
+  <Card
+    title="Reverse engineer an IPA"
+    description="forge analysis: class-dump, strings, symbols, security posture, version diffing"
+    href="/docs/reverse-engineering"
+  />
+  <Card
+    title="Fix an error"
+    description="Every error message mapped to its cause and fix"
+    href="/docs/troubleshooting"
+  />
+  <Card
+    title="Test on a real device"
+    description="The manual AltStore Classic install/refresh checklist"
+    href="/docs/altstore-device-testing"
+  />
+  <Card
+    title="Understand the engine"
+    description="Component map, the 17-stage pipeline, hard constraints"
+    href="/docs/architecture"
+  />
+  <Card
+    title="Extend the engine"
+    description="Add a new patch operation type or signing provider"
+    href="/docs/extensibility"
+  />
+  <Card
+    title="Cut a release"
+    description="PyPI Trusted Publishing and GitHub Releases via CI"
+    href="/docs/releasing"
+  />
+</Cards>
 
-## Patch sets
-
+<Callout type="info" title="Patch sets are not part of this repo">
 The engine is app-agnostic — it understands patch operation *types*, never a
 specific bundle id or byte pattern. Any app-specific patch set (the YAML
 definition plus, optionally, a hook dylib) lives entirely outside this repo,
 under a `patches/<app>/` directory you provide yourself; ipa-forge ships no
 patch definitions or reverse-engineered specifics for any third-party app.
-See [`adding-an-app`](/docs/adding-an-app) for the shape a patch set follows.
+See [Adding a New App](/docs/adding-an-app) for the shape a patch set follows.
+</Callout>
 
-## The reading order for a new project
+## Reading order for a new project
 
-1. **[`adding-an-app`](/docs/adding-an-app)** — if the task is "here's an IPA, port everything".
-2. **[`adding-a-feature`](/docs/adding-a-feature)** — if the task is "add X to an existing mod".
-3. [`patch-reference`](/docs/patch-reference) + [`usage`](/docs/usage) — for the exact YAML/CLI surface.
-4. [`troubleshooting`](/docs/troubleshooting) — when something breaks.
+<Steps>
+<Step>
 
-## Related
+### Port the app
 
-- [`adding-an-app`](/docs/adding-an-app) / [`adding-a-feature`](/docs/adding-a-feature) — the how-to guides
-- [`reverse-engineering`](/docs/reverse-engineering) — `forge analysis` (class-dump, strings, symbols, security, diff)
+[Adding a New App](/docs/adding-an-app) if the task is "here's an IPA, port
+everything."
+
+</Step>
+<Step>
+
+### Or add one feature
+
+[Adding a Feature](/docs/adding-a-feature) if the task is "add X to an
+existing mod."
+
+</Step>
+<Step>
+
+### Learn the exact surface
+
+[Patch Reference](/docs/patch-reference) + [Usage](/docs/usage) for the
+YAML/CLI contract.
+
+</Step>
+<Step>
+
+### When something breaks
+
+[Troubleshooting](/docs/troubleshooting) maps every error message to its
+cause and fix.
+
+</Step>
+</Steps>

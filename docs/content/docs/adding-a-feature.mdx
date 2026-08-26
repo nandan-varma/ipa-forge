@@ -1,5 +1,5 @@
 ---
-title: Adding a feature to a hook dylib
+title: "Adding a Feature"
 description: Conventions for adding a feature to an existing ipa-forge hook dylib, key, default, implementation, settings row, hooks declaration.
 ---
 
@@ -7,7 +7,10 @@ The conventions a feature follows in a hook dylib. Adding a feature is: a
 key, a default, a settings row, an implementation in the right file, and a
 hooks declaration — in that order.
 
-## 1. The key
+<Steps>
+<Step>
+
+## The key
 
 Every user-facing feature is an `NSUserDefaults` key. Give each patch set
 its own prefix and enabled-check macro, e.g.:
@@ -18,17 +21,26 @@ its own prefix and enabled-check macro, e.g.:
 
 Declare it in the shared header (`dylib/<App>Hook.h`).
 
-## 2. The default
+</Step>
+<Step>
+
+## The default
 
 Register the default in the constructor (`dylib/<App>Hook.m`), inside the
 `registerDefaults:` dictionary. New features default **ON** unless there is
-a reason not to (e.g. a behavior change users might not want) — **with one
-standing exception**: a feature built via reverse engineering with no
-reference source to check against and no on-device confirmation yet
-defaults **OFF** and is labeled beta in the settings row. Flip it to
-default-ON once a device pass confirms it works.
+a reason not to (e.g. a behavior change users might not want).
 
-## 3. The implementation
+<Callout type="warn" title="Standing exception">
+A feature built via reverse engineering with no reference source to check
+against and no on-device confirmation yet defaults **OFF** and is labeled
+beta in the settings row. Flip it to default-ON once a device pass confirms
+it works.
+</Callout>
+
+</Step>
+<Step>
+
+## The implementation
 
 - One file per feature area; add the feature to the matching file
   (`AdBlock.m`, `SessionProtection.m`, `Settings.m`, …) or create a new
@@ -57,18 +69,29 @@ void MyModNewFeatureInit(void) {
   `forge hooks extract --ipa <ipa> --class <Class>` / `--search <regex>`,
   and cross-check suspicious selectors with `strings` (the parser
   under-reports GPBMessage methods).
-- Prefer pure ObjC-runtime swizzling. **No C-level rebinding** (fishhook-style)
-  unless unavoidable; if you must, defer it past launch and guard every
-  resolved original pointer.
+- Prefer pure ObjC-runtime swizzling.
+
+<Callout type="error" title="No C-level rebinding">
+Fishhook-style rebinding is a real crash source and should be avoided unless
+unavoidable; if you must, defer it past launch and guard every resolved
+original pointer.
+</Callout>
+
 - Wrap the init in the existing `@try`-isolation so a failure degrades.
 
-## 4. The settings row
+</Step>
+<Step>
+
+## The settings row
 
 Add the toggle to the in-app settings screen. Title + one-line detail + the
 key. The screen should say "changes apply on relaunch" (toggles are read
 at hook-install time).
 
-## 5. The hooks declaration
+</Step>
+<Step>
+
+## The hooks declaration
 
 Add the new hook target(s) to the definition's `hooks:` block
 (`<app>.yaml`). If the hook is load-bearing (feature silently dies when
@@ -80,13 +103,17 @@ forge hooks manifest --dir dylib/ --required hooks-required.txt   # direct calls
 # helper/loop-based hooks: hand-declare in the yaml
 ```
 
-**Don't skip this even for a hook that "obviously" won't drift.** Confirm
-nothing was missed with `forge hooks audit --ipa <ipa> --dir dylib/ --patches
-<app>.yaml` — it fails (exit 1) if any hook the source calls isn't in the
-`hooks:` block yet. `--dry-run` alone won't catch this — the gap is
+<Callout type="warn" title="Don't skip this, even for an 'obvious' hook">
+Confirm nothing was missed with `forge hooks audit --ipa <ipa> --dir dylib/
+--patches <app>.yaml` — it fails (exit 1) if any hook the source calls isn't
+in the `hooks:` block yet. `--dry-run` alone won't catch this — the gap is
 invisible to it by construction.
+</Callout>
 
-## 6. Verify + commit
+</Step>
+<Step>
+
+## Verify + commit
 
 ```bash
 dylib/build.sh
@@ -99,10 +126,13 @@ forge patch --ipa <base>.ipa --patches <app>.yaml --no-sign --output <out>.ipa
 
 Then: device test (the dylib's `os_log` subsystem shows the feature's
 `ready`/`disabled` line). If a device isn't available yet, default the
-feature OFF and mark it beta in the settings row instead of skipping it
-(see step 2) — don't claim it works before it's confirmed. Update the
-patch set's `README.md` feature list, and commit — **including the patch
-submodule itself**, if the patch set lives in a separate git repo.
+feature OFF and mark it beta in the settings row instead of skipping it —
+don't claim it works before it's confirmed. Update the patch set's
+`README.md` feature list, and commit — **including the patch submodule
+itself**, if the patch set lives in a separate git repo.
+
+</Step>
+</Steps>
 
 ## Debugging a feature that doesn't work
 
@@ -116,5 +146,7 @@ submodule itself**, if the patch set lives in a separate git repo.
 
 ## Related
 
-- [`adding-an-app`](/docs/adding-an-app) — end-to-end porting
-- [`patch-reference`](/docs/patch-reference) — the YAML contract
+<Cards>
+  <Card title="Adding a New App" description="End-to-end porting" href="/docs/adding-an-app" />
+  <Card title="Patch Reference" description="The YAML contract" href="/docs/patch-reference" />
+</Cards>

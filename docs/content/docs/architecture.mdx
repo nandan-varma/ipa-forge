@@ -12,25 +12,24 @@ without any app-specific logic in the core engine.
 
 ## Hard constraints
 
-1. **Never reimplement Apple's code signature format.** CodeDirectory, CMS
-   signing, SuperBlob construction, DER entitlements, and resource sealing
-   are internal formats Apple has changed repeatedly and does not treat as a
-   stable API. Every actual signing operation shells out to `codesign` /
-   `security` (`ipa_forge/signing/backend.py` is the *only* module allowed to
-   invoke them).
-2. **Patch engine and signing engine are independent subsystems**, connected
-   only through the `AppBundle` model. A `PatchOperation` never calls
-   `codesign` directly.
-3. **The core engine is app-agnostic.** It understands patch operation
-   *types* (`binary_replace`, `resource_replace`, `dylib_inject`, ...) but
-   never a specific bundle id, byte pattern, or file -- those only ever come
-   from user-supplied YAML.
-4. **Target AltStore Classic, not AltStore PAL.** PAL requires Apple
-   notarization and a different distribution package format; that's a
-   different product. The output here is just a standard
-   `Payload/<App>.app` IPA, which is exactly what AltStore Classic expects
-   (AltStore's own error 1007 fires when an IPA *isn't* standard-structure --
-   inventing a custom packaging format would be actively counterproductive).
+<Cards>
+  <Card
+    title="Never reimplement Apple's code signature format"
+    description="CodeDirectory, CMS signing, SuperBlob construction, DER entitlements, and resource sealing are internal formats Apple has changed repeatedly and does not treat as a stable API. Every actual signing operation shells out to codesign/security (ipa_forge/signing/backend.py is the only module allowed to invoke them)."
+  />
+  <Card
+    title="Patch engine and signing engine are independent"
+    description="Connected only through the AppBundle model. A PatchOperation never calls codesign directly."
+  />
+  <Card
+    title="The core engine is app-agnostic"
+    description="It understands patch operation types (binary_replace, resource_replace, dylib_inject, ...) but never a specific bundle id, byte pattern, or file -- those only ever come from user-supplied YAML."
+  />
+  <Card
+    title="Target AltStore Classic, not AltStore PAL"
+    description="PAL requires Apple notarization and a different distribution package format; that's a different product. The output here is just a standard Payload/<App>.app IPA, exactly what AltStore Classic expects (its own error 1007 fires when an IPA isn't standard-structure)."
+  />
+</Cards>
 
 ## Component map
 
@@ -49,8 +48,7 @@ ipa_forge/
               scanning, built on machO/objc.py's analysis
   analysis/   General-purpose IPA reverse engineering, also built on
               machO/objc.py: class-dump rendering, type-encoding decode,
-              strings, symbols, security posture, version diffing -- see
-              docs/reverse-engineering.md
+              strings, symbols, security posture, version diffing
   pipeline.py End-to-end stage orchestration (the 17 stages below)
   manifest.py Structured pre-signing manifest for debugging failed installs
   cli/        Typer CLI: inspect, validate, patch, export-source, gui, hooks, analysis
@@ -162,25 +160,42 @@ since it never goes through LIEF's write path at all.
 
 ## AltStore Classic signing & refresh flow
 
-```
- patcher output (standard .ipa)
-          │
-          ▼
- AltStore "My Apps" → install
-          │
-          ▼
- AltServer (desktop) performs the actual install over USB/Wi-Fi
-          │
-          ▼
- iPhone: app installed, signed by the identity ipa-forge used
-          │
-          ▼
- free Apple ID: 7-day signing lifetime, ≤3 active sideloads, ≤10 App IDs / 7 days
- paid account:   governed by Apple's then-current provisioning rules (not hard-coded here)
-          │
-          ▼
- AltStore/AltServer background refresh (re-signs in place before expiry)
-```
+<Steps>
+<Step>
+
+**Patcher output.** A standard-structure `.ipa` from `forge patch`.
+
+</Step>
+<Step>
+
+**Install.** AltStore "My Apps" → install.
+
+</Step>
+<Step>
+
+**AltServer.** The desktop companion performs the actual install over
+USB/Wi-Fi.
+
+</Step>
+<Step>
+
+**On the iPhone.** The app is installed, signed by the identity ipa-forge used.
+
+</Step>
+<Step>
+
+**Provisioning limits.** Free Apple ID: 7-day signing lifetime, ≤3 active
+sideloads, ≤10 App IDs / 7 days. Paid account: governed by Apple's
+then-current provisioning rules (not hard-coded here).
+
+</Step>
+<Step>
+
+**Background refresh.** AltStore/AltServer re-signs the app in place before
+expiry.
+
+</Step>
+</Steps>
 
 ## SigningProvider abstraction
 
@@ -198,7 +213,7 @@ codesigning identity already present in the local macOS Keychain.
 credentials obtained through AltServer's own Apple-account pairing flow are
 not necessarily equivalent to an externally supplied certificate/profile
 pair, so this is left unimplemented rather than guessed at. See
-[`extensibility`](/docs/extensibility) for what a real implementation would need.
+[Extensibility](/docs/extensibility) for what a real implementation would need.
 
 ## Linux support boundary
 
@@ -212,8 +227,9 @@ Apple's signing internals are never reimplemented anywhere, on any platform.
 
 ## Related
 
-- [`extensibility`](/docs/extensibility) — extending the engine
-- [`patch-reference`](/docs/patch-reference) — the YAML contract
-- [`usage`](/docs/usage) — CLI
-- [`reverse-engineering`](/docs/reverse-engineering) — `forge analysis` (class-dump, strings, symbols, security, diff)
-- [`README`](/docs) — docs index
+<Cards>
+  <Card title="Extensibility" description="Extending the engine" href="/docs/extensibility" />
+  <Card title="Patch Reference" description="The YAML contract" href="/docs/patch-reference" />
+  <Card title="Usage" description="CLI reference" href="/docs/usage" />
+  <Card title="Reverse Engineering" description="forge analysis: class-dump, strings, symbols, security, diff" href="/docs/reverse-engineering" />
+</Cards>

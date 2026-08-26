@@ -1,28 +1,52 @@
 ---
-title: "Extensibility notes"
+title: "Extensibility"
 description: "How to extend ipa-forge with new patch operation types and signing providers."
 ---
 
 ## Adding a new patch operation type
 
-1. Implement the `PatchOperation` protocol (`ipa_forge/patch/base.py`):
-   `dry_run(ctx) -> PatchResult` and `apply(ctx) -> PatchResult`. Look at
-   `patch/resource.py` for the simplest example.
-2. Add a pydantic spec class to `patch/schema.py` with a `type: Literal[...]`
-   discriminator field, and add it to the `PatchSpec` union.
-3. Wire it in `patch/loader.py::build_operations`.
-4. If it mutates a Mach-O file, decide where it belongs in
-   `patch/engine.py::_apply_order_rank` -- resource-only ops run first,
-   binary-offset patches next, Mach-O-load-command edits (which can shift
-   binary layout) last. A completely new mutation category should get its
-   own rank rather than reusing an existing one if its ordering constraints
-   differ.
-5. Add unit tests exercising both the dry-run failure paths and a real apply,
-   following `tests/unit/test_resources.py` or `tests/unit/test_binary_patch.py`.
+<Steps>
+<Step>
 
+**Implement the protocol.** `PatchOperation` (`ipa_forge/patch/base.py`):
+`dry_run(ctx) -> PatchResult` and `apply(ctx) -> PatchResult`. Look at
+`patch/resource.py` for the simplest example.
+
+</Step>
+<Step>
+
+**Add the schema.** A pydantic spec class in `patch/schema.py` with a
+`type: Literal[...]` discriminator field, added to the `PatchSpec` union.
+
+</Step>
+<Step>
+
+**Wire it up.** In `patch/loader.py::build_operations`.
+
+</Step>
+<Step>
+
+**Place it in the apply order.** If it mutates a Mach-O file, decide where it
+belongs in `patch/engine.py::_apply_order_rank` — resource-only ops run
+first, binary-offset patches next, Mach-O-load-command edits (which can
+shift binary layout) last. A completely new mutation category should get
+its own rank rather than reusing an existing one if its ordering constraints
+differ.
+
+</Step>
+<Step>
+
+**Add tests.** Exercise both the dry-run failure paths and a real apply,
+following `tests/unit/test_resources.py` or `tests/unit/test_binary_patch.py`.
+
+</Step>
+</Steps>
+
+<Callout type="info">
 The core engine (`pipeline.py`, `patch/engine.py`, `patch/resolver.py`) never
-needs to change for a new operation type -- that's the point of the
+needs to change for a new operation type — that's the point of the
 `PatchOperation` protocol.
+</Callout>
 
 ## Implementing AltStoreCredentialProvider
 
@@ -33,12 +57,12 @@ implementation would need to:
   Apple-account pairing flow, rather than assuming one is already sitting in
   the local Keychain (`LocalIdentityProvider`'s assumption).
 - Implement the same four abstract methods (`list_identities`, `sign`,
-  `verify`, `dump_entitlements`) -- `pipeline.py` and `cli/main.py` are
+  `verify`, `dump_entitlements`) — `pipeline.py` and `cli/main.py` are
   already written against the `SigningProvider` interface, not against
   `LocalIdentityProvider` directly, so no other code should need to change.
 - Handle the account-level constraints AltStore Classic itself enforces
-  (7-day expiry, active-app count, App-ID-per-week limits) -- see
-  [`architecture`](/docs/architecture)'s AltStore flow diagram.
+  (7-day expiry, active-app count, App-ID-per-week limits) — see
+  [Architecture](/docs/architecture)'s AltStore flow diagram.
 
 ## Linux-only analysis mode
 
@@ -47,10 +71,13 @@ repacking, plist inspection, patch resolution, resource patching, and binary
 pattern analysis/modification (`bundle/`, `patch/`, `machO/arch.py`,
 `machO/injector.py`). This means `forge inspect`, `forge validate`, and
 `forge patch --dry-run` (up through the dry-run gate) all work on Linux
-today without any code changes -- only the signing stages (`load_profile_pool`
-onward) require `codesign`/`security` and therefore fail on non-macOS. There
-is no runtime OS check gating this; it falls out naturally from which modules
-a given code path imports.
+today without any code changes — only the signing stages (`load_profile_pool`
+onward) require `codesign`/`security` and therefore fail on non-macOS.
+
+<Callout type="info">
+There is no runtime OS check gating this; it falls out naturally from which
+modules a given code path imports.
+</Callout>
 
 ## Shipped v1 additions
 
@@ -66,15 +93,17 @@ The three scope limits listed in earlier revisions of this file are closed in
   own `.mobileprovision` by its own bundle id; a single profile still signs
   everything, exactly as before (see `signing/pipeline.py::sign_bundle`).
 - **`plist_edit`**: a `PatchOperation` (`patch/plist.py`) for set/remove on
-  bundle-relative plists -- a compact worked example of steps 1-5 above.
+  bundle-relative plists — a compact worked example of the steps above.
 - **The `hooks:` block**: a patch definition may declare runtime hook targets
   (class/selector/kind/added/required) that `pipeline.py` verifies against
   the app's main binary during the dry-run gate (`ipa_forge/hooks/`). No new
-  operation type -- it is a verification surface, driven by the same
+  operation type — it is a verification surface, driven by the same
   definition file. `forge hooks verify|extract|audit` expose it on the CLI.
   `added: true` declares a method the tweak adds itself (logos' %new).
 
 ## Related
 
-- [`architecture`](/docs/architecture) — how the engine works
-- [`patch-reference`](/docs/patch-reference) — the YAML contract
+<Cards>
+  <Card title="Architecture" description="How the engine works" href="/docs/architecture" />
+  <Card title="Patch Reference" description="The YAML contract" href="/docs/patch-reference" />
+</Cards>

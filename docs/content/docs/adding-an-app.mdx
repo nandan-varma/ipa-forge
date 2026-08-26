@@ -1,12 +1,15 @@
 ---
-title: Adding a new app — end-to-end playbook
+title: "Adding a New App"
 description: End-to-end playbook for porting a new app to ipa-forge, patch set layout, hook dylib conventions, and the device-test loop.
 ---
 
 This is the canonical "give me an IPA, port everything" procedure. It is
 generic; a per-app runbook (`PLAYBOOK.md`) applies it to a specific app.
 
-## Phase 0 — accept the IPA
+<Steps>
+<Step>
+
+## Accept the IPA
 
 - Confirm the input is **decrypted** (an App-Store-shaped IPA with the same
   name + numeric suffix is usually DRM-encrypted; the binary will fail to
@@ -19,7 +22,10 @@ generic; a per-app runbook (`PLAYBOOK.md`) applies it to a specific app.
   extracted bundle, pass `--app-dir Payload/<App>.app` instead of the IPA to
   skip re-extraction — every `forge hooks` command accepts it.
 
-## Phase 1 — create the patch set
+</Step>
+<Step>
+
+## Create the patch set
 
 **One canonical directory per app, named after the bundle id's app, not the
 version** — `patches/<app>/`, e.g. `patches/myapp/`. The version lives
@@ -28,14 +34,23 @@ version-suffixed variants (`patches/myapp-1.2.3/`) — if the app updates,
 bump `target.version` in place and re-verify; the old version isn't kept
 around as a separate directory.
 
-```
-patches/<app>/
-  <app>.yaml          # the definition: ops + hooks: block (single canonical file)
-  dylib/               # the hook dylib sources + build.sh
-  PLAYBOOK.md          # this app's runbook (copy the template below)
-  README.md            # features, build, apply, verify
-  SOURCES.md           # attribution / research lineage
-```
+<Files>
+  <Folder name="patches/<app>/" defaultOpen>
+    <File name="<app>.yaml" />
+    <Folder name="dylib/" />
+    <File name="PLAYBOOK.md" />
+    <File name="README.md" />
+    <File name="SOURCES.md" />
+  </Folder>
+</Files>
+
+| File | Purpose |
+| --- | --- |
+| `<app>.yaml` | the definition: ops + `hooks:` block (single canonical file) |
+| `dylib/` | the hook dylib sources + `build.sh` |
+| `PLAYBOOK.md` | this app's runbook (copy the template below) |
+| `README.md` | features, build, apply, verify |
+| `SOURCES.md` | attribution / research lineage |
 
 The definition's shape is always:
 
@@ -51,12 +66,18 @@ patches:
 hooks: [ ... ]        # every hook the dylib relies on (see below)
 ```
 
-## Phase 2 — build the hook dylib (plain ObjC)
+</Step>
+<Step>
 
-- **Plain ObjC-runtime swizzling only.** No Swift, no substrate, no external
-  frameworks beyond Foundation/UIKit/Security (plus AVFoundation/Photos if
-  the feature genuinely needs them). Copy the plumbing pattern (`<prefix>Hook.h`:
-  `hookInstance`/`hookClass` inline helpers + `os_log`).
+## Build the hook dylib (plain ObjC)
+
+<Callout type="warn" title="Plain ObjC-runtime swizzling only">
+No Swift, no substrate, no external frameworks beyond Foundation/UIKit/Security
+(plus AVFoundation/Photos if the feature genuinely needs them). Copy the
+plumbing pattern (`<prefix>Hook.h`: `hookInstance`/`hookClass` inline helpers
++ `os_log`).
+</Callout>
+
 - **The constructor is inert**: it only schedules the real install on the
   main run loop (`dispatch_async(dispatch_get_main_queue())`). Hooks install
   after launch, when every image is loaded — the substrate-style late-load
@@ -68,9 +89,12 @@ hooks: [ ... ]        # every hook the dylib relies on (see below)
   silently replaces the first).
 - The dylib's `build.sh` stages `build/<Name>Hook.dylib` for the definition.
 
-## Phase 3 — declare + verify hooks
+</Step>
+<Step>
 
-- Declare every hook target in the definition's `hooks:` block:
+## Declare + verify hooks
+
+Declare every hook target in the definition's `hooks:` block:
 
 ```yaml
 hooks:
@@ -99,13 +123,18 @@ hooks:
   The parser under-reports GPBMessage methods.
 - Porting later: `forge hooks diff --old prev.ipa --new next.ipa --patches Y`
   shows exactly which hooks regressed.
-- **Before every commit**, cross-check the source against the declared
-  block: `forge hooks audit --ipa <ipa> --dir dylib/ --patches Y`. `--dry-run`
-  only verifies *declared* hooks — a hook the source calls but the YAML
-  forgot to declare is invisible to it. Run it every time, not just when
-  something seems broken.
 
-## Phase 4 — build + device loop
+<Callout type="warn" title="Run forge hooks audit before every commit">
+`forge hooks audit --ipa <ipa> --dir dylib/ --patches Y` cross-checks the
+source against the declared block. `--dry-run` only verifies *declared*
+hooks — a hook the source calls but the YAML forgot to declare is invisible
+to it otherwise.
+</Callout>
+
+</Step>
+<Step>
+
+## Build + device loop
 
 ```bash
 patches/<app>/dylib/build.sh
@@ -118,14 +147,19 @@ forge patch --ipa <base>.ipa --patches patches/<app>/<app>.yaml \
 - User sideloads via AltStore → report. Device logs are the deduction tool:
   give the dylib a unique `os_log` subsystem (`<prefix>Log`), log every hook
   attach at install, and every feature's `ready`/`disabled` state.
-- **If it crashes at launch**: build a do-nothing test dylib
-  (constructor `os_log` only, weak LC, same strip ops) and inject it. If the
-  test launches, the crash is in your hook code — bisect features
-  (drop the riskiest first: any C-level rebinding like fishhook, then
-  per-feature). If the test also crashes, the problem is the injection /
-  signing / stripping itself, not the dylib.
 
-## Phase 5 — ship the docs
+<Callout type="info" title="If it crashes at launch">
+Build a do-nothing test dylib (constructor `os_log` only, weak LC, same strip
+ops) and inject it. If the test launches, the crash is in your hook code —
+bisect features (drop the riskiest first: any C-level rebinding like
+fishhook, then per-feature). If the test also crashes, the problem is the
+injection / signing / stripping itself, not the dylib.
+</Callout>
+
+</Step>
+<Step>
+
+## Ship the docs
 
 - Copy the runbook template from an existing `PLAYBOOK.md`; fill in the
   app-specific commands, hook verification results, and debugging log
@@ -133,6 +167,9 @@ forge patch --ipa <base>.ipa --patches patches/<app>/<app>.yaml \
 - Write `README.md` (features, build, apply, verified-on table) and
   `SOURCES.md` (attribution; keep it original-work, no external team names
   unless they ask).
+
+</Step>
+</Steps>
 
 ## Templates
 
@@ -143,6 +180,8 @@ surface honest as the app updates.
 
 ## Related
 
-- [`adding-a-feature`](/docs/adding-a-feature) — per-feature conventions
-- [`patch-reference`](/docs/patch-reference) — the YAML contract
-- [`usage`](/docs/usage) — CLI
+<Cards>
+  <Card title="Adding a Feature" description="Per-feature conventions" href="/docs/adding-a-feature" />
+  <Card title="Patch Reference" description="The YAML contract" href="/docs/patch-reference" />
+  <Card title="Usage" description="CLI reference" href="/docs/usage" />
+</Cards>

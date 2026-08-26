@@ -1,5 +1,5 @@
 ---
-title: "Usage Guide"
+title: "Usage"
 description: "Full CLI and web GUI reference for forge: patch, inspect, validate, hooks, and analysis commands, plus signing identity and profile setup."
 ---
 
@@ -8,10 +8,13 @@ with ipa-forge — via the `forge` CLI and the local web GUI.
 
 ## Requirements
 
-- **macOS** with Xcode Command Line Tools (`xcode-select -p` prints a path).
-  Signing shells out to Apple's own `codesign`/`security` and is never
-  reimplemented. Everything up to and including patch dry-run also works on
-  Linux (see [`extensibility`](/docs/extensibility)).
+<Callout type="warn" title="Signing requires macOS">
+Signing shells out to Apple's own `codesign`/`security` and is never
+reimplemented, so it requires macOS with Xcode Command Line Tools
+(`xcode-select -p` prints a path). Everything up to and including patch
+dry-run also works on Linux — see [Extensibility](/docs/extensibility).
+</Callout>
+
 - **Python 3.11+**.
 - A **codesigning identity** in your Keychain and a matching
   **provisioning profile** (see [Signing identity & profile](#signing-identity--profile)).
@@ -28,7 +31,10 @@ This installs the `forge` CLI.
 
 ## End-to-end workflow
 
-### 1. Inspect the IPA
+<Steps>
+<Step>
+
+### Inspect the IPA
 
 ```bash
 forge inspect path/to/App.ipa
@@ -38,9 +44,12 @@ Prints the bundle id, version, main executable, and the executable inventory in
 bottom-up signing order. This tells you the `bundle_id` and `version` your
 patch definition must target, and the exact executable names to patch.
 
-### 2. Write a patch definition
+</Step>
+<Step>
 
-See the [Patch Definition Reference](/docs/patch-reference) — every operation
+### Write a patch definition
+
+See [Patch Reference](/docs/patch-reference) — every operation
 type, field, and matching rule. At minimum:
 
 ```yaml
@@ -54,7 +63,10 @@ patches:
     source: "assets/patched_asset.txt"
 ```
 
-### 3. Dry-run (safe, no mutation, no signing)
+</Step>
+<Step>
+
+### Dry-run (safe, no mutation, no signing)
 
 ```bash
 forge patch --ipa path/to/App.ipa --patches patches.yaml \
@@ -66,7 +78,10 @@ must pass the dry-run gate before anything would be applied; the result line
 tells you how many operations would run. If the definition's target doesn't
 match the IPA, you get a warning instead of a silent no-op.
 
-### 4. Patch and re-sign for real
+</Step>
+<Step>
+
+### Patch and re-sign for real
 
 ```bash
 forge patch --ipa path/to/App.ipa --patches patches.yaml \
@@ -89,7 +104,10 @@ forge patch --ipa App.ipa --patches patches.yaml \
 The output is a standard-structure `Payload/<App>.app` IPA that AltStore
 Classic can install and refresh.
 
-### 5. (Optional) Produce an AltStore source.json entry
+</Step>
+<Step>
+
+### (Optional) Produce an AltStore source.json entry
 
 ```bash
 forge export-source --ipa patched.ipa \
@@ -101,10 +119,16 @@ Emits an AltStore Classic source entry (`name`, `bundleIdentifier`, `version`,
 `buildVersion`, `downloadURL`, `size`, `sha256`) for hosting the patched IPA
 yourself.
 
-### 6. Install on a device
+</Step>
+<Step>
+
+### Install on a device
 
 Follow the manual AltStore Classic checklist in
-[`altstore-device-testing`](/docs/altstore-device-testing).
+[Device Testing](/docs/altstore-device-testing).
+
+</Step>
+</Steps>
 
 ## CLI reference
 
@@ -123,26 +147,30 @@ is present — without patching or signing anything.
 
 ### `forge patch`
 
-| Option | Meaning |
-| --- | --- |
-| `--ipa <path>` | Input `.ipa` (required) |
-| `--patches <path>` | Patch definition YAML/JSON file (required) |
-| `--identity <str>` | Codesigning identity: SHA-1 hash or unique name substring. **Not needed for `--dry-run`**; required otherwise |
-| `--profile <path>` | `.mobileprovision`, repeatable (one per extension/watch app). **Not needed for `--dry-run`**; at least one required otherwise |
-| `--output <path>` | Output `.ipa` path (required) |
-| `--dry-run` | Validate patches without mutating or signing anything |
-| `--verbose` | Print the full manifest on success |
+<TypeTable
+  type={{
+    "--ipa <path>": { type: "path", required: true, description: "Input .ipa" },
+    "--patches <path>": { type: "path", required: true, description: "Patch definition YAML/JSON file" },
+    "--identity <str>": { type: "string", description: "Codesigning identity: SHA-1 hash or unique name substring. Not needed for --dry-run; required otherwise" },
+    "--profile <path>": { type: "path", description: ".mobileprovision, repeatable (one per extension/watch app). Not needed for --dry-run; at least one required otherwise" },
+    "--output <path>": { type: "path", required: true, description: "Output .ipa path" },
+    "--dry-run": { type: "flag", description: "Validate patches without mutating or signing anything" },
+    "--verbose": { type: "flag", description: "Print the full manifest on success" },
+  }}
+/>
 
 Exit codes: `0` success, `1` any error (with a single-line `error:` message on
 stderr — no tracebacks).
 
 ### `forge export-source`
 
-| Option | Meaning |
-| --- | --- |
-| `--ipa <path>` | The patched, signed IPA to describe |
-| `--download-url <url>` | URL the IPA will be hosted at |
-| `--output <path>` | Output `source.json` path |
+<TypeTable
+  type={{
+    "--ipa <path>": { type: "path", required: true, description: "The patched, signed IPA to describe" },
+    "--download-url <url>": { type: "string", required: true, description: "URL the IPA will be hosted at" },
+    "--output <path>": { type: "path", required: true, description: "Output source.json path" },
+  }}
+/>
 
 ### `forge gui`
 
@@ -183,15 +211,17 @@ forge hooks find someFeatureAction: --ipa App.ipa
 forge hooks manifest --dir dylib/ --inplace patch.yaml
 ```
 
-**Fast iteration with `--app-dir`.** Every command re-extracts the full IPA
-(seconds to tens of seconds on a large app) unless you point it at an
-already-extracted bundle instead — pass `--app-dir Payload/<App>.app` (and
-then omit `--ipa`) and the analyze/verify/fix loop becomes instant:
+<Callout type="info" title="Fast iteration with --app-dir">
+Every command re-extracts the full IPA (seconds to tens of seconds on a large
+app) unless you point it at an already-extracted bundle instead — pass
+`--app-dir Payload/<App>.app` (and then omit `--ipa`) and the
+analyze/verify/fix loop becomes instant:
 
 ```bash
 forge patch --ipa App.ipa --patches patch.yaml --output /tmp/x.ipa --dry-run
 forge hooks verify --app-dir /tmp/x.app --patches patch.yaml   # no re-extract
 ```
+</Callout>
 
 A class or selector that the class-table walk *missed* (a parser gap, not a
 rename) is now reported honestly: when the name exists as a string somewhere
@@ -204,12 +234,12 @@ mislabeled as system classes.
 `forge patch --dry-run` also verifies the definition's `hooks:` block
 automatically and prints an attach summary; `required: true` hooks that
 can't attach fail the run before anything mutates. See
-[`patch-reference`](/docs/patch-reference) → "The `hooks` block".
+[Patch Reference](/docs/patch-reference) → "The `hooks` block".
 
 ## Porting a dylib patch set to a new app version
 
 If your patch set injects a hook dylib, declare its hook targets in the
-definition's `hooks:` block (see [`patch-reference`](/docs/patch-reference) → "The `hooks`
+definition's `hooks:` block (see [Patch Reference](/docs/patch-reference) → "The `hooks`
 block"). Then porting is:
 
 ```bash
@@ -221,7 +251,7 @@ forge hooks extract --ipa New.ipa --search "<old class substring>"
 # 4. fix the tweak source, rebuild, re-run the dry-run until required hooks pass
 ```
 
-A concrete patch set's `PLAYBOOK.md` (see [`adding-an-app`](/docs/adding-an-app))
+A concrete patch set's `PLAYBOOK.md` (see [Adding a New App](/docs/adding-an-app))
 is a worked example of this loop end-to-end for a specific app.
 
 ## Reverse engineering any IPA (`forge analysis`)
@@ -230,7 +260,7 @@ is a worked example of this loop end-to-end for a specific app.
 attach? For general-purpose static analysis of an IPA (class-dump, string
 extraction, symbols, security posture, and a broader version-to-version
 diff that isn't tied to a patch definition's `hooks:` block), see
-[`reverse-engineering`](/docs/reverse-engineering) — the single source for
+[Reverse Engineering](/docs/reverse-engineering) — the single source for
 that command surface, to avoid duplicating it here.
 
 ### Generating and diffing hook manifests
@@ -260,15 +290,35 @@ hook call are not traced and must be declared manually in the definition's
 ipa-forge re-signs with **your own** Apple development credentials — it never
 manages your Apple account.
 
-1. **Identity**: `security find-identity -v -p codesigning` lists the
-   codesigning identities in your Keychain. Pass either the full SHA-1 hash or
-   a unique substring of the name (e.g. `"Apple Development"`). Ambiguous or
-   unmatched substrings fail loudly, listing candidates.
-2. **Profile**: profiles installed by Xcode live under
-   `~/Library/MobileDevice/Provisioning Profiles/*.mobileprovision`. Inspect
-   one with `security cms -D -i <profile>`.
-3. The profile's `Entitlements.application-identifier` must authorize the
-   bundle id being signed — exactly, or via a wildcard `TEAMID.*` profile.
+<Steps>
+<Step>
+
+### Identity
+
+`security find-identity -v -p codesigning` lists the codesigning identities
+in your Keychain. Pass either the full SHA-1 hash or a unique substring of
+the name (e.g. `"Apple Development"`). Ambiguous or unmatched substrings
+fail loudly, listing candidates.
+
+</Step>
+<Step>
+
+### Profile
+
+Profiles installed by Xcode live under
+`~/Library/MobileDevice/Provisioning Profiles/*.mobileprovision`. Inspect
+one with `security cms -D -i <profile>`.
+
+</Step>
+<Step>
+
+### Authorization
+
+The profile's `Entitlements.application-identifier` must authorize the
+bundle id being signed — exactly, or via a wildcard `TEAMID.*` profile.
+
+</Step>
+</Steps>
 
 `forge patch` validates profiles up front (expiry, bundle-id match) and fails
 with an actionable error before touching your IPA if they don't qualify.
@@ -288,26 +338,28 @@ Profile selection rules (see `signing/profile.py::ProfilePool`):
 
 `forge gui` → open [http://127.0.0.1:8765](http://127.0.0.1:8765).
 
-- **IPA** — the `.ipa` to patch (required).
-- **Patch definition** — a single `.yaml`/`.yml`/`.json`, or a **zip** of the
-  patch directory (definition + its `assets/` folder) when you use
-  `resource_replace`/`resource_add`. The zip must contain exactly one
-  top-level definition file; its `assets/` resolve relative to it.
-- **Provisioning profile(s)** — select several to sign each extension/watch
-  app with its own profile (multiple selection).
-- **Signing identity** — SHA-1 or name substring.
-- **Dry run switch** — validates only, no signing; the profile/identity fields
-  gray out. Not needed for dry runs.
-- **Result card** — shows "Patched"/"Dry Run OK", the bundle/version, a
-  per-operation status list, and a **Download patched.ipa** button.
+<TypeTable
+  type={{
+    "IPA": { type: "file", required: true, description: "The .ipa to patch" },
+    "Patch definition": { type: "file", required: true, description: "A single .yaml/.yml/.json, or a zip of the patch directory (definition + its assets/ folder) when you use resource_replace/resource_add. The zip must contain exactly one top-level definition file; its assets/ resolve relative to it." },
+    "Provisioning profile(s)": { type: "file[]", description: "Select several to sign each extension/watch app with its own profile" },
+    "Signing identity": { type: "string", description: "SHA-1 or name substring" },
+    "Dry run switch": { type: "boolean", description: "Validates only, no signing; the profile/identity fields gray out. Not needed for dry runs." },
+  }}
+/>
 
+The **result card** shows "Patched"/"Dry Run OK", the bundle/version, a
+per-operation status list, and a **Download patched.ipa** button.
+
+<Callout type="info">
 The GUI is a single-user localhost tool: requests are processed in-process and
 outputs are kept for download (bounded, oldest evicted). It is not designed as
 a hosted multi-user service.
+</Callout>
 
 A second page, `/analysis` (linked from this page's subtitle), gives the same
 read-only reverse-engineering views as `forge analysis` — see
-[`reverse-engineering`](/docs/reverse-engineering#the-web-gui-forge-gui--analysis).
+[Reverse Engineering](/docs/reverse-engineering#the-web-gui-forge-gui--analysis).
 
 ## What you get back
 
@@ -319,9 +371,10 @@ installing.
 
 ## Related
 
-- [`adding-an-app`](/docs/adding-an-app) — port a new app
-- [`adding-a-feature`](/docs/adding-a-feature) — add a feature
-- [`patch-reference`](/docs/patch-reference) — the YAML contract
-- [`reverse-engineering`](/docs/reverse-engineering) — `forge analysis` (class-dump, strings, symbols, security, diff)
-- [`troubleshooting`](/docs/troubleshooting) — errors
-- [`README`](/docs) — docs index
+<Cards>
+  <Card title="Adding a New App" description="Port a new app" href="/docs/adding-an-app" />
+  <Card title="Adding a Feature" description="Add a feature to a hook dylib" href="/docs/adding-a-feature" />
+  <Card title="Patch Reference" description="The YAML contract" href="/docs/patch-reference" />
+  <Card title="Reverse Engineering" description="forge analysis: class-dump, strings, symbols, security, diff" href="/docs/reverse-engineering" />
+  <Card title="Troubleshooting" description="Every error message mapped to its fix" href="/docs/troubleshooting" />
+</Cards>

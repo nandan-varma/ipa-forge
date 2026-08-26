@@ -1,24 +1,23 @@
 ---
-title: "Reverse Engineering an IPA (forge analysis)"
+title: "Reverse Engineering"
 description: "forge analysis: class-dump, strings, symbols, security posture, and version diffing for any decrypted IPA."
 ---
 
 General-purpose, read-only static analysis of any `.ipa` — not tied to a
 specific patch set or app. Built on the same Mach-O/ObjC analysis engine
 (`ipa_forge/machO/objc.py`) that `forge hooks` uses to verify hook targets;
-see [`architecture`](/docs/architecture) for how the two relate. Every
+see [Architecture](/docs/architecture) for how the two relate. Every
 command accepts `--app-dir <Payload/App.app>` in place of `--ipa` to skip
 re-extraction while iterating, same as `forge hooks`.
 
-## Scope boundary
-
+<Callout type="warn" title="Scope boundary">
 Two things are deliberately **not** implemented, by design rather than
 oversight:
-
 - **FairPlay/App Store DRM decryption.** Every command here assumes an
   already-decrypted `.ipa`, exactly like the rest of ipa-forge.
 - **Instruction-level disassembly/decompilation.** Static metadata
   (classes, strings, symbols) only — no capstone/Ghidra-style disassembly.
+</Callout>
 
 ## `forge analysis classdump`
 
@@ -96,18 +95,20 @@ findings.
 forge analysis diff --old App_1.0.ipa --new App_2.0.ipa
 ```
 
+<Callout type="info" title="forge analysis diff vs. forge hooks diff">
 This is **broader but shallower** than `forge hooks diff`
-(see [`usage`](/docs/usage#generating-and-diffing-hook-manifests)): `forge
+(see [Usage](/docs/usage#generating-and-diffing-hook-manifests)): `forge
 hooks diff` only re-checks one patch definition's *declared* hook targets
 and is a pass/fail gate (exit 1 on a required-hook regression); `forge
 analysis diff` surveys everything that changed, independent of any patch
 set, and never fails the exit code. Use `forge hooks diff` to gate a patch
 set's CI; use `forge analysis diff` to understand *what* changed before
 writing the patch set in the first place.
+</Callout>
 
 Entitlements are intentionally not diffed here: reading them requires
 shelling out to `codesign`/`security`, and `signing/backend.py` is the only
-module allowed to do that ([`architecture`](/docs/architecture)'s hard
+module allowed to do that ([Architecture](/docs/architecture)'s hard
 constraint) — a real entitlements diff belongs in that subsystem, not in
 this read-only, signing-independent package.
 
@@ -117,9 +118,11 @@ The same four views (class-dump, strings, security, diff), browsable
 without installing the CLI: `forge gui` → open the link in the main
 patcher page's subtitle, or navigate directly to
 `http://127.0.0.1:8765/analysis`. Single-user, local-only, same as the
-patch-flow page — see [`usage`](/docs/usage#the-web-gui).
+patch-flow page — see [Usage](/docs/usage#the-web-gui).
 
 ## Related
 
-- [`architecture`](/docs/architecture) — the `machO/objc.py` analysis engine `hooks/` and `analysis/` share
-- [`usage`](/docs/usage) — `forge hooks` and the rest of the CLI
+<Cards>
+  <Card title="Architecture" description="The machO/objc.py analysis engine hooks/ and analysis/ share" href="/docs/architecture" />
+  <Card title="Usage" description="forge hooks and the rest of the CLI" href="/docs/usage" />
+</Cards>

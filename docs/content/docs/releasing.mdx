@@ -4,47 +4,92 @@ description: "How to cut a new ipa-forge release: PyPI Trusted Publishing and Gi
 ---
 
 How to cut a new `ipa-forge` release. The pipeline is
-[`.github/workflows/release.yml`](../.github/workflows/release.yml); it
-reuses the same lint+test jobs as CI
-([`checks.yml`](../.github/workflows/checks.yml)) before it builds or
-publishes anything.
+[`release.yml`](https://github.com/nandan-varma/ipa-forge/blob/main/.github/workflows/release.yml);
+it reuses the same lint+test jobs as CI
+([`checks.yml`](https://github.com/nandan-varma/ipa-forge/blob/main/.github/workflows/checks.yml))
+before it builds or publishes anything.
 
-## One-time setup (already done for 0.1.0, needed once per PyPI project)
+## One-time setup
 
-0.1.0 was published manually via `twine upload` with an account-scoped API
-token. From 0.1.1 onward the pipeline publishes via **PyPI Trusted
-Publishing (OIDC)** instead — no long-lived token is stored as a GitHub
-secret. Revoke the manual token
-(pypi.org → Account settings → API tokens) once this is set up.
+<Callout type="info">
+Already done for 0.1.0 (published manually via `twine upload` with an
+account-scoped API token). From 0.1.1 onward the pipeline publishes via
+**PyPI Trusted Publishing (OIDC)** instead — no long-lived token is stored
+as a GitHub secret. Revoke the manual token (pypi.org → Account settings →
+API tokens) once this is set up.
+</Callout>
 
-1. **PyPI**: on the [`ipa-forge` project page](https://pypi.org/manage/project/ipa-forge/publishing/) →
-   Publishing → add a trusted publisher:
-   - Owner: `nandan-varma`, Repository: `ipa-forge`
-   - Workflow name: `release.yml`
-   - Environment name: `pypi`
-2. **GitHub**: repo Settings → Environments → New environment named `pypi`.
-   Optionally add required reviewers here — that turns the `publish` job
-   into a manual-approval gate before anything goes to PyPI, which is worth
-   turning on given publishing is irreversible (PyPI never allows
-   re-uploading a version).
+<Steps>
+<Step>
+
+### PyPI
+
+On the [`ipa-forge` project page](https://pypi.org/manage/project/ipa-forge/publishing/) →
+Publishing → add a trusted publisher:
+- Owner: `nandan-varma`, Repository: `ipa-forge`
+- Workflow name: `release.yml`
+- Environment name: `pypi`
+
+</Step>
+<Step>
+
+### GitHub
+
+Repo Settings → Environments → New environment named `pypi`. Optionally add
+required reviewers here — that turns the `publish` job into a
+manual-approval gate before anything goes to PyPI, which is worth turning
+on given publishing is irreversible (PyPI never allows re-uploading a
+version).
+
+</Step>
+</Steps>
 
 Both steps only need to happen once; every future tagged release reuses
 them automatically.
 
 ## Cutting a release
 
-1. Bump `version` in `pyproject.toml`, add a new `## [X.Y.Z] - YYYY-MM-DD`
-   section to `CHANGELOG.md`. Normal PR to `main`.
-2. After merge, on `main`:
-   ```bash
-   git tag vX.Y.Z
-   git push origin vX.Y.Z
-   ```
-3. The tag push triggers `release.yml`: lint+test → verify the tag matches
-   `pyproject.toml`'s version → build sdist/wheel → `twine check` → publish
-   to PyPI → create a GitHub Release with the built artifacts attached.
-4. If the `pypi` environment has required reviewers, approve the `publish`
-   job run in the Actions tab.
+<Steps>
+<Step>
 
+### Bump the version
+
+Bump `version` in `pyproject.toml`, add a new `## [X.Y.Z] - YYYY-MM-DD`
+section to `CHANGELOG.md`. Normal PR to `main`.
+
+</Step>
+<Step>
+
+### Tag it
+
+After merge, on `main`:
+
+```bash
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+</Step>
+<Step>
+
+### Let CI run
+
+The tag push triggers `release.yml`: lint+test → verify the tag matches
+`pyproject.toml`'s version → build sdist/wheel → `twine check` → publish
+to PyPI → create a GitHub Release with the built artifacts attached.
+
+</Step>
+<Step>
+
+### Approve, if gated
+
+If the `pypi` environment has required reviewers, approve the `publish`
+job run in the Actions tab.
+
+</Step>
+</Steps>
+
+<Callout type="success">
 A tag that doesn't match `pyproject.toml`'s version fails fast in the
 `version` job before anything is built or published.
+</Callout>
