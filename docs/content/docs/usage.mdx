@@ -1,4 +1,7 @@
-# Usage Guide
+---
+title: "Usage Guide"
+description: "Full CLI and web GUI reference for forge: patch, inspect, validate, hooks, and analysis commands, plus signing identity and profile setup."
+---
 
 Complete walkthrough of installing, patching, signing, and distributing an IPA
 with ipa-forge — via the `forge` CLI and the local web GUI.
@@ -8,7 +11,7 @@ with ipa-forge — via the `forge` CLI and the local web GUI.
 - **macOS** with Xcode Command Line Tools (`xcode-select -p` prints a path).
   Signing shells out to Apple's own `codesign`/`security` and is never
   reimplemented. Everything up to and including patch dry-run also works on
-  Linux (see `docs/extensibility.md`).
+  Linux (see [`extensibility`](/docs/extensibility)).
 - **Python 3.11+**.
 - A **codesigning identity** in your Keychain and a matching
   **provisioning profile** (see [Signing identity & profile](#signing-identity--profile)).
@@ -37,7 +40,7 @@ patch definition must target, and the exact executable names to patch.
 
 ### 2. Write a patch definition
 
-See the [Patch Definition Reference](patch-reference.md) — every operation
+See the [Patch Definition Reference](/docs/patch-reference) — every operation
 type, field, and matching rule. At minimum:
 
 ```yaml
@@ -101,7 +104,7 @@ yourself.
 ### 6. Install on a device
 
 Follow the manual AltStore Classic checklist in
-[`docs/altstore_device_testing.md`](altstore_device_testing.md).
+[`altstore-device-testing`](/docs/altstore-device-testing).
 
 ## CLI reference
 
@@ -201,12 +204,12 @@ mislabeled as system classes.
 `forge patch --dry-run` also verifies the definition's `hooks:` block
 automatically and prints an attach summary; `required: true` hooks that
 can't attach fail the run before anything mutates. See
-`docs/patch-reference.md` → "The `hooks` block".
+[`patch-reference`](/docs/patch-reference) → "The `hooks` block".
 
 ## Porting a dylib patch set to a new app version
 
 If your patch set injects a hook dylib, declare its hook targets in the
-definition's `hooks:` block (see `docs/patch-reference.md` → "The `hooks`
+definition's `hooks:` block (see [`patch-reference`](/docs/patch-reference) → "The `hooks`
 block"). Then porting is:
 
 ```bash
@@ -218,8 +221,8 @@ forge hooks extract --ipa New.ipa --search "<old class substring>"
 # 4. fix the tweak source, rebuild, re-run the dry-run until required hooks pass
 ```
 
-A complete, YouTube-specific runbook lives at
-`patches/youtube/PLAYBOOK.md`.
+A concrete patch set's `PLAYBOOK.md` (see [`adding-an-app`](/docs/adding-an-app))
+is a worked example of this loop end-to-end for a specific app.
 
 ## Reverse engineering any IPA (`forge analysis`)
 
@@ -227,7 +230,7 @@ A complete, YouTube-specific runbook lives at
 attach? For general-purpose static analysis of an IPA (class-dump, string
 extraction, symbols, security posture, and a broader version-to-version
 diff that isn't tied to a patch definition's `hooks:` block), see
-[`reverse-engineering.md`](reverse-engineering.md) — the single source for
+[`reverse-engineering`](/docs/reverse-engineering) — the single source for
 that command surface, to avoid duplicating it here.
 
 ### Generating and diffing hook manifests
@@ -283,7 +286,7 @@ Profile selection rules (see `signing/profile.py::ProfilePool`):
 
 ## The web GUI
 
-`forge gui` → open <http://127.0.0.1:8765>.
+`forge gui` → open [http://127.0.0.1:8765](http://127.0.0.1:8765).
 
 - **IPA** — the `.ipa` to patch (required).
 - **Patch definition** — a single `.yaml`/`.yml`/`.json`, or a **zip** of the
@@ -304,7 +307,7 @@ a hosted multi-user service.
 
 A second page, `/analysis` (linked from this page's subtitle), gives the same
 read-only reverse-engineering views as `forge analysis` — see
-[`reverse-engineering.md`](reverse-engineering.md#the-web-gui-forge-gui--analysis).
+[`reverse-engineering`](/docs/reverse-engineering#the-web-gui-forge-gui--analysis).
 
 ## What you get back
 
@@ -316,9 +319,9 @@ installing.
 
 ## Related
 
-- [`adding-an-app.md`](adding-an-app.md) — port a new app
-- [`adding-a-feature.md`](adding-a-feature.md) — add a feature
-- [`patch-reference.md`](patch-reference.md) — the YAML contract
-- [`reverse-engineering.md`](reverse-engineering.md) — `forge analysis` (class-dump, strings, symbols, security, diff)
-- [`troubleshooting.md`](troubleshooting.md) — errors
-- [`README.md`](README.md) — docs index
+- [`adding-an-app`](/docs/adding-an-app) — port a new app
+- [`adding-a-feature`](/docs/adding-a-feature) — add a feature
+- [`patch-reference`](/docs/patch-reference) — the YAML contract
+- [`reverse-engineering`](/docs/reverse-engineering) — `forge analysis` (class-dump, strings, symbols, security, diff)
+- [`troubleshooting`](/docs/troubleshooting) — errors
+- [`README`](/docs) — docs index

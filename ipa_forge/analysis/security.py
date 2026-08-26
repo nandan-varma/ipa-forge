@@ -22,7 +22,7 @@ class SecurityPosture:
     pie: bool
     # True when LC_ENCRYPTION_INFO(_64)'s cryptid != 0 -- an App Store binary
     # pulled without prior decryption. Detection only; this tool never
-    # decrypts it (see ROADMAP.md for why that is out of scope).
+    # decrypts it (see ipa_forge/analysis/__init__.py for why that's out of scope).
     encrypted: bool
     stack_protector: bool  # ___stack_chk_fail imported
     arc_heuristic: bool  # _objc_storeStrong/_objc_release imported (best-effort, not definitive)

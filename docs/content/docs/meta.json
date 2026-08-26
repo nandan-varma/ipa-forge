@@ -1,0 +1,16 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "adding-an-app",
+    "adding-a-feature",
+    "patch-reference",
+    "usage",
+    "reverse-engineering",
+    "troubleshooting",
+    "altstore-device-testing",
+    "architecture",
+    "extensibility",
+    "releasing"
+  ]
+}

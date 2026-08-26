@@ -1,4 +1,7 @@
-# Architecture
+---
+title: "Architecture"
+description: "How the ipa-forge engine works: the 17-stage pipeline, hard constraints, component map, and two real bugs found empirically."
+---
 
 ## Goal
 
@@ -194,7 +197,7 @@ codesigning identity already present in the local macOS Keychain.
 credentials obtained through AltServer's own Apple-account pairing flow are
 not necessarily equivalent to an externally supplied certificate/profile
 pair, so this is left unimplemented rather than guessed at. See
-`docs/extensibility.md` for what a real implementation would need.
+[`extensibility`](/docs/extensibility) for what a real implementation would need.
 
 ## Linux support boundary
 
@@ -208,8 +211,8 @@ Apple's signing internals are never reimplemented anywhere, on any platform.
 
 ## Related
 
-- [`extensibility.md`](extensibility.md) — extending the engine
-- [`patch-reference.md`](patch-reference.md) — the YAML contract
-- [`usage.md`](usage.md) — CLI
-- [`reverse-engineering.md`](reverse-engineering.md) — `forge analysis` (class-dump, strings, symbols, security, diff)
-- [`README.md`](README.md) — docs index
+- [`extensibility`](/docs/extensibility) — extending the engine
+- [`patch-reference`](/docs/patch-reference) — the YAML contract
+- [`usage`](/docs/usage) — CLI
+- [`reverse-engineering`](/docs/reverse-engineering) — `forge analysis` (class-dump, strings, symbols, security, diff)
+- [`README`](/docs) — docs index

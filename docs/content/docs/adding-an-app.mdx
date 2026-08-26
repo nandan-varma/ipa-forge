@@ -1,11 +1,10 @@
-# Adding a new app — end-to-end playbook
+---
+title: Adding a new app — end-to-end playbook
+description: End-to-end playbook for porting a new app to ipa-forge, patch set layout, hook dylib conventions, and the device-test loop.
+---
 
 This is the canonical "give me an IPA, port everything" procedure. It is
-generic; the per-app runbooks ([YouTube](../patches/youtube/PLAYBOOK.md),
-[Spotify](../patches/spotify/PLAYBOOK.md),
-[Instagram](../patches/instagram/PLAYBOOK.md)) apply it to their apps. Check
-[`STATE.md`](../STATE.md)'s status table first — it's the current source of
-truth for which apps/versions are already ported before you start a new one.
+generic; a per-app runbook (`PLAYBOOK.md`) applies it to a specific app.
 
 ## Phase 0 — accept the IPA
 
@@ -16,9 +15,9 @@ truth for which apps/versions are already ported before you start a new one.
   extensions/frameworks. Record them.
 - `forge hooks extract --ipa <ipa>.ipa --class <MainClass>` — sanity-check
   that the binary parses (mergeable/zero-based dylibs and frameworks are
-  handled; see `architecture.md`). If you already have an extracted bundle,
-  pass `--app-dir Payload/<App>.app` instead of the IPA to skip
-  re-extraction — every `forge hooks` command accepts it.
+  handled; see [`architecture`](/docs/architecture)). If you already have an
+  extracted bundle, pass `--app-dir Payload/<App>.app` instead of the IPA to
+  skip re-extraction — every `forge hooks` command accepts it.
 
 ## Phase 1 — create the patch set
 
@@ -45,8 +44,7 @@ target: { bundle_id: "...", version: { exact: "..." } }
 patches:
   - resource_remove:  # AltStore appends the Team ID to the main bundle id at
                       # install, breaking embedded extension/watch ids
-                      # (IXErrorDomain Code=2) — strip them, same as the
-                      # YouTube/Spotify sets
+                      # (IXErrorDomain Code=2) — strip them
   - resource_add:     # stage the hook dylib into Frameworks/
   - dylib_inject:     # LC_LOAD_WEAK_DYLIB (weak — a load failure degrades
                       # instead of aborting; the community-proven load model)
@@ -57,10 +55,8 @@ hooks: [ ... ]        # every hook the dylib relies on (see below)
 
 - **Plain ObjC-runtime swizzling only.** No Swift, no substrate, no external
   frameworks beyond Foundation/UIKit/Security (plus AVFoundation/Photos if
-  the feature genuinely needs them — see YouTube's `DownloadCore.m` for a
-  precedent). The three existing dylibs (`patches/*/dylib/`) are the
-  templates; copy the plumbing (`<prefix>Hook.h`: `hookInstance`/
-  `hookClass` inline helpers + os_log).
+  the feature genuinely needs them). Copy the plumbing pattern (`<prefix>Hook.h`:
+  `hookInstance`/`hookClass` inline helpers + `os_log`).
 - **The constructor is inert**: it only schedules the real install on the
   main run loop (`dispatch_async(dispatch_get_main_queue())`). Hooks install
   after launch, when every image is loaded — the substrate-style late-load
@@ -90,7 +86,7 @@ hooks:
   `forge hooks manifest --dir dylib/ --required hooks-required.txt`
   (recognizes direct `NSClassFromString` + variable-resolved calls, and
   class names passed through a local resolver helper like
-  `igClass("X")` — any function whose body calls `NSClassFromString`;
+  `myClass("X")` — any function whose body calls `NSClassFromString`;
   helper/loop-based hooks where the class flows through *another* function
   are declared manually).
 - `forge patch --dry-run` verifies every hook against the **main binary and
@@ -106,9 +102,8 @@ hooks:
 - **Before every commit**, cross-check the source against the declared
   block: `forge hooks audit --ipa <ipa> --dir dylib/ --patches Y`. `--dry-run`
   only verifies *declared* hooks — a hook the source calls but the YAML
-  forgot to declare is invisible to it. This flag is how real gaps were
-  found in two of the three existing patch sets after the fact; run it
-  every time, not just when something seems broken.
+  forgot to declare is invisible to it. Run it every time, not just when
+  something seems broken.
 
 ## Phase 4 — build + device loop
 
@@ -120,15 +115,11 @@ forge patch --ipa <base>.ipa --patches patches/<app>/<app>.yaml \
   --no-sign --output <delivery-dir>/<App>Mod_<version>_unsigned.ipa
 ```
 
-Where `<delivery-dir>` currently lives is tracked in
-[`STATE.md`](../STATE.md)'s status table, not hardcoded here — it has moved
-between sessions and this doc would go stale if it repeated it.
-
 - User sideloads via AltStore → report. Device logs are the deduction tool:
-  give the dylib a unique os_log subsystem (`<prefix>Log`), log every hook
+  give the dylib a unique `os_log` subsystem (`<prefix>Log`), log every hook
   attach at install, and every feature's `ready`/`disabled` state.
 - **If it crashes at launch**: build a do-nothing test dylib
-  (constructor os_log only, weak LC, same strip ops) and inject it. If the
+  (constructor `os_log` only, weak LC, same strip ops) and inject it. If the
   test launches, the crash is in your hook code — bisect features
   (drop the riskiest first: any C-level rebinding like fishhook, then
   per-feature). If the test also crashes, the problem is the injection /
@@ -142,23 +133,16 @@ between sessions and this doc would go stale if it repeated it.
 - Write `README.md` (features, build, apply, verified-on table) and
   `SOURCES.md` (attribution; keep it original-work, no external team names
   unless they ask).
-- Link the new patch set from [`docs/README.md`](README.md)'s table and the
-  root [`README.md`](../README.md)'s table.
-- **Add a row to [`STATE.md`](../STATE.md)'s status table** — this is the
-  step that's easiest to skip and the one future sessions rely on most; a
-  patch set that exists but isn't in that table is invisible to "read this
-  first."
 
 ## Templates
 
-The dylib plumbing, the `build.sh`, and the definition YAML in the three
-existing patch sets are the living templates — copy them, don't reinvent.
-`forge hooks manifest` and `forge hooks diff` keep the hooks surface honest
-as the app updates.
+The dylib plumbing, the `build.sh`, and the definition YAML shape are the
+living templates for any new patch set — copy an existing one, don't
+reinvent it. `forge hooks manifest` and `forge hooks diff` keep the hooks
+surface honest as the app updates.
 
 ## Related
 
-- [`adding-a-feature.md`](adding-a-feature.md) — per-feature conventions
-- [`patch-reference.md`](patch-reference.md) — the YAML contract
-- [`usage.md`](usage.md) — CLI
-- [`README.md`](README.md) — docs index
+- [`adding-a-feature`](/docs/adding-a-feature) — per-feature conventions
+- [`patch-reference`](/docs/patch-reference) — the YAML contract
+- [`usage`](/docs/usage) — CLI

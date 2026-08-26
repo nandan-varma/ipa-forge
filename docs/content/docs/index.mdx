@@ -1,0 +1,42 @@
+---
+title: Documentation
+description: Documentation index for ipa-forge, a data-driven iOS IPA patcher for AltStore Classic sideloading.
+---
+
+Which document to read, for what.
+
+## For humans adding a new app, feature, or patch
+
+| You want to... | Read |
+| --- | --- |
+| Port a **new app** (new IPA, new bundle id) | [`adding-an-app`](/docs/adding-an-app) — the end-to-end playbook |
+| Add a **feature** to an existing hook dylib | [`adding-a-feature`](/docs/adding-a-feature) — the conventions |
+| Understand the **patch definition YAML** (`target`/`patches`/`hooks`) | [`patch-reference`](/docs/patch-reference) |
+| Use the **CLI** (`forge patch`, `forge hooks …`, …) | [`usage`](/docs/usage) |
+| **Reverse engineer** an IPA (`forge analysis …`: class-dump, strings, symbols, security, diff) | [`reverse-engineering`](/docs/reverse-engineering) |
+| Debug an **error message** | [`troubleshooting`](/docs/troubleshooting) |
+| Test on a **real device** via AltStore | [`altstore-device-testing`](/docs/altstore-device-testing) |
+| Understand **how the engine works** (for developers) | [`architecture`](/docs/architecture) |
+| Extend the engine (new operation type, new provider) | [`extensibility`](/docs/extensibility) |
+| Cut a new **release** (PyPI + GitHub Release) | [`releasing`](/docs/releasing) |
+
+## The patch sets (concrete worked examples)
+
+The engine is app-agnostic — it understands patch operation *types*, never a
+specific bundle id or byte pattern. Concrete patch sets (YouTube, Spotify,
+Instagram) that use it are maintained as separate, private repositories,
+since they embed reverse-engineered specifics of third-party apps. See
+[`adding-an-app`](/docs/adding-an-app) for the shape a patch set follows if
+you want to build your own.
+
+## The reading order for a new project
+
+1. **[`adding-an-app`](/docs/adding-an-app)** — if the task is "here's an IPA, port everything".
+2. **[`adding-a-feature`](/docs/adding-a-feature)** — if the task is "add X to an existing mod".
+3. [`patch-reference`](/docs/patch-reference) + [`usage`](/docs/usage) — for the exact YAML/CLI surface.
+4. [`troubleshooting`](/docs/troubleshooting) — when something breaks.
+
+## Related
+
+- [`adding-an-app`](/docs/adding-an-app) / [`adding-a-feature`](/docs/adding-a-feature) — the how-to guides
+- [`reverse-engineering`](/docs/reverse-engineering) — `forge analysis` (class-dump, strings, symbols, security, diff)

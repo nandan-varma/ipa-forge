@@ -1,11 +1,14 @@
-# Patch Definition Reference
+---
+title: "Patch Definition Reference"
+description: "Complete reference for ipa-forge patch definition YAML: every operation type, field, version-matching rule, and the hooks block."
+---
 
 This is the complete reference for writing patch definition files for ipa-forge.
 A patch definition is a single YAML (or JSON) file that describes *what* to
 change in an app bundle, keyed by bundle id + version. ipa-forge never embeds
 app-specific logic — everything it does to an app comes from files like this.
 
-Working examples live in [`fixtures/patches/`](../fixtures/patches/):
+Working examples live in [`fixtures/patches/`](https://github.com/nandan-varma/ipa-forge/tree/main/fixtures/patches):
 
 - `example.yaml` — `binary_replace` + `resource_replace`
 - `example_dylib_inject.yaml` — `dylib_inject`
@@ -389,8 +392,8 @@ Use it to verify exactly what changed (and what didn't) before installing.
 
 ## Related
 
-- [`adding-an-app.md`](adding-an-app.md) — end-to-end porting
-- [`adding-a-feature.md`](adding-a-feature.md) — per-feature conventions
-- [`usage.md`](usage.md) — CLI
-- [`troubleshooting.md`](troubleshooting.md) — errors
-- [`README.md`](README.md) — docs index
+- [`adding-an-app`](/docs/adding-an-app) — end-to-end porting
+- [`adding-a-feature`](/docs/adding-a-feature) — per-feature conventions
+- [`usage`](/docs/usage) — CLI
+- [`troubleshooting`](/docs/troubleshooting) — errors
+- [`README`](/docs) — docs index

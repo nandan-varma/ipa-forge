@@ -1,4 +1,7 @@
-# Troubleshooting
+---
+title: "Troubleshooting"
+description: "Every ipa-forge error message mapped to its cause and fix."
+---
 
 Errors are reported as single-line `error:` messages (CLI) or a red banner
 (GUI) — never raw tracebacks. This page maps each message to its cause and fix.
@@ -44,7 +47,7 @@ load-bearing hooks were found missing from two of this project's three
 shipped patch sets, in both cases with `--dry-run` passing the entire time.
 Add the missing hook(s), re-run `--dry-run` to confirm they attach, and make
 `hooks audit --patches` a standard part of the pre-commit loop from then on
-(see [`patch-reference.md`](patch-reference.md), "The `hooks` block"
+(see [`patch-reference`](/docs/patch-reference), "The `hooks` block"
 section).
 
 ## Patch definition problems
@@ -54,7 +57,7 @@ section).
 The YAML parsed but failed schema validation (missing `target`, unknown
 `type`, missing required field, empty `patches:` list, `plist_edit` `set`
 without a `value`, etc.). The message names the failing field(s). Fix the
-definition per the [Patch Definition Reference](patch-reference.md).
+definition per the [Patch Definition Reference](/docs/patch-reference).
 
 ### `patch definition '<file>' is not valid YAML: ...`
 
@@ -178,11 +181,11 @@ The input isn't a standard-structure IPA. ipa-forge requires exactly one
 4. Check `security find-identity -v -p codesigning` and
    `security cms -D -i <profile>` to confirm the signing inputs themselves.
 5. For device-install failures, follow the manual checklist in
-   [`docs/altstore_device_testing.md`](altstore_device_testing.md).
+   [`altstore-device-testing`](/docs/altstore-device-testing).
 
 ## Related
 
-- [`usage.md`](usage.md) — CLI
-- [`patch-reference.md`](patch-reference.md) — the YAML contract
-- [`adding-an-app.md`](adding-an-app.md) — porting
-- [`README.md`](README.md) — docs index
+- [`usage`](/docs/usage) — CLI
+- [`patch-reference`](/docs/patch-reference) — the YAML contract
+- [`adding-an-app`](/docs/adding-an-app) — porting
+- [`README`](/docs) — docs index

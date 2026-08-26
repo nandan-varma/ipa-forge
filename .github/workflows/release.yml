@@ -1,0 +1,93 @@
+name: Release
+
+# Cut a release by tagging a commit on main: bump `version` in
+# pyproject.toml in a normal PR, merge it, then on main run
+#   git tag vX.Y.Z && git push origin vX.Y.Z
+# See docs/releasing.md for the full checklist (including the one-time
+# PyPI Trusted Publisher + GitHub environment setup this workflow needs).
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  version:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag must match pyproject.toml version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          project_version="$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')"
+          if [ "$tag_version" != "$project_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME (version $tag_version) does not match pyproject.toml version $project_version"
+            exit 1
+          fi
+
+  build:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install build tooling
+        run: pip install build twine
+      - name: Build sdist and wheel
+        run: python -m build
+      - name: Validate distributions
+        run: twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # Trusted Publishing (OIDC): no PyPI API token is stored as a secret.
+  # PyPI exchanges the id-token this job mints for a short-lived upload
+  # credential, scoped to this exact repo+workflow+environment. Requires a
+  # one-time "pending publisher" added on the PyPI project page -- see
+  # docs/releasing.md.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/ipa-forge/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${{ github.ref_name }}" dist/* --generate-notes

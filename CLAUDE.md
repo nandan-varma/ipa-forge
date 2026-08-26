@@ -9,33 +9,26 @@ version-aware patches from external YAML (binary byte patches, resource
 replace/add/remove, dylib injection), and re-sign the result into a
 standard-structure `.ipa` that AltStore Classic can install/refresh.
 
-**Read [`STATE.md`](STATE.md) first, every session, before anything else in
-this file or in `docs/`.** It is the single source of truth for *current*
-status (which apps/features are shipped vs. beta/untested, where delivered
-IPAs live right now, decisions already made that shouldn't be re-litigated).
-This file (`CLAUDE.md`) covers what doesn't change session to session:
-architecture, hard constraints, and where to find the doc that answers a
-given question. If something here ever conflicts with `STATE.md`, `STATE.md`
-wins — it's updated far more often.
-
 ## Documentation map
 
-Route by task, don't read everything:
+`docs/` is a published Fumadocs (Next.js) site — source content lives in
+`docs/content/docs/*.mdx`, deployed separately from the Python package (its
+own `docs/package.json`, not part of `pip install`). Route by task, don't
+read everything:
 
 | Task | Read |
 | --- | --- |
-| **Starting a session** | [`STATE.md`](STATE.md) — current status, in-flight work, decisions not to undo |
-| Finding the right doc for anything else | [`docs/README.md`](docs/README.md) — the full doc index, table-of-contents style |
-| Port a **new app** end-to-end | [`docs/adding-an-app.md`](docs/adding-an-app.md) |
-| Add a **feature** to an existing hook dylib | [`docs/adding-a-feature.md`](docs/adding-a-feature.md) |
-| The **YAML patch-definition** contract | [`docs/patch-reference.md`](docs/patch-reference.md) |
-| The **CLI/GUI** reference | [`docs/usage.md`](docs/usage.md) |
-| **Reverse-engineer** any IPA (`forge analysis`: class-dump, strings, symbols, security, diff) | [`docs/reverse-engineering.md`](docs/reverse-engineering.md) |
-| An **error message** | [`docs/troubleshooting.md`](docs/troubleshooting.md) — message → cause → fix |
-| Testing on a **real device** via AltStore | [`docs/altstore_device_testing.md`](docs/altstore_device_testing.md) |
-| **Engine internals** before touching `pipeline.py`/`signing/` | [`docs/architecture.md`](docs/architecture.md) — component map, the 17-stage pipeline, two real bugs found empirically |
-| **Extending** the engine (new operation type, new provider) | [`docs/extensibility.md`](docs/extensibility.md) |
-| **Deferred work** (RE roadmap: disassembly, Swift support, etc.) | [`ROADMAP.md`](ROADMAP.md) — file/anchor pointers to resume |
+| Finding the right doc for anything else | [`docs/content/docs/index.mdx`](docs/content/docs/index.mdx) — the full doc index, table-of-contents style |
+| Port a **new app** end-to-end | [`docs/content/docs/adding-an-app.mdx`](docs/content/docs/adding-an-app.mdx) |
+| Add a **feature** to an existing hook dylib | [`docs/content/docs/adding-a-feature.mdx`](docs/content/docs/adding-a-feature.mdx) |
+| The **YAML patch-definition** contract | [`docs/content/docs/patch-reference.mdx`](docs/content/docs/patch-reference.mdx) |
+| The **CLI/GUI** reference | [`docs/content/docs/usage.mdx`](docs/content/docs/usage.mdx) |
+| **Reverse-engineer** any IPA (`forge analysis`: class-dump, strings, symbols, security, diff) | [`docs/content/docs/reverse-engineering.mdx`](docs/content/docs/reverse-engineering.mdx) |
+| An **error message** | [`docs/content/docs/troubleshooting.mdx`](docs/content/docs/troubleshooting.mdx) — message → cause → fix |
+| Testing on a **real device** via AltStore | [`docs/content/docs/altstore-device-testing.mdx`](docs/content/docs/altstore-device-testing.mdx) |
+| **Engine internals** before touching `pipeline.py`/`signing/` | [`docs/content/docs/architecture.mdx`](docs/content/docs/architecture.mdx) — component map, the 17-stage pipeline, two real bugs found empirically |
+| **Extending** the engine (new operation type, new provider) | [`docs/content/docs/extensibility.mdx`](docs/content/docs/extensibility.mdx) |
+| Cutting a **release** (PyPI + GitHub Release) | [`docs/content/docs/releasing.mdx`](docs/content/docs/releasing.mdx) |
 | A specific app's **runbook** (build/apply/verify commands, gotchas) | `patches/<app>/PLAYBOOK.md` |
 
 The patch sets (`patches/youtube/`, `patches/spotify/`, `patches/instagram/`)
@@ -74,7 +67,7 @@ forge hooks verify --ipa <ipa> --patches <patches.yaml>
 # otherwise; this is how real gaps were found in two of the three patch sets)
 forge hooks audit --ipa <ipa> --dir dylib/ --patches <patches.yaml>
 
-# General-purpose IPA reverse engineering (forge analysis --help), see docs/reverse-engineering.md
+# General-purpose IPA reverse engineering (forge analysis --help), see docs/content/docs/reverse-engineering.mdx
 forge analysis classdump --ipa <ipa> [--class NAME | --search REGEX]
 forge analysis diff --old <old.ipa> --new <new.ipa>
 
@@ -127,7 +120,7 @@ class-dump, strings, symbols, security posture, and version diffing for
 classdump|strings|symbols|security|diff`, plus a read-only `/analysis`
 page in the GUI. FairPlay decryption and instruction-level disassembly are
 deliberately out of scope — see `ipa_forge/analysis/__init__.py`'s
-docstring and `ROADMAP.md`.
+docstring.
 
 **The core engine is app-agnostic**: it understands patch operation *types*
 (`binary_replace`, `resource_replace`, `dylib_inject`, ...) via the
@@ -145,7 +138,7 @@ offsets) → re-validate → **emit manifest** (pre-signing, for debugging) →
 load/validate provisioning profile → reconcile entitlements → embed profile
 → recursive bottom-up codesign → verify → repackage → final re-validation
 (re-extract from scratch). The ordering encodes real dependencies; see
-`docs/architecture.md` for why each ordering constraint exists.
+`docs/content/docs/architecture.mdx` for why each ordering constraint exists.
 
 ### Two non-obvious things found empirically (both documented + tested)
 
@@ -167,7 +160,7 @@ load/validate provisioning profile → reconcile entitlements → embed profile
 `signing/provider.py::SigningProvider` is an ABC with `LocalIdentityProvider`
 (signs via a Keychain identity — the only implementation that exists today)
 and `AltStoreCredentialProvider` (deliberate `NotImplementedError` stub for
-future AltServer-account-based signing — see `docs/extensibility.md` before
+future AltServer-account-based signing — see `docs/content/docs/extensibility.mdx` before
 implementing it).
 
 ### Linux support boundary

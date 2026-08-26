@@ -7,44 +7,5 @@ on:
     branches: [main]
 
 jobs:
-  # Pure static checks: OS-independent, no macOS tooling or patch submodules
-  # needed, so this runs on ubuntu-latest for speed.
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11" # matches pyproject.toml's requires-python floor / [tool.mypy] python_version
-          cache: pip
-      - name: Install
-        run: pip install -e ".[dev]"
-      - name: Ruff check
-        run: ruff check .
-      - name: Ruff format
-        run: ruff format --check .
-      - name: Mypy
-        run: mypy ipa_forge/
-
-  # macOS-only: many unit tests compile real Mach-O binaries via `clang` and
-  # inspect them with `otool`/`lipo` (see tests/conftest.py) -- Apple-only
-  # tools not available on Linux runners, so the suite only runs here.
-  # macOS-marked integration tests that need a real Keychain signing
-  # identity self-skip gracefully (tests/conftest.py::synthetic_profile) --
-  # GitHub's macos-latest runners don't have one, so those run as skips.
-  # Single Python version (matches pyproject.toml's requires-python floor):
-  # macOS runner minutes are the expensive GH-hosted tier, and this repo
-  # doesn't carry per-version-specific code paths worth multiplying CI cost
-  # across the whole 3.11-3.13 support range to catch.
-  test:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-      - name: Install
-        run: pip install -e ".[dev]"
-      - name: Pytest
-        run: pytest tests/
+  checks:
+    uses: ./.github/workflows/checks.yml

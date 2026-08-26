@@ -11,24 +11,24 @@ refresh on a real iPhone.
 
 ## Documentation
 
-Start at [`docs/README.md`](docs/README.md) — the index.
+Full documentation is published at
+**[ipa-forge.nandan.fyi](https://ipa-forge.nandan.fyi)**. Source lives in
+[`docs/`](docs/) (a Fumadocs site, see [`docs/content/docs/`](docs/content/docs/)
+for the raw `.mdx`).
 
 | Doc | What it covers |
 | --- | --- |
-| [`docs/adding-an-app.md`](docs/adding-an-app.md) | **Port a new app** end-to-end (the "give me an IPA" playbook) |
-| [`docs/adding-a-feature.md`](docs/adding-a-feature.md) | **Add a feature** to a hook dylib (conventions) |
-| [`docs/usage.md`](docs/usage.md) | End-to-end workflow, full CLI + GUI reference, signing identity/profile setup |
-| [`docs/patch-reference.md`](docs/patch-reference.md) | Complete patch-definition reference — every operation type, field, matching rule, and the `hooks:` block |
-| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Every error message mapped to its cause and fix |
-| [`docs/reverse-engineering.md`](docs/reverse-engineering.md) | `forge analysis`: class-dump, strings, symbols, security posture, version diffing for any IPA |
-| [`docs/architecture.md`](docs/architecture.md) | Design rationale, the 17-stage pipeline, hard constraints, hook verification (for developers) |
-| [`docs/extensibility.md`](docs/extensibility.md) | How to add new patch operation types (for developers) |
-| [`docs/altstore_device_testing.md`](docs/altstore_device_testing.md) | Manual AltStore Classic device-test checklist |
+| [Adding a new app](https://ipa-forge.nandan.fyi/docs/adding-an-app) | **Port a new app** end-to-end (the "give me an IPA" playbook) |
+| [Adding a feature](https://ipa-forge.nandan.fyi/docs/adding-a-feature) | **Add a feature** to a hook dylib (conventions) |
+| [Usage](https://ipa-forge.nandan.fyi/docs/usage) | End-to-end workflow, full CLI + GUI reference, signing identity/profile setup |
+| [Patch reference](https://ipa-forge.nandan.fyi/docs/patch-reference) | Complete patch-definition reference — every operation type, field, matching rule, and the `hooks:` block |
+| [Troubleshooting](https://ipa-forge.nandan.fyi/docs/troubleshooting) | Every error message mapped to its cause and fix |
+| [Reverse engineering](https://ipa-forge.nandan.fyi/docs/reverse-engineering) | `forge analysis`: class-dump, strings, symbols, security posture, version diffing for any IPA |
+| [Architecture](https://ipa-forge.nandan.fyi/docs/architecture) | Design rationale, the 17-stage pipeline, hard constraints, hook verification (for developers) |
+| [Extensibility](https://ipa-forge.nandan.fyi/docs/extensibility) | How to add new patch operation types (for developers) |
+| [AltStore device testing](https://ipa-forge.nandan.fyi/docs/altstore-device-testing) | Manual AltStore Classic device-test checklist |
 
 ### Worked patch sets
-
-Current status (which features are shipped vs. beta/untested) is tracked in
-[`STATE.md`](STATE.md), not repeated here.
 
 | Set | Runbook | Features | Repo |
 | --- | --- | --- | --- |
