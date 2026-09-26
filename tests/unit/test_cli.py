@@ -327,3 +327,51 @@ def test_patch_wrong_shape_definition_is_a_clean_error(tmp_path: Path):
     assert result.exit_code == 1
     assert "error:" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("mode", ["--dry-run", "--no-sign"])
+def test_patch_writes_manifest_with_binary_evidence(tmp_path: Path, mode: str):
+    manifest = tmp_path / "manifest.json"
+    result = runner.invoke(
+        app,
+        [
+            "patch",
+            "--ipa",
+            str(_FIXTURE_IPA),
+            "--patches",
+            str(_FIXTURE_PATCH),
+            "--output",
+            str(tmp_path / "out.ipa"),
+            mode,
+            "--manifest",
+            str(manifest),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(manifest.read_text())
+    binary = next(p for p in data["patches_applied"] if p["id"] == "zero-marker-bytes")
+    assert len(binary["offsets"]) == 1
+    assert binary["before"] == "ca fe f0 0d de ad be ef 13 37 c0 de ab cd ef 01"
+    assert binary["after"] == " ".join(["00"] * 16)
+    assert binary["status"] == ("dry_run_ok" if mode == "--dry-run" else "applied")
+
+
+def test_patch_manifest_write_error_is_clean(tmp_path: Path):
+    result = runner.invoke(
+        app,
+        [
+            "patch",
+            "--ipa",
+            str(_FIXTURE_IPA),
+            "--patches",
+            str(_FIXTURE_PATCH),
+            "--output",
+            str(tmp_path / "out.ipa"),
+            "--dry-run",
+            "--manifest",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 1
+    assert "cannot write manifest" in result.stderr
+    assert "Traceback" not in result.output

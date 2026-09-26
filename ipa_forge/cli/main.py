@@ -112,6 +112,7 @@ def patch(
         help="Apply patches and repackage without codesigning (for AltStore, which signs at install)",
     ),
     verbose: bool = typer.Option(False, "--verbose", help="Print the full manifest on success"),
+    manifest_path: Path | None = typer.Option(None, "--manifest", help="Write the full manifest as JSON"),
 ) -> None:
     """Extract, patch, re-sign, and repackage an IPA for AltStore Classic sideloading."""
     if not dry_run and not no_sign:
@@ -128,6 +129,13 @@ def patch(
     except PipelineError as e:
         typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from None
+
+    if manifest_path is not None:
+        try:
+            manifest_path.write_text(result.manifest.to_json() + "\n")
+        except OSError as e:
+            typer.secho(f"error: cannot write manifest '{manifest_path}': {e}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1) from None
 
     if dry_run:
         count = len(result.manifest.patches_applied)

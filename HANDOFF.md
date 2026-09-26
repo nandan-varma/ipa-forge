@@ -82,6 +82,9 @@ report surfaces parser gaps); `blocking()` is what the pipeline uses.
 D is implemented: all five patch sets lint successfully; 15 new tests cover
 schema/YAML errors, duplicate IDs, binary patterns, sources, and hooks.
 
+C2 is implemented: `--manifest PATH` writes JSON for dry-run and real runs;
+CLI tests assert binary evidence and clean write failures.
+
 ## TODO
 
 Ordered as recommended. Each item is independently shippable.
@@ -111,7 +114,7 @@ Verify: unit tests per rule in `tests/unit/test_lint.py`; then
 `forge lint patches/youtube/youtube.yaml` and each other set must pass, and a
 deliberately broken copy must fail with a one-line message and exit 1.
 
-### C2 — `forge patch --manifest out.json` ← **next**
+### C2 — `forge patch --manifest out.json` — DONE
 
 Stage 10 "emits" a manifest that only exists in memory; `--verbose` prints it
 to stdout and nothing writes it. Add `--manifest PATH`, written for dry-run
@@ -121,7 +124,7 @@ record, and now carries the byte-level evidence from C1).
 Verify: CLI test asserting the file exists, parses as JSON, and contains the
 `offsets`/`before`/`after` keys for a binary op.
 
-### C3 — `forge verify-output --base <ipa> --output <ipa> [--manifest m.json]`
+### C3 — `forge verify-output --base <ipa> --output <ipa> [--manifest m.json]` ← **next**
 
 `patches/shadowfight2/tools/verify_output.py` (60 lines) hand-rolls something
 generic: hash the base, replay each expected edit, assert the output binary
