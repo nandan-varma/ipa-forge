@@ -10,8 +10,10 @@ directory to skip re-extraction when iterating.
 
 from __future__ import annotations
 
+import json
 import re as _re
 import tempfile
+from dataclasses import asdict
 from pathlib import Path
 
 import typer
@@ -63,6 +65,7 @@ def analysis_classdump(
     class_name: str | None = typer.Option(None, "--class", help="Restrict to one class"),
     search: str | None = typer.Option(None, "--search", help="Only classes whose name matches this regex"),
     output: Path | None = typer.Option(None, "--output", "-o", help="Write to a file instead of stdout"),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured class/protocol/category metadata"),
 ) -> None:
     """Dump the app's Objective-C runtime metadata as `.h`-style class-dump
     text: every class (superclass, protocol conformance, ivars, properties,
@@ -78,7 +81,24 @@ def analysis_classdump(
         typer.secho(f"class '{class_name}' not found", fg=typer.colors.YELLOW)
         raise typer.Exit(code=1)
 
-    text = render_analysis(analysis, class_filter=class_name, search=search)
+    if json_output:
+        classes = {
+            name: asdict(cls)
+            for name, cls in sorted(analysis.classes.items())
+            if (not class_name or name == class_name) and (not search or _re.search(search, name))
+        }
+        filtered = bool(class_name or search)
+        text = json.dumps(
+            {
+                "classes": classes,
+                "protocols": {} if filtered else {n: asdict(p) for n, p in sorted(analysis.protocols.items())},
+                "categories": [] if filtered else [asdict(c) for c in analysis.categories],
+            },
+            default=sorted,
+            indent=2,
+        )
+    else:
+        text = render_analysis(analysis, class_filter=class_name, search=search)
     if not text:
         typer.echo("no matching classes/protocols/categories found")
         raise typer.Exit(code=1)

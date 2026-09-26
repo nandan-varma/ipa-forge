@@ -456,3 +456,50 @@ def test_cli_find_multiple_selectors_analyzes_once(objc_macho_binary: Path, tmp_
     assert result.exit_code == 0, result.output
     assert "doIt:" in result.stdout and "missingSelector:" in result.stdout
     assert len(calls) == 1
+
+
+def test_cli_hook_queries_json(objc_macho_binary: Path, tmp_path: Path):
+    import json
+
+    from ipa_forge.cli.main import app
+
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    hooks = _hooks_yaml(tmp_path, "Foo", "doIt:", required="true")
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "hook.m").write_text('demoHookInstance(NSClassFromString(@"Foo"), @selector(doIt:), nil);')
+    for command, options in [
+        ("verify", ["--patches", str(hooks)]),
+        ("audit", ["--dir", str(src), "--patches", str(hooks)]),
+        ("find", ["doIt:", "missing:"]),
+    ]:
+        args = ["hooks", command, "--ipa", str(ipa), *options]
+        text_result = runner.invoke(app, args)
+        result = runner.invoke(app, [*args, "--json"])
+        assert result.exit_code == text_result.exit_code == 0, result.output
+        data = json.loads(result.stdout)
+        if command == "find":
+            assert data[0]["selector"] == "doIt:"
+            assert "Foo" in data[0]["instance_classes"]
+            assert data[1]["status"] == "not-found"
+        else:
+            assert data["hooks"][0]["class_name"] == "Foo"
+            assert data["hooks"][0]["status"] == "ok"
+            assert "1" in text_result.stdout
+
+
+def test_cli_verify_json_missing_required_and_empty(objc_macho_binary: Path, tmp_path: Path):
+    import json
+
+    from ipa_forge.cli.main import app
+
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    hooks = _hooks_yaml(tmp_path, "Gone", "nope:", required="true")
+    args = ["hooks", "verify", "--ipa", str(ipa), "--patches", str(hooks), "--json"]
+    result = runner.invoke(app, args)
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["hooks"][0]["status"] == "missing-class"
+    hooks.write_text(hooks.read_text().split("hooks:")[0])
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["hooks"] == []

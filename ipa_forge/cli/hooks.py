@@ -15,8 +15,10 @@ verify/fix/verify loop.
 
 from __future__ import annotations
 
+import json
 import tempfile
 from collections import Counter
+from dataclasses import asdict
 from pathlib import Path
 
 import typer
@@ -27,7 +29,7 @@ from ipa_forge.cli.common import resolve_app_path
 from ipa_forge.hooks.scan import scan_hook_sources
 from ipa_forge.hooks.verify import HookDecl, verify_hooks
 from ipa_forge.machO.objc import analyze_bundle
-from ipa_forge.patch.loader import load_patch_definition
+from ipa_forge.patch.loader import PatchLoadError, load_patch_definition
 
 app = typer.Typer(help="Mach-O Objective-C hook verification (catches silent no-ops on version drift).")
 
@@ -42,6 +44,7 @@ def hooks_verify(
         exists=True,
         help="Already-extracted Payload/<App>.app directory to analyze instead of re-extracting the IPA",
     ),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON"),
     required_only: bool = typer.Option(False, "--required-only", help="Only print hooks that fail to attach"),
 ) -> None:
     """Verify every declared hook in the patch definition against the app binary.
@@ -51,15 +54,22 @@ def hooks_verify(
         try:
             bundle = load_bundle(app_path)
             definition = load_patch_definition(patches)
-        except ValueError as e:
+        except (ValueError, PatchLoadError) as e:
             typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=1) from None
         decls = [HookDecl(h.class_name, h.selector, h.kind, h.added, h.required) for h in (definition.hooks or [])]
         if not decls:
-            typer.echo("No hooks declared in this definition (add a `hooks:` section).")
+            typer.echo(
+                json.dumps({"hooks": []})
+                if json_output
+                else "No hooks declared in this definition (add a `hooks:` section)."
+            )
             raise typer.Exit(code=0)
         analysis = analyze_bundle(bundle)
         results = verify_hooks(analysis, decls)
+        if json_output:
+            typer.echo(json.dumps({"hooks": [asdict(r) for r in results if not required_only or not r.ok]}, indent=2))
+            raise typer.Exit(code=1 if any(r.blocking and r.required for r in results) else 0)
         for r in results:
             if required_only and r.ok:
                 continue
@@ -141,6 +151,7 @@ def hooks_audit(
         exists=True,
         help="Already-extracted Payload/<App>.app directory to analyze instead of re-extracting the IPA",
     ),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON"),
     patches: Path | None = typer.Option(
         None,
         "--patches",
@@ -155,13 +166,25 @@ def hooks_audit(
     declare in the `hooks:` block -- those never get checked by --dry-run."""
     decls = scan_hook_sources(dylib_src)
     if not decls:
-        typer.echo("No hook calls found in the sources.")
+        typer.echo(
+            json.dumps({"hooks": [], "undeclared": []}) if json_output else "No hook calls found in the sources."
+        )
         raise typer.Exit(code=0)
     with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
         app_path = _extract_or_use(ipa, app_dir, Path(tmp))
         bundle = load_bundle(app_path)
         analysis = analyze_bundle(bundle)
     results = verify_hooks(analysis, decls)
+    if json_output:
+        declared = None
+        if patches is not None:
+            definition = load_patch_definition(patches)
+            declared = {(h.class_name, h.selector) for h in (definition.hooks or [])}
+        undeclared = [d for d in decls if declared is not None and (d.class_name, d.selector) not in declared]
+        typer.echo(
+            json.dumps({"hooks": [asdict(r) for r in results], "undeclared": [asdict(d) for d in undeclared]}, indent=2)
+        )
+        raise typer.Exit(code=1 if undeclared else 0)
     statuses = Counter(r.status for r in results)
     typer.echo(f"{len(results)} hooks found in sources: " + ", ".join(f"{k}={v}" for k, v in sorted(statuses.items())))
     for r in results:
@@ -192,6 +215,7 @@ def hooks_audit(
 @app.command("find")
 def hooks_find(
     selectors: list[str] = typer.Argument(..., help="Selectors to look up, e.g. 'someMethod:'"),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON"),
     ipa: Path | None = typer.Option(None, "--ipa", exists=True, help="Input .ipa (not needed when --app-dir is given)"),
     app_dir: Path | None = typer.Option(
         None,
@@ -209,8 +233,9 @@ def hooks_find(
         bundle = load_bundle(app_path)
         analysis = analyze_bundle(bundle)
 
+    lookups = []
     for selector in selectors:
-        if len(selectors) > 1:
+        if len(selectors) > 1 and not json_output:
             typer.echo(f"{selector}:")
         inst: list[str] = []
         cls: list[str] = []
@@ -219,6 +244,28 @@ def hooks_find(
                 inst.append(name)
             if selector in c.cls:
                 cls.append(name)
+
+        similar = sorted(s for s in analysis.selectors if selector in s and s != selector)[:10]
+        if json_output:
+            status = (
+                "implemented"
+                if inst or cls
+                else "declared"
+                if selector in analysis.methnames
+                else "referenced-only"
+                if selector in analysis.selectors
+                else "not-found"
+            )
+            lookups.append(
+                {
+                    "selector": selector,
+                    "instance_classes": sorted(inst),
+                    "class_classes": sorted(cls),
+                    "status": status,
+                    "similar": similar,
+                }
+            )
+            continue
 
         if inst:
             typer.echo(f"instance method on {len(inst)} class(es):")
@@ -251,6 +298,9 @@ def hooks_find(
             typer.echo("\nselectors containing the lookup text:")
             for s in similar:
                 typer.echo(f"  {s}")
+
+    if json_output:
+        typer.echo(json.dumps(lookups, indent=2))
 
 
 @app.command("manifest")

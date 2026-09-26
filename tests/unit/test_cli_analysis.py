@@ -80,3 +80,21 @@ def test_classdump_app_dir_skips_ipa(objc_rich_macho_binary: Path, tmp_path: Pat
     result = runner.invoke(app, ["analysis", "classdump", "--app-dir", str(app_dir)])
     assert result.exit_code == 0
     assert "@interface Bar" in result.stdout
+
+
+def test_classdump_json_matches_text(objc_rich_macho_binary: Path, tmp_path: Path):
+    import json
+
+    ipa = _pack_ipa(objc_rich_macho_binary, tmp_path)
+    args = ["analysis", "classdump", "--ipa", str(ipa)]
+    text = runner.invoke(app, args)
+    result = runner.invoke(app, [*args, "--json"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)
+    assert "Bar" in data["classes"] and "@interface Bar" in text.stdout
+    assert "Greeter" in data["protocols"] and "@protocol Greeter" in text.stdout
+    assert any(c["name"] == "Extras" for c in data["categories"])
+    result = runner.invoke(app, [*args, "--class", "Bar", "--json"])
+    data = json.loads(result.stdout)
+    assert set(data["classes"]) == {"Bar"}
+    assert data["protocols"] == {} and data["categories"] == []
