@@ -18,7 +18,7 @@ from pathlib import Path
 
 import typer
 
-from ipa_forge.analysis.classdump import render_analysis
+from ipa_forge.analysis.classdump import render_analysis, select_analysis
 from ipa_forge.analysis.diff import diff_analyses, render_diff
 from ipa_forge.analysis.security import analyze_security, render_security_posture
 from ipa_forge.analysis.strings import strings_in_bundle
@@ -66,6 +66,8 @@ def analysis_classdump(
     search: str | None = typer.Option(None, "--search", help="Only classes whose name matches this regex"),
     output: Path | None = typer.Option(None, "--output", "-o", help="Write to a file instead of stdout"),
     json_output: bool = typer.Option(False, "--json", help="Emit structured class/protocol/category metadata"),
+    names_only: bool = typer.Option(False, "--names-only", help="Print only matching class names"),
+    methods_matching: str | None = typer.Option(None, "--methods-matching", help="Only methods matching this regex"),
 ) -> None:
     """Dump the app's Objective-C runtime metadata as `.h`-style class-dump
     text: every class (superclass, protocol conformance, ivars, properties,
@@ -81,24 +83,25 @@ def analysis_classdump(
         typer.secho(f"class '{class_name}' not found", fg=typer.colors.YELLOW)
         raise typer.Exit(code=1)
 
-    if json_output:
-        classes = {
-            name: asdict(cls)
-            for name, cls in sorted(analysis.classes.items())
-            if (not class_name or name == class_name) and (not search or _re.search(search, name))
-        }
-        filtered = bool(class_name or search)
+    try:
+        analysis = select_analysis(analysis, class_filter=class_name, search=search, methods_matching=methods_matching)
+    except _re.error as e:
+        typer.secho(f"error: invalid regex: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
+    if names_only:
+        text = json.dumps(sorted(analysis.classes), indent=2) if json_output else "\n".join(analysis.classes)
+    elif json_output:
         text = json.dumps(
             {
-                "classes": classes,
-                "protocols": {} if filtered else {n: asdict(p) for n, p in sorted(analysis.protocols.items())},
-                "categories": [] if filtered else [asdict(c) for c in analysis.categories],
+                "classes": {n: asdict(c) for n, c in analysis.classes.items()},
+                "protocols": {n: asdict(p) for n, p in analysis.protocols.items()},
+                "categories": [asdict(c) for c in analysis.categories],
             },
             default=sorted,
             indent=2,
         )
     else:
-        text = render_analysis(analysis, class_filter=class_name, search=search)
+        text = render_analysis(analysis)
     if not text:
         typer.echo("no matching classes/protocols/categories found")
         raise typer.Exit(code=1)

@@ -7,6 +7,9 @@ on the same class table `ipa_forge.hooks` uses for hook verification.
 
 from __future__ import annotations
 
+import re
+from dataclasses import replace
+
 from ipa_forge.analysis.type_encoding import decode_method_signature, decode_type, read_one_type
 from ipa_forge.machO.objc import MachOAnalysis, MachOCategory, MachOClass, MachOProtocol
 
@@ -74,6 +77,49 @@ def render_category(cat: MachOCategory) -> str:
     lines.extend(_method_lines(cat.inst, "-"))
     lines.append("@end")
     return "\n".join(lines)
+
+
+def select_analysis(
+    analysis: MachOAnalysis,
+    *,
+    class_filter: str | None = None,
+    search: str | None = None,
+    methods_matching: str | None = None,
+) -> MachOAnalysis:
+    """Select metadata without mutating the shared analysis or cached objects."""
+    name_pattern = re.compile(search) if search else None
+    method_pattern = re.compile(methods_matching) if methods_matching else None
+
+    def methods(values: dict[str, str]) -> dict[str, str]:
+        return {s: e for s, e in values.items() if method_pattern is None or method_pattern.search(s)}
+
+    classes = {}
+    for name, cls in sorted(analysis.classes.items()):
+        if (class_filter and name != class_filter) or (name_pattern and not name_pattern.search(name)):
+            continue
+        selected = replace(cls, inst=methods(cls.inst), cls=methods(cls.cls))
+        if method_pattern is None or selected.inst or selected.cls:
+            classes[name] = selected
+    protocols = {}
+    categories = []
+    if not class_filter and not search:
+        for name, proto in sorted(analysis.protocols.items()):
+            selected_proto = replace(
+                proto,
+                inst=methods(proto.inst),
+                cls=methods(proto.cls),
+                opt_inst=methods(proto.opt_inst),
+                opt_cls=methods(proto.opt_cls),
+            )
+            if method_pattern is None or any(
+                (selected_proto.inst, selected_proto.cls, selected_proto.opt_inst, selected_proto.opt_cls)
+            ):
+                protocols[name] = selected_proto
+        for cat in sorted(analysis.categories, key=lambda c: (c.class_name, c.name)):
+            selected_cat = replace(cat, inst=methods(cat.inst), cls=methods(cat.cls))
+            if method_pattern is None or selected_cat.inst or selected_cat.cls:
+                categories.append(selected_cat)
+    return replace(analysis, classes=classes, protocols=protocols, categories=categories)
 
 
 def render_analysis(

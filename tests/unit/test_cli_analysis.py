@@ -98,3 +98,29 @@ def test_classdump_json_matches_text(objc_rich_macho_binary: Path, tmp_path: Pat
     data = json.loads(result.stdout)
     assert set(data["classes"]) == {"Bar"}
     assert data["protocols"] == {} and data["categories"] == []
+
+
+def test_classdump_names_only(objc_rich_macho_binary: Path, tmp_path: Path):
+    ipa = _pack_ipa(objc_rich_macho_binary, tmp_path)
+    result = runner.invoke(app, ["analysis", "classdump", "--ipa", str(ipa), "--names-only", "--search", "^Bar$"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout.strip() == "Bar"
+
+
+def test_classdump_methods_matching(objc_rich_macho_binary: Path, tmp_path: Path):
+    import json
+
+    ipa = _pack_ipa(objc_rich_macho_binary, tmp_path)
+    args = ["analysis", "classdump", "--ipa", str(ipa), "--class", "Bar", "--methods-matching", "^greet$"]
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0, result.output
+    assert "greet" in result.stdout and "add:" not in result.stdout
+    result = runner.invoke(app, [*args, "--json"])
+    assert set(json.loads(result.stdout)["classes"]["Bar"]["inst"]) == {"greet"}
+
+
+def test_classdump_invalid_regex_is_clean(objc_rich_macho_binary: Path, tmp_path: Path):
+    ipa = _pack_ipa(objc_rich_macho_binary, tmp_path)
+    result = runner.invoke(app, ["analysis", "classdump", "--ipa", str(ipa), "--methods-matching", "["])
+    assert result.exit_code == 1
+    assert "invalid regex" in result.stderr
