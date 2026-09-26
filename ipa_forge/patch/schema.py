@@ -123,3 +123,12 @@ class PatchDefinition(BaseModel):
     hooks: list[HookSpec] | None = None
     """Runtime hook targets to verify against the binary before patching;
     catches silent hook no-ops when a new app version renames/removes classes."""
+
+    @model_validator(mode="after")
+    def _unique_patch_ids(self) -> PatchDefinition:
+        seen: set[str] = set()
+        for spec in self.patches:
+            if spec.id in seen:
+                raise ValueError(f"duplicate patch id '{spec.id}'")
+            seen.add(spec.id)
+        return self

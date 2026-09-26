@@ -15,6 +15,8 @@ from ipa_forge.cli import hooks as _hooks  # `forge hooks` subcommands
 from ipa_forge.cli.common import validated_extract
 from ipa_forge.hooks.verify import BLOCKING_STATUSES, OK_STATUSES
 from ipa_forge.machO import cache as objc_cache
+from ipa_forge.patch.lint import lint_definition
+from ipa_forge.patch.loader import PatchLoadError
 from ipa_forge.pipeline import PipelineError, run_pipeline
 from ipa_forge.validators.bundle_validator import validate_bundle
 
@@ -71,6 +73,17 @@ def validate(ipa: Path = typer.Argument(..., exists=True, help="Path to the .ipa
         app_path = _validated_extract(ipa, Path(tmp))
         bundle = load_bundle(app_path)
         validate_bundle(bundle)
+    typer.echo("OK")
+
+
+@app.command()
+def lint(definition: Path = typer.Argument(..., help="Patch definition YAML/JSON file")) -> None:
+    """Check a patch definition and its source files without an IPA."""
+    try:
+        lint_definition(definition)
+    except PatchLoadError as e:
+        typer.secho(f"error: {' '.join(str(e).splitlines())}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
     typer.echo("OK")
 
 

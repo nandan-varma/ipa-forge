@@ -79,11 +79,14 @@ report surfaces parser gaps); `blocking()` is what the pipeline uses.
 
 ---
 
+D is implemented: all five patch sets lint successfully; 15 new tests cover
+schema/YAML errors, duplicate IDs, binary patterns, sources, and hooks.
+
 ## TODO
 
 Ordered as recommended. Each item is independently shippable.
 
-### D — `forge lint <yaml>`: IPA-free definition check  ← **next**
+### D — `forge lint <yaml>`: IPA-free definition check — DONE
 
 A 734-line definition (youtube) can only be checked today by a full dry-run
 against a real IPA (5.6s, and you need the IPA on disk). There is no fast
@@ -108,7 +111,7 @@ Verify: unit tests per rule in `tests/unit/test_lint.py`; then
 `forge lint patches/youtube/youtube.yaml` and each other set must pass, and a
 deliberately broken copy must fail with a one-line message and exit 1.
 
-### C2 — `forge patch --manifest out.json`
+### C2 — `forge patch --manifest out.json` ← **next**
 
 Stage 10 "emits" a manifest that only exists in memory; `--verbose` prints it
 to stdout and nothing writes it. Add `--manifest PATH`, written for dry-run
