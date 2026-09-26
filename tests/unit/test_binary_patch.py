@@ -33,6 +33,14 @@ def test_find_matches_respects_wildcard_and_window():
     assert offsets == [0, 4]
 
 
+@pytest.mark.parametrize(
+    ("start", "end", "expected"),
+    [(0, 5, [0, 1, 2]), (1, 4, [1]), (2, 4, []), (0, 2, []), (4, 4, [])],
+)
+def test_exact_matches_keep_overlaps_and_slice_boundaries(start, end, expected):
+    assert find_matches(b"aaaaa", b"aaa", b"\xff\xff\xff", start, end) == expected
+
+
 def _bundle_for(binary_path: Path, tmp_path: Path) -> AppBundle:
     bundle = AppBundle(
         root=tmp_path,

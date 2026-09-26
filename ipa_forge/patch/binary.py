@@ -52,6 +52,14 @@ def find_matches(haystack: bytes, pattern: bytes, mask: bytes, start: int = 0, e
     end = len(haystack) if end is None else end
     plen = len(pattern)
     offsets = []
+    # Exact instruction windows are common in large game binaries. Keep the
+    # masked path for wildcards, but let bytes.find scan exact patterns in C.
+    if plen and len(mask) == plen and all(m == 0xFF for m in mask) and 0 <= start <= end <= len(haystack):
+        offset = haystack.find(pattern, start, end)
+        while offset != -1:
+            offsets.append(offset)
+            offset = haystack.find(pattern, offset + 1, end)
+        return offsets
     for i in range(start, end - plen + 1):
         window = haystack[i : i + plen]
         if all((b & m) == (p & m) for b, p, m in zip(window, pattern, mask, strict=True)):
