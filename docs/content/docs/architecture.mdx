@@ -40,7 +40,8 @@ ipa_forge/
   machO/      LIEF-backed arch selection, dylib load-command injection, Mach-O
               detection/enumeration (detect.py), and the shared ObjC runtime
               analysis engine (objc.py -- class table, protocols, categories,
-              ivars, properties, method lists+type encodings, selrefs)
+              ivars, properties, method lists+type encodings, selrefs), backed by
+              a content-addressed analysis cache (cache.py)
   signing/    Provisioning profile parsing, entitlement reconciliation, codesign backend,
               SigningProvider abstraction, recursive bottom-up signing orchestration
   validators/ IPA / bundle / archive structural validators
@@ -51,7 +52,9 @@ ipa_forge/
               strings, symbols, security posture, version diffing
   pipeline.py End-to-end stage orchestration (the 17 stages below)
   manifest.py Structured pre-signing manifest for debugging failed installs
-  cli/        Typer CLI: inspect, validate, patch, export-source, gui, hooks, analysis
+  verify_output.py Payload inventory comparison and exact binary-edit replay
+  cli/        Typer CLI: inspect, validate, lint, patch, verify-output, cache,
+              export-source, gui, hooks, analysis
   gui/        FastAPI app wrapping the same pipeline in-process, plus a
               read-only reverse-engineering viewer (gui/analysis.html)
   altstore/   source.json distribution-metadata export
@@ -115,16 +118,18 @@ app's original values reference whichever team originally signed it).
 Dylib-injection tweaks depend on ObjC runtime hooks that newer app versions
 silently break: rename or remove a class/selector and the hook no-ops with no
 error. The `hooks:` block in a patch definition declares every hook the tweak
-relies on; `pipeline.py` verifies it against the app's main binary (class
-table + method lists + `__objc_selrefs` + `__objc_methname`, chained-fixup
-aware) during the dry-run gate and fails when a `required` hook cannot attach
-— before anything mutates. The verifier distinguishes three soft cases from
-the hard ones: `unverified` (selector *declared* as a method somewhere — a
-protocol, category, or an undecoded method list — but not in any parsed class
-method list; likely attaches), `referenced-only` (selector *referenced* but
-declared as no method anywhere, so there is no IMP to swizzle and the hook
-cannot attach — the dead-hook detector), and `ok-inherited` (system
-superclass method). `missing-class`/`missing-selector`/`elsewhere` are hard.
+relies on; `pipeline.py` verifies it against the main executable, embedded
+frameworks, and standalone dylibs. App extensions are excluded because an
+`.appex` runs in another process where a dylib injected into the host never
+loads. The parser reads class/method tables, selrefs, and declared method
+names with chained-fixup support.
+
+Statuses form three groups: attaching (`ok`, `ok-inherited`, `ok-system`,
+`added`), unknown (`unverified`, a parser gap), and blocking (`missing-class`,
+`missing-selector`, `elsewhere`, `referenced-only`). Only a required hook in
+the blocking group fails the gate. Unknown hooks remain visible and never
+block, even when required.
+
 This turns "port to a new version" into: bump the version, read the report,
 fix exactly what it flags.
 
@@ -136,6 +141,15 @@ classes (some apps ship a single facade class with thousands of generated
 getters). `forge hooks find
 <selector>` is the reverse lookup used when a hook attaches per verify but
 does nothing on device.
+
+### Reusing Mach-O analysis
+
+`machO/cache.py` stores analyses by binary SHA-256 and cache format version.
+An unchanged binary can reuse the result after extraction to a new directory;
+changed bytes cannot hit an old entry. The cache excludes `raw_data`: the
+analyzer rereads the arm64 slice, preserving the same cross-check semantics
+as a fresh parse. The cache retains at most 16 entries. `forge cache --clear`
+reclaims the space and `FORGE_NO_CACHE=1` bypasses it.
 
 ### Why signing targets bundle directories, not raw files
 

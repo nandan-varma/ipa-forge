@@ -97,6 +97,8 @@ replacement.
   pattern: "ca fe f0 0d de ad" # space-separated hex bytes
   replacement: "00 00 00 00 00 00"
   expected_matches: 1          # optional, default 1
+  note: "Zero the synthetic marker used to demonstrate byte patching"
+  symbol: "marker_bytes"
 ```
 
 <TypeTable
@@ -106,10 +108,16 @@ replacement.
     replacement: { type: "string", required: true, description: "Same number of tokens as pattern; no wildcards allowed and the length must match exactly" },
     expected_matches: { type: "number", default: "1", description: "Number of matches required for success. Fails loudly on any other count (0 = pattern not present; >1 = ambiguous)" },
     arch: { type: "string", description: "Architecture slice to search (see below)" },
+    note: { type: "string", description: "Why the patch exists; copied into the manifest" },
+    symbol: { type: "string", description: "Owning method/function when known; recorded as evidence, never used for matching" },
   }}
 />
 
 Semantics:
+
+- Replacement bytes must be explicit: `??` is accepted only in `pattern`.
+  A wildcard replacement, invalid hex, or unequal lengths fails lint and the
+  dry-run gate before mutation. Match-count errors show at most ten hex offsets.
 
 - The search is **bounded to one architecture slice**: for a fat/universal
   binary the pattern is only matched within the selected slice's byte range, so
@@ -319,32 +327,37 @@ hooks:
 />
 
 `forge patch --dry-run` verifies every declared hook against the app's main
-binary (class table + method lists + selrefs, chained-fixup aware) and prints
+binary, embedded frameworks, and standalone dylibs (class table + method lists
++ selrefs, chained-fixup aware) and prints
 a summary. The `forge hooks` commands do the same without patching, and every
 one of them accepts `--app-dir Payload/<App>.app` in place of `--ipa` to skip
 re-extraction when iterating on the same app.
 
 ```
 Dry run OK -- 4 operation(s) would apply.
-Hooks: 151/159 attach (8 issue(s))
-  ! SettingsController -[isHintsDisabled]: unverified -- class exists ... walk missed it
+Hooks: 151/159 attach, 8 unverified (parser gap -- check on device), 0 failing
+  ? SettingsController -[isHintsDisabled]: unverified -- class exists ... walk missed it
 ```
 
 ### Hook statuses
 
 <TypeTable
   type={{
-    ok: { type: "pass", required: true, description: "Declared on the class" },
-    "ok-inherited": { type: "pass", required: true, description: "On an ancestor or a system superclass like UIView" },
-    "ok-system": { type: "pass", required: true, description: "System class, selector referenced by the app" },
-    added: { type: "pass", required: true, description: "The tweak provides it (added: true)" },
-    unverified: { type: "soft warning", required: true, description: "Class/selector exists but the parser couldn't fully confirm" },
-    "missing-class": { type: "fails if required", required: true, description: "The hook would silently no-op" },
-    "missing-selector": { type: "fails if required", required: true, description: "The hook would silently no-op" },
-    elsewhere: { type: "fails if required", required: true, description: "The hook would silently no-op" },
-    "referenced-only": { type: "dead hook", required: true, description: "Selector is referenced but not declared as a method anywhere — no IMP to swizzle" },
+    ok: { type: "pass", description: "Declared on the class" },
+    "ok-inherited": { type: "pass", description: "On an ancestor or a system superclass like UIView" },
+    "ok-system": { type: "pass", description: "System class, selector referenced by the app" },
+    added: { type: "pass", description: "The tweak provides it (added: true)" },
+    unverified: { type: "unknown; never blocks", description: "Class/selector exists but the parser couldn't fully confirm" },
+    "missing-class": { type: "fails if required", description: "The hook would silently no-op" },
+    "missing-selector": { type: "fails if required", description: "The hook would silently no-op" },
+    elsewhere: { type: "fails if required", description: "The hook would silently no-op" },
+    "referenced-only": { type: "fails if required", description: "Selector is referenced but not declared as a method anywhere — no IMP to swizzle" },
   }}
 />
+
+The three groups are attaching, unknown, and blocking. Only a required hook
+in the blocking group fails a run; `unverified` never blocks, even with
+`required: true`. Confirm parser gaps on device.
 
 `referenced-only` is the dead-hook detector: the binary *references* the
 selector (selrefs / `NSSelectorFromString` / optional protocol sends) but does
@@ -397,10 +410,18 @@ real, load-bearing hooks have been found missing from shipped patch sets
 after the fact, with `--dry-run` green the whole time.
 </Callout>
 
+Operation IDs must be unique across `patches:`; the schema rejects duplicates.
+`forge lint patch.yaml` also rejects repeated class/selector hook entries.
+
 ## The manifest
 
-Every run produces a structured manifest (`--verbose` prints it; the GUI shows
-it in the result card):
+Every successful run produces a structured manifest (`--manifest PATH` writes
+JSON for dry-runs and real runs, `--verbose` prints it, and the GUI shows it
+in the result card). File inventories use app-relative paths. Binary entries
+include `file`, hex `offsets`, `before`, `after`, and optional `note`/`symbol`.
+For several wildcard matches, `before_by_offset` records each actual window.
+Dry-run entries carry byte evidence but do not declare applied file changes.
+An applied manifest looks like:
 
 ```json
 {
@@ -409,10 +430,13 @@ it in the result card):
   "version": "1.0.0",
   "build": "1",
   "patches_applied": [
-    {"id": "zero-marker-bytes", "status": "applied", "message": "replaced 1 match(es) at [0]"}
+    {"id": "zero-marker-bytes", "status": "applied", "file": "TestApp",
+     "offsets": ["0x100"], "before": "ca fe", "after": "00 00",
+     "note": "Zero the marker", "symbol": "marker_bytes",
+     "message": "replaced 1 match(es) at [0x100]"}
   ],
-  "files_added": [], "files_modified": [...], "files_removed": [],
-  "macho_modified": [".../TestApp"],
+  "files_added": [], "files_modified": ["TestApp"], "files_removed": [],
+  "macho_modified": ["TestApp"],
   "profile": {"uuid": "...", "team_id": "...", "expiration": "..."},
   "output_sha256": "..."
 }

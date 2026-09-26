@@ -33,6 +33,9 @@ declarations, and categories.
     "--class <name>": { type: "string", description: "Restrict to one class (exact name)" },
     "--search <regex>": { type: "string", description: "Only classes whose name matches this regex" },
     "--output <path>, -o": { type: "path", description: "Write to a file instead of stdout" },
+    "--json": { type: "flag", description: "Emit class, protocol, and category metadata as JSON" },
+    "--names-only": { type: "flag", description: "Only matching class names (a JSON array with --json)" },
+    "--methods-matching <regex>": { type: "string", description: "Filter method selectors and omit declarations with no matching methods" },
   }}
 />
 
@@ -40,13 +43,21 @@ declarations, and categories.
 forge analysis classdump --ipa App.ipa
 forge analysis classdump --ipa App.ipa --class MainPlayerViewController
 forge analysis classdump --ipa App.ipa --search '^App' --output dump.h
+forge analysis classdump --ipa App.ipa --class AppConfig --methods-matching '^(try|can|should)'
+forge analysis classdump --ipa App.ipa --search '^App' --names-only --json
 ```
 
 `--class`/`--search` restrict output to matching classes only (protocols
-and categories are omitted in that case). A class/superclass defined in another image (system
-frameworks, or a framework you didn't point the tool at) is reported as
+and categories are omitted in that case). A class/superclass defined in
+another image (system frameworks, or a framework you didn't point the tool at) is reported as
 `«external»` — the same honest-reporting convention `forge hooks` uses,
 rather than guessing.
+
+`--json` contains `classes` and `protocols` objects keyed by name plus a
+`categories` array, including raw method type encodings, ivars, properties,
+and protocol conformance. Filters apply in either format and leave cached
+analyses unchanged. Empty selections exit `1` (JSON still emits an empty
+result). `forge hooks extract` has been removed; use this command.
 
 The type-encoding decoder (`ipa_forge/analysis/type_encoding.py`) is
 best-effort: structs/unions render as just their tag name (no field

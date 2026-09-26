@@ -24,16 +24,15 @@ what the `hooks:` block exists to catch.
 **Fix:** find the new name: `forge analysis classdump --ipa App.ipa --search
 "<substring of old class>"` shows what replaced it (e.g. `PlaybackController`
 → `PlaybackControllerImpl`). Update the hook target (and the tweak
-source), then re-run `--dry-run`. Statuses `unverified` and `ok-inherited`
-are soft — the class/selector likely exists but the parser couldn't fully
-confirm (system superclasses, chained-fixup gaps) — verify once on device
-via your tweak's attach logs rather than chasing them.
+source), then re-run `--dry-run`. `ok-inherited` means the hook attaches through an ancestor. `unverified`
+means the parser could not confirm attachment; it never blocks, even when
+required. Check that case once on device through the tweak's attach logs.
 
 ## A feature does nothing on device, but `--dry-run` and `hooks verify` are green
 
 <Callout type="error" title="Symptom">
 The tweak source clearly calls a hook, `forge patch --dry-run` shows
-`0 issue(s)`, everything looks fine — and the feature still silently
+`0 failing`, everything looks fine — and the feature still silently
 doesn't work on device.
 </Callout>
 
@@ -54,6 +53,13 @@ missing hook(s), re-run `--dry-run` to confirm they attach, and make
 </Callout>
 
 ## Patch definition problems
+
+Start with `forge lint patch.yaml`: it checks the definition and source paths
+without extracting an IPA. Duplicate patch IDs fail schema validation in
+both lint and the pipeline. A `duplicate hook Class selector` error means
+that class/selector pair appears twice; remove the repeated declaration.
+A missing source is resolved relative to the definition's parent directory,
+not the shell's working directory. Build/stage the resource at that location.
 
 ### `patch definition '<file>' is invalid: ...`
 
@@ -91,8 +97,12 @@ message:
     only.
   </Accordion>
   <Accordion title="invalid hex byte token '<tok>' / byte token '<tok>' out of range">
-    `pattern`/`replacement` must be space-separated hex (`00`-`ff`) plus
-    `??`.
+    Use space-separated hex (`00`-`ff`). `??` is allowed only in `pattern`.
+  </Accordion>
+  <Accordion title="'??' wildcards are not allowed in a replacement">
+    Spell out every replacement byte. A wildcard in the search pattern is
+    valid; a wildcard replacement would write a zero byte rather than keep
+    the matched byte. Lint and dry-run reject it before anything mutates.
   </Accordion>
   <Accordion title="executable '<name>' not found in bundle inventory">
     The `executable` basename doesn't match any Mach-O in the bundle — run
@@ -221,7 +231,7 @@ executable names before writing a definition.
 </Step>
 <Step>
 
-**Read the full manifest.** `forge patch ... --dry-run --verbose` shows every
+**Read the full manifest.** `forge patch ... --dry-run --manifest plan.json --verbose` shows every
 operation's status and message without touching anything.
 
 </Step>

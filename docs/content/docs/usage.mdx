@@ -47,9 +47,17 @@ patches:
 
 ### Dry-run (safe, no mutation, no signing)
 
+Check the definition first, without an IPA:
+
+```bash
+forge lint patches.yaml
+```
+
+Then check it against the actual bundle:
+
 ```bash
 forge patch --ipa path/to/App.ipa --patches patches.yaml \
-  --output patched.ipa --dry-run
+  --output patched.ipa --dry-run --manifest dry-run.json
 ```
 
 `--identity` and `--profile` are **not needed** for a dry run. Every operation
@@ -124,6 +132,58 @@ Validates that the IPA is a well-formed archive with exactly one
 `Payload/*.app`, that `Info.plist` is parseable, and that the main executable
 is present — without patching or signing anything.
 
+### `forge lint <definition.yaml>`
+
+Checks YAML/JSON schema, unique operation IDs, binary pattern/replacement
+syntax and equal lengths, source existence relative to the definition's
+parent directory, and duplicate class/selector hooks. `resource_replace`
+requires a source file; `resource_add` can stage a directory. No IPA or
+signing credentials are needed. Exit `0` means the definition passes these
+checks; exit `1` prints one line on stderr. Matching the target, locating
+executables, counting byte matches, and hook attachment still need a dry-run.
+
+### `forge cache [--clear]`
+
+Shows the content-addressed Mach-O analysis cache's location, entry count,
+and size. `--clear` deletes its entries. Unchanged binaries reuse their
+analysis even after extraction to a different directory; changed binaries
+have different SHA-256 keys. The cache retains at most 16 entries.
+
+Set `FORGE_NO_CACHE=1` to bypass it for a command. `FORGE_CACHE_DIR` overrides
+the cache root; otherwise it uses `$XDG_CACHE_HOME/ipa-forge` or
+`~/.cache/ipa-forge`.
+
+```bash
+forge cache
+FORGE_NO_CACHE=1 forge hooks find someMethod: --ipa App.ipa
+forge cache --clear
+```
+
+### `forge verify-output --base <ipa> --output <ipa> [--manifest <json>]`
+
+With an applied manifest, requires the input SHA-256 to match and checks the
+output SHA-256 when recorded,
+compares Payload file inventories against `files_added`/`files_removed`, and
+rejects changed files outside `files_modified`. For each recorded binary
+operation it replays every edit against the base, checks the original bytes,
+and requires the entire output binary to equal the replayed bytes. File
+paths in new manifests are relative to the app root. A directory added or
+removed by a resource operation covers its descendants.
+
+```bash
+forge patch --ipa App.ipa --patches patch.yaml --no-sign \
+  --output patched.ipa --manifest manifest.json
+forge verify-output --base App.ipa --output patched.ipa --manifest manifest.json
+```
+
+This strict comparison is intended for unsigned byte-patch outputs. Signing
+and load-command injection can change bytes beyond the recorded byte edits;
+such differences fail verification. Resource/plist changes are allowed only
+in declared files; their exact contents are covered by the recorded output
+hash. A dry-run manifest is a plan, not an applied record. Without a manifest,
+the command requires byte-identical Payload files and inventories. Exit `1`
+reports a verification failure; exit `0` reports success.
+
 ### `forge patch`
 
 <TypeTable
@@ -136,6 +196,7 @@ is present — without patching or signing anything.
     "--dry-run": { type: "flag", description: "Validate patches without mutating or signing anything" },
     "--no-sign": { type: "flag", description: "Apply patches and repackage without codesigning, for AltStore-style installers that sign at install time. Mutually exclusive with real signing; --identity/--profile are ignored" },
     "--verbose": { type: "flag", description: "Print the full manifest on success" },
+    "--manifest <path>": { type: "path", description: "Write the manifest as JSON for a dry-run or real run" },
   }}
 />
 
@@ -175,31 +236,37 @@ same Mach-O/ObjC analysis engine `forge analysis` uses.
 Every one of these re-extracts the full IPA (seconds to tens of seconds on a
 large app) unless you point it at an already-extracted bundle instead — pass
 `--app-dir Payload/<App>.app` (and then omit `--ipa`) and the
-analyze/verify/fix loop becomes instant:
+analyze/verify/fix loop skips extraction:
 
 ```bash
-forge patch --ipa App.ipa --patches patch.yaml --output /tmp/x.ipa --dry-run
-forge hooks verify --app-dir /tmp/x.app --patches patch.yaml   # no re-extract
+unzip -q App.ipa -d /tmp/app-analysis
+forge hooks verify --app-dir /tmp/app-analysis/Payload/Example.app --patches patch.yaml
 ```
 </Callout>
 
 ### `forge hooks verify`
 
 Verify every hook declared in a patch definition's `hooks:` block against the
-app binary. Exit code `0` if every `required` hook attaches, `1` otherwise.
+app binaries. Exit code `1` when a required hook has a blocking status;
+`unverified` parser gaps are reported but never fail the command.
 
 <TypeTable
   type={{
     "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
     "--patches <path>": { type: "path", required: true, description: "Patch definition with a hooks: section" },
     "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
-    "--required-only": { type: "flag", description: "Only print hooks that fail to attach" },
+    "--required-only": { type: "flag", description: "Only print non-attaching or unverified hooks" },
+    "--json": { type: "flag", description: "Emit structured JSON instead of human-readable text" },
   }}
 />
 
 ```bash
-forge hooks verify --ipa App.ipa --patches patch.yaml
+forge hooks verify --ipa App.ipa --patches patch.yaml --json
 ```
+
+JSON contains a `hooks` array with class name, selector, kind, status, detail,
+and required/added flags. `--required-only` filters out attaching hooks in
+either format; the exit status still considers all required hooks.
 
 ### `forge hooks audit`
 
@@ -208,6 +275,7 @@ app binary — catches hooks the author wrote but a newer app version broke.
 With `--patches`, also cross-checks the source scan against the definition's
 `hooks:` block and flags any hook the source calls that isn't declared there
 (invisible to `--dry-run` otherwise). Exits `1` if any are undeclared.
+`--json` returns `hooks` and `undeclared` arrays and preserves that exit status.
 
 <TypeTable
   type={{
@@ -215,6 +283,7 @@ With `--patches`, also cross-checks the source scan against the definition's
     "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
     "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
     "--patches <path>": { type: "path", description: "Patch definition to cross-check the source scan against" },
+    "--json": { type: "flag", description: "Emit structured JSON instead of human-readable text" },
   }}
 />
 
@@ -229,20 +298,22 @@ Reverse lookup: which classes implement a selector? The first check when a
 hook "attaches per verify" but does nothing on device — distinguishes a real
 method (swizzle-able) from a bare reference (`REFERENCED-ONLY`: no IMP
 exists, the hook cannot attach). Also lists selectors containing the lookup
-text, to catch renames.
+text, to catch renames. Pass several selectors to analyze the bundle once.
+`--json` emits an array of lookup records with `selector`, `instance_classes`,
+`class_classes`, `status`, and `similar`.
 
 <TypeTable
   type={{
-    "selector": { type: "argument", required: true, description: "Selector to look up, e.g. someMethod:" },
+    "selectors...": { type: "arguments", required: true, description: "One or more selectors, analyzed together" },
     "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
     "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
+    "--json": { type: "flag", description: "Emit structured JSON instead of human-readable text" },
   }}
 />
 
 ```bash
-forge hooks find someFeatureAction: --ipa App.ipa
-#   -> -[MainOverlayViewController someFeatureAction:]  (real)
-#   -> REFERENCED-ONLY ... no class declares it (the hook cannot attach)
+forge hooks find someFeatureAction: otherMethod: --ipa App.ipa --json
+# Omit --json for the text report with method owners and REFERENCED-ONLY warnings.
 ```
 
 ### `forge hooks manifest`
@@ -330,7 +401,17 @@ attach? For general-purpose static analysis of an IPA (class-dump, string
 extraction, symbols, security posture, and a broader version-to-version
 diff that isn't tied to a patch definition's `hooks:` block), see
 [Reverse Engineering](/docs/reverse-engineering) — the single source for
-that command surface, to avoid duplicating it here.
+that command surface, to avoid duplicating it here. For common queries:
+
+```bash
+forge analysis classdump --ipa App.ipa --json
+forge analysis classdump --ipa App.ipa --search '^App' --names-only
+forge analysis classdump --ipa App.ipa --class AppConfig --methods-matching '^(try|can|should)'
+```
+
+`--json` preserves the metadata as structured objects; `--names-only` prints
+class names, and `--methods-matching` filters method selectors. These filters
+also apply to JSON output.
 
 ## Signing identity & profile
 
@@ -453,7 +534,7 @@ signing involved, works on any IPA. See
 ## What you get back
 
 `forge patch` writes a standard `Payload/<App>.app` zip. The manifest
-(`--verbose` or the GUI result card) lists every applied operation, every
+(`--manifest PATH`, `--verbose`, or the GUI result card) lists every applied operation, every
 file added/modified/removed, the Mach-O files touched, the profile used, and
 the output SHA-256 — use it to confirm the patch did what you expected before
 installing.

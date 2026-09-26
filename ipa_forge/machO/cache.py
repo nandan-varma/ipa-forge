@@ -4,7 +4,7 @@
 Parsing the Objective-C class table of a real app binary costs seconds
 (measured: 7.6s for a 228MB main executable), and a porting session runs
 dozens of queries against the *same* unchanged binary -- `forge hooks
-find`/`extract`/`verify`, `forge analysis classdump`, and every `--dry-run`.
+find`/`verify`, `forge analysis classdump`, and every `--dry-run`.
 Each one re-did the identical parse.
 
 Entries are keyed by the SHA-256 of the binary file, so a cache hit survives
@@ -47,7 +47,7 @@ def disabled() -> bool:
     analysis-backed commands: the cache is keyed by content hash, so a stale
     hit is not a failure mode a user has to defend against day to day. The
     escape hatch exists for working on the parser itself and for read-only
-    filesystems -- `forge cache clear` covers "I want the disk back".
+    filesystems -- `forge cache --clear` covers "I want the disk back".
     """
     return bool(os.environ.get("FORGE_NO_CACHE"))
 

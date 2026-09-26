@@ -57,7 +57,10 @@ pytest tests/unit/test_binary_patch.py::test_binary_replace_apply_mutates_file -
 # CLI (installed as `forge` via pyproject.toml's [project.scripts])
 forge inspect path/to/App.ipa
 forge validate path/to/App.ipa
-forge patch --ipa <ipa> --patches <patches.yaml> --identity <id> --profile <profile> --output <out.ipa> [--dry-run] [--verbose]
+forge lint patches.yaml
+forge cache [--clear]   # FORGE_NO_CACHE=1 bypasses content-addressed Mach-O analysis caching
+forge patch --ipa <ipa> --patches <patches.yaml> --identity <id> --profile <profile> --output <out.ipa> [--dry-run] [--verbose] [--manifest manifest.json]
+forge verify-output --base <base.ipa> --output <patched.ipa> --manifest manifest.json
 forge export-source --ipa <patched.ipa> --download-url <url> --output source.json
 forge gui   # launches the local FastAPI GUI on 127.0.0.1:8765 (+ /analysis RE viewer)
 
