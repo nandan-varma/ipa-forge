@@ -152,6 +152,8 @@ class BinaryReplaceOp:
             "before": data[offsets[0] : offsets[0] + len(replacement)].hex(" ") if offsets else "",
             "after": replacement.hex(" "),
         }
+        if len(offsets) > 1:
+            details["before_by_offset"] = [data[o : o + len(replacement)].hex(" ") for o in offsets]
         if self.note:
             details["note"] = self.note
         if self.symbol:
@@ -160,14 +162,16 @@ class BinaryReplaceOp:
 
     def dry_run(self, ctx: PatchContext) -> PatchResult:
         try:
-            _, data, replacement, offsets = self._plan(ctx)
+            target_path, data, replacement, offsets = self._plan(ctx)
         except (FileNotFoundError, PatternError, NotMachOError, AmbiguousArchError, ArchNotFoundError) as e:
             return PatchResult(op_id=self.op_id, status="failed", message=str(e))
 
         error = self._check_match_count(offsets)
         if error:
             return PatchResult(op_id=self.op_id, status="failed", message=error)
-        return PatchResult(op_id=self.op_id, status="dry_run_ok", details=self._details(offsets, data, replacement))
+        details = self._details(offsets, data, replacement)
+        details["file"] = str(target_path.resolve().relative_to(ctx.bundle.root.resolve()))
+        return PatchResult(op_id=self.op_id, status="dry_run_ok", details=details)
 
     def apply(self, ctx: PatchContext) -> PatchResult:
         try:
@@ -180,6 +184,7 @@ class BinaryReplaceOp:
             return PatchResult(op_id=self.op_id, status="failed", message=error)
 
         details = self._details(offsets, data, replacement)
+        details["file"] = str(target_path.resolve().relative_to(ctx.bundle.root.resolve()))
         buf = bytearray(data)
         for offset in offsets:
             buf[offset : offset + len(replacement)] = replacement

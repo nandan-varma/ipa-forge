@@ -225,6 +225,7 @@ def test_binary_replace_records_offsets_bytes_and_note(compiled_macho_binary: Pa
         "offsets": ["0x0"],
         "before": header_hex,
         "after": replacement_hex,
+        "file": compiled_macho_binary.name,
         "note": "flip the header bytes",
         "symbol": "SomeClass.someMethod()",
     }
@@ -237,4 +238,4 @@ def test_binary_replace_details_omit_absent_note_and_symbol(compiled_macho_binar
     op = BinaryReplaceOp(
         op_id="no-note", executable=compiled_macho_binary.name, pattern=header_hex, replacement=header_hex
     )
-    assert set(op.dry_run(ctx).details) == {"offsets", "before", "after"}
+    assert set(op.dry_run(ctx).details) == {"offsets", "before", "after", "file"}

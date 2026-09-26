@@ -169,7 +169,7 @@ def run_pipeline(
 
         if dry_run:
             manifest = Manifest.from_patch_results(
-                ipa_path, bundle.bundle_id, bundle.version, bundle.build, dry_results
+                ipa_path, bundle.bundle_id, bundle.version, bundle.build, dry_results, bundle_root=bundle.root
             )
             manifest.hook_report = hook_report
             return PipelineResult(manifest=manifest, output_path=None)
@@ -186,7 +186,9 @@ def run_pipeline(
         validate_bundle(bundle)
 
         # Stage 10: emit manifest, before signing
-        manifest = Manifest.from_patch_results(ipa_path, bundle.bundle_id, bundle.version, bundle.build, results)
+        manifest = Manifest.from_patch_results(
+            ipa_path, bundle.bundle_id, bundle.version, bundle.build, results, bundle_root=bundle.root
+        )
         manifest.hook_report = hook_report
 
         if no_sign:

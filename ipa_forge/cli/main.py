@@ -5,6 +5,7 @@ import tempfile
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _installed_version
 from pathlib import Path
+from zipfile import BadZipFile
 
 import typer
 
@@ -19,6 +20,7 @@ from ipa_forge.patch.lint import lint_definition
 from ipa_forge.patch.loader import PatchLoadError
 from ipa_forge.pipeline import PipelineError, run_pipeline
 from ipa_forge.validators.bundle_validator import validate_bundle
+from ipa_forge.verify_output import verify_output
 
 app = typer.Typer()
 
@@ -170,6 +172,21 @@ def patch(
 
     if verbose:
         typer.echo(result.manifest.to_json())
+
+
+@app.command("verify-output")
+def verify_output_command(
+    base: Path = typer.Option(..., "--base", exists=True, help="Original IPA"),
+    output: Path = typer.Option(..., "--output", exists=True, help="Patched IPA"),
+    manifest: Path | None = typer.Option(None, "--manifest", exists=True, help="Applied patch manifest JSON"),
+) -> None:
+    """Verify Payload changes and exact binary edits; without a manifest require identical Payloads."""
+    try:
+        verify_output(base, output, manifest)
+    except (ValueError, OSError, BadZipFile, KeyError, TypeError) as e:
+        typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo("OK -- Payload inventory and recorded edits verified")
 
 
 @app.command("export-source")
