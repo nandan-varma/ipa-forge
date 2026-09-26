@@ -10,7 +10,8 @@ Parses the ``__objc_classlist``/``__objc_protolist``/``__objc_catlist``/
 engineering of an IPA).
 
 Fat binaries are thinned to the arm64 slice first (lipo); section file
-offsets are then correct for direct data reads.
+offsets are then correct for direct data reads. Results are cached on disk by
+binary content hash -- see ``machO/cache.py``.
 """
 
 from __future__ import annotations
@@ -22,6 +23,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ipa_forge.bundle.models import AppBundle
+from ipa_forge.machO import cache
+from ipa_forge.machO.arch import (
+    AmbiguousArchError,
+    ArchNotFoundError,
+    NotMachOError,
+    slice_byte_range,
+)
 from ipa_forge.machO.detect import bundle_executable_paths
 
 
@@ -89,29 +97,70 @@ def _run(*args: str) -> str:
     return subprocess.run(args, capture_output=True, text=True, check=True).stdout
 
 
-def analyze_macho(path: Path) -> MachOAnalysis:
-    """Analyze a Mach-O executable (thin or fat; fat gets thinned to arm64)."""
+def _slice_bytes(path: Path) -> bytes:
+    """The bytes a fresh analysis would hold in `raw_data`: the whole file for a
+    thin binary, or just the arm64 slice for a fat one.
+
+    A fat file is a concatenation of complete thin Mach-Os, so the slice range
+    is byte-identical to what `lipo -thin arm64` writes. Reading the range
+    directly keeps a cache hit's `raw_data` identical to a cache miss's --
+    otherwise `contains_string` would search other architectures' string
+    tables on a hit but not on a miss.
+    """
+    try:
+        start, end = slice_byte_range(path, "arm64")
+    except (NotMachOError, AmbiguousArchError, ArchNotFoundError):
+        return path.read_bytes()
+    with open(path, "rb") as f:
+        f.seek(start)
+        return f.read(end - start)
+
+
+def analyze_macho(path: Path, *, use_cache: bool = True) -> MachOAnalysis:
+    """Analyze a Mach-O executable (thin or fat; fat gets thinned to arm64).
+
+    Results are cached on disk by binary content hash (see `machO/cache.py`);
+    `use_cache=False` forces a fresh parse. The cache holds everything except
+    `raw_data`, which is re-read here because doing so is far cheaper than
+    storing it.
+    """
+    if use_cache:
+        cached = cache.load(path)
+        if cached is not None:
+            cached.raw_data = [_slice_bytes(path)]
+            cached.main_executable = path
+            return cached
+
     with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
         info = _run("lipo", "-info", str(path))
         bin_path = path
         if "are:" in info and "arm64" in info:
             bin_path = Path(tmp) / f"{path.name}.arm64"
             _run("lipo", "-thin", "arm64", str(path), "-output", str(bin_path))
-        return _analyze_thin(bin_path, original=path)
+        analysis = _analyze_thin(bin_path, original=path)
+
+    if use_cache:
+        cache.store(path, analysis)
+    return analysis
 
 
-def analyze_bundle(bundle: AppBundle) -> MachOAnalysis:
-    """Analyze every executable in an AppBundle (main binary + embedded
-    frameworks/dylibs) and merge the results. Hook targets routinely live in
-    embedded frameworks rather than the main executable (a networking or
-    data-loading class defined in its own vendored .framework is a common
-    case), so verification must cover all of them."""
-    paths = bundle_executable_paths(bundle, kinds={"framework"})
+def analyze_bundle(bundle: AppBundle, *, use_cache: bool = True) -> MachOAnalysis:
+    """Analyze every executable in an AppBundle and merge the results.
+
+    Covers the main binary plus embedded frameworks *and* standalone dylibs:
+    hook targets routinely live outside the main executable (a networking or
+    data-loading class defined in its own vendored .framework is the common
+    case, but an app that ships a plain `.dylib` is just as hookable, and
+    excluding those reported its classes as `missing-class`). App extensions
+    are left out deliberately -- an `.appex` is a separate process that an
+    injected dylib in the host app never loads into.
+    """
+    paths = bundle_executable_paths(bundle, kinds={"framework", "dylib"})
 
     merged: MachOAnalysis | None = None
     for binary_path in paths:
         try:
-            analysis = analyze_macho(binary_path)
+            analysis = analyze_macho(binary_path, use_cache=use_cache)
         except (ValueError, OSError, subprocess.CalledProcessError):
             continue  # not a Mach-O or unreadable; skip
         if merged is None:

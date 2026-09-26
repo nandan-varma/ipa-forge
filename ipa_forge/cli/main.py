@@ -13,6 +13,7 @@ from ipa_forge.bundle.ipa import load_bundle
 from ipa_forge.cli import analysis as _analysis  # `forge analysis` subcommands
 from ipa_forge.cli import hooks as _hooks  # `forge hooks` subcommands
 from ipa_forge.cli.common import validated_extract
+from ipa_forge.machO import cache as objc_cache
 from ipa_forge.pipeline import PipelineError, run_pipeline
 from ipa_forge.validators.bundle_validator import validate_bundle
 
@@ -149,6 +150,29 @@ def export_source(
     entry = build_app_entry(ipa, download_url)
     write_source_json(entry, output)
     typer.echo(f"Wrote {output}")
+
+
+@app.command("cache")
+def cache_command(
+    clear: bool = typer.Option(False, "--clear", help="Delete every cached Mach-O analysis"),
+) -> None:
+    """Show or clear the Mach-O analysis cache.
+
+    Analyses are cached by binary content hash, so repeated `hooks`/`analysis`
+    queries against the same IPA parse it once. Entries are large (tens of MB
+    for a big app) and capped; set `FORGE_NO_CACHE=1` to bypass the cache
+    entirely for one command.
+    """
+    directory = objc_cache.cache_dir() / "objc"
+    if clear:
+        typer.echo(f"Removed {objc_cache.clear()} cached analysis/analyses from {directory}")
+        return
+    entries = sorted(directory.glob("*.pickle")) if directory.is_dir() else []
+    total = sum(e.stat().st_size for e in entries)
+    typer.echo(f"Cache:   {directory}")
+    typer.echo(f"Entries: {len(entries)} ({total / 1e6:.1f} MB)")
+    if objc_cache.disabled():
+        typer.secho("FORGE_NO_CACHE is set -- the cache is bypassed", fg=typer.colors.YELLOW)
 
 
 @app.command()

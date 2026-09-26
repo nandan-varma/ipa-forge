@@ -11,6 +11,17 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _isolated_analysis_cache(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point the Mach-O analysis cache at a throwaway directory.
+
+    Without this, every test that analyzes a binary would read from and write
+    to the developer's real `~/.cache/ipa-forge`: slow to fill, and a test
+    could pass off a cached result from a previous, different run.
+    """
+    monkeypatch.setenv("FORGE_CACHE_DIR", str(tmp_path_factory.mktemp("forge_cache")))
+
+
 @pytest.fixture
 def compiled_macho_binary(tmp_path: Path) -> Path:
     """A real, thin, host-arch Mach-O executable, compiled with clang."""
