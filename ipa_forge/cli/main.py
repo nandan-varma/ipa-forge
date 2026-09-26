@@ -13,6 +13,7 @@ from ipa_forge.bundle.ipa import load_bundle
 from ipa_forge.cli import analysis as _analysis  # `forge analysis` subcommands
 from ipa_forge.cli import hooks as _hooks  # `forge hooks` subcommands
 from ipa_forge.cli.common import validated_extract
+from ipa_forge.hooks.verify import BLOCKING_STATUSES, OK_STATUSES
 from ipa_forge.machO import cache as objc_cache
 from ipa_forge.pipeline import PipelineError, run_pipeline
 from ipa_forge.validators.bundle_validator import validate_bundle
@@ -120,15 +121,25 @@ def patch(
         typer.echo(f"Dry run OK -- {count} operation(s) would apply.")
         hook_report = result.manifest.hook_report
         if hook_report:
-            ok = sum(1 for h in hook_report if h["status"] in ("ok", "ok-system", "ok-inherited", "added"))
-            typer.echo(f"Hooks: {ok}/{len(hook_report)} attach ({len(hook_report) - ok} issue(s))")
-            for h in hook_report:
-                if h["status"] not in ("ok", "ok-system", "ok-inherited", "added"):
-                    typer.secho(
-                        f"  ! {h['class']} {'+' if h['kind'] == 'class' else '-'}[{h['selector']}]: "
-                        f"{h['status']} -- {h['detail']}",
-                        fg=typer.colors.YELLOW,
-                    )
+            attach = sum(1 for h in hook_report if h["status"] in OK_STATUSES)
+            broken = [h for h in hook_report if h["status"] in BLOCKING_STATUSES]
+            unknown = [h for h in hook_report if h["status"] not in OK_STATUSES and h not in broken]
+            # Three-way, not "N issue(s)": lumping parser gaps in with real drift
+            # meant a healthy patch set permanently reported issues it should not
+            # have (YouTube 21.38.2 showed 8, all benign), so the number stopped
+            # carrying information.
+            summary = f"Hooks: {attach}/{len(hook_report)} attach"
+            if unknown:
+                summary += f", {len(unknown)} unverified (parser gap -- check on device)"
+            summary += f", {len(broken)} failing"
+            typer.echo(summary)
+            for h in broken + unknown:
+                typer.secho(
+                    f"  {'!' if h in broken else '?'} {h['class']} "
+                    f"{'+' if h['kind'] == 'class' else '-'}[{h['selector']}]: "
+                    f"{h['status']} -- {h['detail']}",
+                    fg=typer.colors.RED if h in broken else typer.colors.YELLOW,
+                )
     else:
         manifest = result.manifest
         applied = sum(1 for p in manifest.patches_applied if p["status"] == "applied")

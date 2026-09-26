@@ -63,14 +63,19 @@ def hooks_verify(
         for r in results:
             if required_only and r.ok:
                 continue
-            color = typer.colors.GREEN if r.ok else typer.colors.YELLOW
+            color = typer.colors.GREEN if r.ok else (typer.colors.RED if r.blocking else typer.colors.YELLOW)
             flag = "" if r.ok else f"  ({r.detail})"
             label = f"[{r.status:16}] {r.class_name} "
             label += f"{'+' if r.kind == 'class' else '-'}[{r.selector}]{flag}"
             typer.secho(label, fg=color)
-        bad = [r for r in results if not r.ok and r.required]
-        ok = sum(1 for r in results if r.ok)
-        typer.echo(f"{ok}/{len(results)} hooks attach; {len(bad)} required hook(s) failing.")
+        bad = [r for r in results if r.blocking and r.required]
+        attach = sum(1 for r in results if r.ok)
+        unknown = sum(1 for r in results if r.unknown)
+        summary = f"{attach}/{len(results)} hooks attach"
+        if unknown:
+            summary += f"; {unknown} unverified (parser gap -- check on device)"
+        summary += f"; {len(bad)} required hook(s) failing."
+        typer.echo(summary)
         raise typer.Exit(code=1 if bad else 0)
 
 

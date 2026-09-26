@@ -276,3 +276,46 @@ def test_methname_declared_selector_stays_unverified():
     a = _analysis()  # "declaredButUnparsed:" is in methnames but no class has it
     r = verify_hooks(a, [HookDecl("DemoThing", "declaredButUnparsed:")])
     assert r[0].status == "unverified"
+
+
+# --- unverified is a parser gap, not drift (A4) -----------------------------
+# `HookResult.ok` is False for `unverified`, and the pipeline used to fail any
+# not-ok *required* hook. That made a parser gap on a load-bearing hook refuse
+# to patch a perfectly good binary -- while every doc described the status as a
+# soft warning. Only BLOCKING_STATUSES may fail a run.
+
+
+def test_status_groups_are_exhaustive_and_disjoint():
+    from ipa_forge.hooks.verify import BLOCKING_STATUSES, OK_STATUSES, HookStatus
+
+    all_statuses = set(HookStatus.__args__)
+    assert not (OK_STATUSES & BLOCKING_STATUSES)
+    # exactly one status is neither: the parser-gap signal
+    assert all_statuses - OK_STATUSES - BLOCKING_STATUSES == {"unverified"}
+
+
+def test_unverified_is_unknown_not_blocking():
+    from ipa_forge.hooks.verify import HookResult
+
+    r = HookResult("C", "s", "instance", "unverified", required=True)
+    assert not r.ok and not r.blocking and r.unknown
+
+
+@pytest.mark.parametrize("status", sorted(["missing-class", "missing-selector", "elsewhere", "referenced-only"]))
+def test_real_drift_statuses_block(status):
+    from ipa_forge.hooks.verify import HookResult
+
+    r = HookResult("C", "s", "instance", status)  # type: ignore[arg-type]
+    assert r.blocking and not r.ok and not r.unknown
+
+
+def test_blocking_excludes_unverified_while_failing_includes_it():
+    from ipa_forge.hooks.verify import HookResult, blocking
+
+    results = [
+        HookResult("Gap", "s", "instance", "unverified", required=True),
+        HookResult("Gone", "s", "instance", "missing-class", required=True),
+    ]
+    assert [r.class_name for r in blocking(results)] == ["Gone"]
+    # failing() still surfaces the gap, because a report should show it
+    assert [r.class_name for r in failing(results)] == ["Gap", "Gone"]

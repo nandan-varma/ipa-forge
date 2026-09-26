@@ -1,21 +1,39 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Hook verification: classify each declared hook against a MachOAnalysis.
 
-Statuses:
+Every status falls into exactly one of three outcomes -- attaches, unknown, or
+broken -- and only the third blocks a run.
 
-- ``ok`` — class parsed and selector found on the class or an ancestor.
+Attaches (``HookResult.ok``):
+
+- ``ok`` — class parsed and selector found on the class itself.
+- ``ok-inherited`` — selector found on an ancestor, or on a system superclass
+  such as UIView: it attaches through the inheritance chain.
 - ``ok-system`` — class is a system-framework class (not in the app's
   classlist) and the selector is referenced somewhere in the app binary.
 - ``added`` — declared ``added: true`` (the tweak adds the method); absence
   is the expected state and counts as a pass.
+
+Unknown (neither ``ok`` nor ``blocking``):
+
+- ``unverified`` — the class or selector demonstrably exists (as a classname
+  entry, a cstring, or a declared method name) but the class-table walk could
+  not place it. This is a limitation of the parser, not evidence of drift, so
+  it never fails a run -- not even for a ``required`` hook. Confirm such a
+  hook once on device.
+
+Broken (``HookResult.blocking``) -- the real version-drift signals:
+
 - ``missing-class`` — class absent from the app entirely (renamed/removed).
 - ``missing-selector`` — class present but the selector is nowhere in the
   binary: the hook would attach but never fire.
 - ``elsewhere`` — selector exists in the binary but not on this class or its
   ancestors: the hook would silently no-op on this class.
+- ``referenced-only`` — the selector is referenced but declared as a method
+  nowhere, so no IMP exists to swizzle: the dead-hook detector.
 
-``required`` hooks that resolve to a failure status fail the run; the rest
-are reported as warnings so porting to a new version is guided, not blocked.
+A ``required`` hook in the broken group fails the run. Everything else is
+reported so that porting to a new version is guided, not blocked.
 """
 
 from __future__ import annotations
@@ -36,6 +54,15 @@ HookStatus = Literal[
     "referenced-only",
     "unverified",
 ]
+
+OK_STATUSES = frozenset({"ok", "ok-system", "ok-inherited", "added"})
+"""Statuses that mean the hook attaches."""
+
+BLOCKING_STATUSES = frozenset({"missing-class", "missing-selector", "elsewhere", "referenced-only"})
+"""Statuses that mean real version drift. Anything in neither set (i.e.
+``unverified``) is a parser gap: reported, never fatal. Exported so the CLI
+classifies a hook report exactly as the verifier does, instead of repeating
+the status names."""
 
 _SYSTEM_PREFIXES = ("NS", "UI", "CA", "AV", "MP", "CF", "CG", "SK", "_", "TUI")
 
@@ -108,7 +135,25 @@ class HookResult:
 
     @property
     def ok(self) -> bool:
-        return self.status in ("ok", "ok-system", "ok-inherited", "added")
+        """The hook demonstrably attaches."""
+        return self.status in OK_STATUSES
+
+    @property
+    def blocking(self) -> bool:
+        """Real drift: the hook cannot attach, or would attach and never fire.
+
+        Deliberately excludes ``unverified``, which means the class/selector was
+        found in the binary but the walk could not place it. Treating that as a
+        failure made a parser gap on a ``required`` hook refuse to patch a
+        perfectly good binary -- while every doc described the status as a soft
+        warning.
+        """
+        return self.status in BLOCKING_STATUSES
+
+    @property
+    def unknown(self) -> bool:
+        """Neither confirmed nor broken -- a parser gap to check on device."""
+        return not self.ok and not self.blocking
 
 
 def _is_system_class(name: str) -> bool:
@@ -345,4 +390,12 @@ def verify_hooks(analysis: MachOAnalysis, hooks: list[HookDecl]) -> list[HookRes
 
 
 def failing(results: list[HookResult]) -> list[HookResult]:
+    """Everything that did not confirm -- broken *and* unverified. For display:
+    a report should surface a parser gap, even though it does not block."""
     return [r for r in results if not r.ok]
+
+
+def blocking(results: list[HookResult]) -> list[HookResult]:
+    """Only the hooks that genuinely cannot attach. This is the set a run fails
+    on (when `required`); see `HookResult.blocking`."""
+    return [r for r in results if r.blocking]

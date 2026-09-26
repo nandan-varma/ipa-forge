@@ -13,7 +13,7 @@ from pathlib import Path
 from ipa_forge.bundle.ipa import extract_ipa, load_bundle, repack_ipa
 from ipa_forge.bundle.models import AppBundle
 from ipa_forge.hooks.verify import HookDecl, verify_hooks
-from ipa_forge.hooks.verify import failing as hook_failures
+from ipa_forge.hooks.verify import blocking as hook_blocking
 from ipa_forge.machO.objc import analyze_bundle
 from ipa_forge.manifest import Manifest, ProfileManifestEntry, sha256_of
 from ipa_forge.patch.base import PatchContext
@@ -55,15 +55,19 @@ def _hook_decls(definition: PatchDefinition) -> list[HookDecl]:
 
 
 def _verify_definition_hooks(bundle: AppBundle, definition: PatchDefinition) -> list[dict[str, object]]:
-    """Verify the definition's declared hooks against the app's main binary.
+    """Verify the definition's declared hooks against the app's binaries.
     Returns the hook report (list of dicts). Raises PipelineError when a
-    required hook cannot attach."""
+    required hook genuinely cannot attach (see `HookResult.blocking`); an
+    `unverified` parser gap is reported, never fatal."""
     decls = _hook_decls(definition)
     if not decls:
         return []
     analysis = analyze_bundle(bundle)
     results = verify_hooks(analysis, decls)
-    bad_required = [r for r in hook_failures(results) if r.required]
+    # Only genuine drift blocks: `unverified` means the class/selector IS in the
+    # binary but the parser could not place it, so failing on it would refuse to
+    # patch a working binary over a parser gap.
+    bad_required = [r for r in hook_blocking(results) if r.required]
     if bad_required:
         detail = "; ".join(f"{r.class_name} {r.selector}: {r.status} ({r.detail})" for r in bad_required)
         raise PipelineError(f"required hook verification failed: {detail}")
