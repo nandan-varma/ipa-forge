@@ -437,3 +437,22 @@ def test_cli_verify_app_dir_and_ipa_conflict(objc_macho_binary: Path, tmp_path: 
     )
     assert result.exit_code == 1
     assert "either --ipa or --app-dir" in result.stderr
+
+
+def test_cli_find_multiple_selectors_analyzes_once(objc_macho_binary: Path, tmp_path: Path, monkeypatch):
+    from ipa_forge.cli import hooks
+    from ipa_forge.cli.main import app
+
+    original = hooks.analyze_bundle
+    calls = []
+
+    def analyze(bundle):
+        calls.append(bundle)
+        return original(bundle)
+
+    monkeypatch.setattr(hooks, "analyze_bundle", analyze)
+    ipa = _pack_ipa(objc_macho_binary, tmp_path)
+    result = runner.invoke(app, ["hooks", "find", "doIt:", "missingSelector:", "--ipa", str(ipa)])
+    assert result.exit_code == 0, result.output
+    assert "doIt:" in result.stdout and "missingSelector:" in result.stdout
+    assert len(calls) == 1

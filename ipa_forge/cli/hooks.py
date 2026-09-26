@@ -191,7 +191,7 @@ def hooks_audit(
 
 @app.command("find")
 def hooks_find(
-    selector: str = typer.Argument(..., help="Selector to look up, e.g. 'someMethod:'"),
+    selectors: list[str] = typer.Argument(..., help="Selectors to look up, e.g. 'someMethod:'"),
     ipa: Path | None = typer.Option(None, "--ipa", exists=True, help="Input .ipa (not needed when --app-dir is given)"),
     app_dir: Path | None = typer.Option(
         None,
@@ -209,45 +209,48 @@ def hooks_find(
         bundle = load_bundle(app_path)
         analysis = analyze_bundle(bundle)
 
-    inst: list[str] = []
-    cls: list[str] = []
-    for name, c in analysis.classes.items():
-        if selector in c.inst:
-            inst.append(name)
-        if selector in c.cls:
-            cls.append(name)
+    for selector in selectors:
+        if len(selectors) > 1:
+            typer.echo(f"{selector}:")
+        inst: list[str] = []
+        cls: list[str] = []
+        for name, c in analysis.classes.items():
+            if selector in c.inst:
+                inst.append(name)
+            if selector in c.cls:
+                cls.append(name)
 
-    if inst:
-        typer.echo(f"instance method on {len(inst)} class(es):")
-        for n in sorted(inst):
-            typer.echo(f"  -[{n} {selector}]")
-    if cls:
-        typer.echo(f"class method on {len(cls)} class(es):")
-        for n in sorted(cls):
-            typer.echo(f"  +[{n} {selector}]")
+        if inst:
+            typer.echo(f"instance method on {len(inst)} class(es):")
+            for n in sorted(inst):
+                typer.echo(f"  -[{n} {selector}]")
+        if cls:
+            typer.echo(f"class method on {len(cls)} class(es):")
+            for n in sorted(cls):
+                typer.echo(f"  +[{n} {selector}]")
 
-    if not inst and not cls:
-        if selector in analysis.methnames:
-            typer.secho(
-                f"declared as a method name somewhere (protocol/category) but no parsed class implements "
-                f"{selector} — the hook may attach if a class you did not scan provides it",
-                fg=typer.colors.YELLOW,
-            )
-        elif selector in analysis.selectors:
-            typer.secho(
-                f"REFERENCED-ONLY: the binary references {selector} but no class declares it — "
-                f"there is no IMP to swizzle, so a hook on it cannot attach",
-                fg=typer.colors.RED,
-            )
-        else:
-            typer.secho(f"{selector} not found anywhere in the binary", fg=typer.colors.RED)
+        if not inst and not cls:
+            if selector in analysis.methnames:
+                typer.secho(
+                    f"declared as a method name somewhere (protocol/category) but no parsed class implements "
+                    f"{selector} — the hook may attach if a class you did not scan provides it",
+                    fg=typer.colors.YELLOW,
+                )
+            elif selector in analysis.selectors:
+                typer.secho(
+                    f"REFERENCED-ONLY: the binary references {selector} but no class declares it — "
+                    f"there is no IMP to swizzle, so a hook on it cannot attach",
+                    fg=typer.colors.RED,
+                )
+            else:
+                typer.secho(f"{selector} not found anywhere in the binary", fg=typer.colors.RED)
 
-    # similar selectors, to catch renames
-    similar = sorted(s for s in analysis.selectors if selector in s and s != selector)[:10]
-    if similar:
-        typer.echo("\nselectors containing the lookup text:")
-        for s in similar:
-            typer.echo(f"  {s}")
+        # similar selectors, to catch renames
+        similar = sorted(s for s in analysis.selectors if selector in s and s != selector)[:10]
+        if similar:
+            typer.echo("\nselectors containing the lookup text:")
+            for s in similar:
+                typer.echo(f"  {s}")
 
 
 @app.command("manifest")
