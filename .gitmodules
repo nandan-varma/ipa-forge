@@ -7,3 +7,9 @@
 [submodule "patches/instagram"]
 	path = patches/instagram
 	url = https://github.com/nandan-varma/ipa-forge-patches-instagram.git
+[submodule "patches/shadowfight2"]
+	path = patches/shadowfight2
+	url = https://github.com/nandan-varma/ipa-forge-patches-shadowfight2.git
+[submodule "patches/hillclimbracing2"]
+	path = patches/hillclimbracing2
+	url = https://github.com/nandan-varma/ipa-forge-patches-hillclimbracing2.git
