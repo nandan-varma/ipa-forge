@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""`forge hooks` subcommands: verify / extract / audit / manifest / diff.
+"""`forge hooks` subcommands: verify / audit / find / manifest / diff.
 
 Hook verification catches the silent no-ops that version drift causes: a
 class/selector rename in a newer app build and the dylib hook just stops
@@ -87,58 +87,6 @@ def hooks_verify(
         summary += f"; {len(bad)} required hook(s) failing."
         typer.echo(summary)
         raise typer.Exit(code=1 if bad else 0)
-
-
-@app.command("extract")
-def hooks_extract(
-    ipa: Path | None = typer.Option(None, "--ipa", exists=True, help="Input .ipa (not needed when --app-dir is given)"),
-    app_dir: Path | None = typer.Option(
-        None,
-        "--app-dir",
-        exists=True,
-        help="Already-extracted Payload/<App>.app directory to analyze instead of re-extracting the IPA",
-    ),
-    class_name: str | None = typer.Option(None, "--class", help="Restrict to one class"),
-    search: str | None = typer.Option(None, "--search", help="Only classes whose name matches this regex"),
-    limit: int = typer.Option(60, "--limit", help="Max classes to print (0 = no limit)"),
-) -> None:
-    """Dump the Objective-C class table of the app's binaries: class names,
-    superclasses, and instance/class method lists (chained-fixup aware)."""
-    import re as _re
-
-    with tempfile.TemporaryDirectory(prefix="ipa_forge_hooks_") as tmp:
-        app_path = _extract_or_use(ipa, app_dir, Path(tmp))
-        bundle = load_bundle(app_path)
-        analysis = analyze_bundle(bundle)
-    if class_name:
-        cls = analysis.classes.get(class_name)
-        if not cls:
-            in_names = class_name in analysis.classnames
-            present = any((b"\x00" + class_name.encode("utf-8") + b"\x00") in data for data in analysis.raw_data)
-            typer.secho(
-                f"class '{class_name}' not parsed (classname string: {in_names}; raw string present: {present})",
-                fg=typer.colors.YELLOW,
-            )
-            raise typer.Exit(code=1)
-        targets = [cls]
-    elif search:
-        pat = _re.compile(search)
-        targets = [c for c in analysis.classes.values() if pat.search(c.name)]
-        targets.sort(key=lambda c: c.name)
-    else:
-        targets = sorted(analysis.classes.values(), key=lambda c: c.name)
-    if limit:
-        targets = targets[:limit]
-    for cls in targets:
-        typer.echo(f"{cls.name} : {cls.super_name}  (inst={len(cls.inst)} cls={len(cls.cls)})")
-        # Full method lists, not truncated: a `[:40]` slice silently hid real
-        # methods on large config classes (some apps have thousands of
-        # generated getters) and sent users greping for selectors that WERE
-        # there. Pipe to grep.
-        if cls.inst:
-            typer.echo("  inst: " + ", ".join(sorted(cls.inst)))
-        if cls.cls:
-            typer.echo("  class: " + ", ".join(sorted(cls.cls)))
 
 
 @app.command("audit")

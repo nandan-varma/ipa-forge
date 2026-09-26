@@ -83,17 +83,17 @@ def test_cli_find_reports_implementing_classes(objc_macho_binary: Path, tmp_path
     assert "instance method on" in result.stdout or "class method on" in result.stdout or "not found" in result.stdout
 
 
-def test_cli_extract_full_method_list_not_truncated(objc_macho_binary: Path, tmp_path: Path) -> None:
-    """extract must print EVERY method — the old [:40] slice hid methods and
+def test_cli_classdump_full_method_list_not_truncated(objc_macho_binary: Path, tmp_path: Path) -> None:
+    """classdump must print EVERY method — the old [:40] slice hid methods and
     sent users greping for selectors that were present."""
     from typer.testing import CliRunner
 
     from ipa_forge.cli.main import app
 
     ipa = _pack_ipa(objc_macho_binary, tmp_path)
-    result = CliRunner().invoke(app, ["hooks", "extract", "--ipa", str(ipa), "--limit", "0"])
+    result = CliRunner().invoke(app, ["analysis", "classdump", "--ipa", str(ipa)])
     assert result.exit_code == 0
-    assert "inst:" in result.stdout
+    assert "@interface Foo" in result.stdout
 
 
 def _pack_ipa(objc_binary: Path, tmp_path: Path) -> Path:
@@ -141,11 +141,11 @@ def _hooks_yaml(tmp_path: Path, target: str, selector: str, **extra: object) -> 
     return p
 
 
-def test_cli_extract_dumps_class(objc_macho_binary: Path, tmp_path: Path) -> None:
+def test_cli_classdump_dumps_class(objc_macho_binary: Path, tmp_path: Path) -> None:
     ipa = _pack_ipa(objc_macho_binary, tmp_path)
     result = runner.invoke(
-        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
-        ["extract", "--ipa", str(ipa), "--class", "Foo"],
+        __import__("ipa_forge.cli.analysis", fromlist=["app"]).app,
+        ["classdump", "--ipa", str(ipa), "--class", "Foo"],
     )
     assert result.exit_code == 0
     assert "Foo" in result.stdout
@@ -198,21 +198,21 @@ def test_cli_manifest_emits_block(tmp_path: Path) -> None:
     assert 'selector: "doIt:"' in result.stdout
 
 
-def test_cli_extract_class_not_found(objc_macho_binary: Path, tmp_path: Path) -> None:
+def test_cli_classdump_class_not_found(objc_macho_binary: Path, tmp_path: Path) -> None:
     ipa = _pack_ipa(objc_macho_binary, tmp_path)
     result = runner.invoke(
-        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
-        ["extract", "--ipa", str(ipa), "--class", "Nope"],
+        __import__("ipa_forge.cli.analysis", fromlist=["app"]).app,
+        ["classdump", "--ipa", str(ipa), "--class", "Nope"],
     )
     assert result.exit_code == 1
-    assert "not parsed" in result.stdout
+    assert "not found" in result.stdout
 
 
-def test_cli_extract_search_regex(objc_macho_binary: Path, tmp_path: Path) -> None:
+def test_cli_classdump_search_regex(objc_macho_binary: Path, tmp_path: Path) -> None:
     ipa = _pack_ipa(objc_macho_binary, tmp_path)
     result = runner.invoke(
-        __import__("ipa_forge.cli.hooks", fromlist=["app"]).app,
-        ["extract", "--ipa", str(ipa), "--search", "^Foo"],
+        __import__("ipa_forge.cli.analysis", fromlist=["app"]).app,
+        ["classdump", "--ipa", str(ipa), "--search", "^Foo"],
     )
     assert result.exit_code == 0
     assert "Foo" in result.stdout

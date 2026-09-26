@@ -73,7 +73,7 @@ def analysis_classdump(
     text: every class (superclass, protocol conformance, ivars, properties,
     method signatures), protocol declarations, and categories. `--class`/
     `--search` restrict output to matching classes only (protocols and
-    categories are omitted in that case, matching `forge hooks extract`)."""
+    categories are omitted in that case)."""
     with tempfile.TemporaryDirectory(prefix="ipa_forge_analysis_") as tmp:
         app_path = extract_or_use(ipa, app_dir, Path(tmp))
         bundle = load_bundle(app_path)

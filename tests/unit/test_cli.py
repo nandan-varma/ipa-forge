@@ -375,3 +375,10 @@ def test_patch_manifest_write_error_is_clean(tmp_path: Path):
     assert result.exit_code == 1
     assert "cannot write manifest" in result.stderr
     assert "Traceback" not in result.output
+
+
+def test_hooks_extract_removed():
+    result = runner.invoke(app, ["hooks", "--help"])
+    assert "extract" not in _ANSI_RE.sub("", result.stdout)
+    result = runner.invoke(app, ["hooks", "extract"])
+    assert result.exit_code == 2

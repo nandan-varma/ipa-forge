@@ -168,7 +168,7 @@ Prints the installed version.
 ## Hook verification (`forge hooks`)
 
 Dylib tweaks silently break when a new app version renames/removes hook
-targets. Six commands turn that into a checkable report, all built on the
+targets. Five commands turn that into a checkable report, all built on the
 same Mach-O/ObjC analysis engine `forge analysis` uses.
 
 <Callout type="info" title="Fast iteration with --app-dir">
@@ -199,27 +199,6 @@ app binary. Exit code `0` if every `required` hook attaches, `1` otherwise.
 
 ```bash
 forge hooks verify --ipa App.ipa --patches patch.yaml
-```
-
-### `forge hooks extract`
-
-Dump the Objective-C class table: class names, superclasses, and
-instance/class method lists (chained-fixup aware, full method lists — pipe
-to `grep` for large config classes).
-
-<TypeTable
-  type={{
-    "--ipa <path>": { type: "path", description: "Input .ipa (omit when --app-dir is given)" },
-    "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
-    "--class <name>": { type: "string", description: "Restrict to one class (exact name)" },
-    "--search <regex>": { type: "string", description: "Only classes whose name matches this regex" },
-    "--limit <n>": { type: "number", default: "60", description: "Max classes to print; 0 = no limit" },
-  }}
-/>
-
-```bash
-forge hooks extract --ipa App.ipa --class PlaybackResponse
-forge hooks extract --ipa App.ipa --search "Config" --limit 0
 ```
 
 ### `forge hooks audit`
@@ -337,7 +316,7 @@ block"). Then porting is:
 # 2. dry-run: reports every hook that would silently no-op on the new binary
 forge patch --ipa New.ipa --patches patch.yaml --output /tmp/x.ipa --dry-run
 # 3. for each flagged hook, find what replaced the class/selector
-forge hooks extract --ipa New.ipa --search "<old class substring>"
+forge analysis classdump --ipa New.ipa --search "<old class substring>"
 # 4. fix the tweak source, rebuild, re-run the dry-run until required hooks pass
 ```
 

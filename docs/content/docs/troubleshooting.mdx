@@ -21,7 +21,7 @@ matter what class you point it at (double-check with `forge hooks find
 a silent no-op on device (feature stops working, no crash). This is exactly
 what the `hooks:` block exists to catch.
 
-**Fix:** find the new name: `forge hooks extract --ipa App.ipa --search
+**Fix:** find the new name: `forge analysis classdump --ipa App.ipa --search
 "<substring of old class>"` shows what replaced it (e.g. `PlaybackController`
 → `PlaybackControllerImpl`). Update the hook target (and the tweak
 source), then re-run `--dry-run`. Statuses `unverified` and `ok-inherited`

@@ -61,7 +61,7 @@ forge patch --ipa <ipa> --patches <patches.yaml> --identity <id> --profile <prof
 forge export-source --ipa <patched.ipa> --download-url <url> --output source.json
 forge gui   # launches the local FastAPI GUI on 127.0.0.1:8765 (+ /analysis RE viewer)
 
-# Hook verification (forge hooks --help): verify | extract | audit | find | manifest | diff
+# Hook verification (forge hooks --help): verify | audit | find | manifest | diff
 forge hooks verify --ipa <ipa> --patches <patches.yaml>
 # Cross-check tweak source against the declared hooks: block -- catches a hook
 # the source calls but the YAML forgot to declare (invisible to --dry-run
@@ -108,7 +108,7 @@ source scan against the declaration (`ipa_forge/hooks/scan.py` +
 `ipa_forge/cli/hooks.py::hooks_audit`); it isn't run automatically by
 `--dry-run`; run it as a standard part of the verify loop, not just when a
 hook seems broken. The CLI surface is `forge hooks
-verify|extract|audit|find|manifest|diff`. `cli/` and `gui/` call into
+verify|audit|find|manifest|diff`. `cli/` and `gui/` call into
 `pipeline.py` for patching — neither touches `patch/` or `signing/`
 directly; `cli/` additionally uses `altstore/` (export-source) and
 `validators/` (inspect/validate) directly, and structural IPA validation

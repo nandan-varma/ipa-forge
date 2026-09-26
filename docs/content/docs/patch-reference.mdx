@@ -382,7 +382,7 @@ hooks regressed between two versions.
 `forge hooks find <selector> --ipa App.ipa` is the reverse lookup — which
 classes implement a selector, plus the `referenced-only` warning when nothing
 does. Check it first when a hook "attaches per verify" but does nothing on
-device. `forge hooks extract --ipa App.ipa --class <name>` prints the FULL
+device. `forge analysis classdump --ipa App.ipa --class <name>` prints the FULL
 method list (no truncation) — pipe large config classes through `grep`.
 
 <Callout type="error" title="A hook not declared in the hooks: block is invisible to --dry-run">

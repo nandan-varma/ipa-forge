@@ -130,7 +130,7 @@ def render_analysis(
 ) -> str:
     """Render every class/protocol/category in `analysis` as class-dump text,
     optionally restricted to one class name or a substring/regex search over
-    class names (matches `forge hooks extract`'s --class/--search)."""
+    class names."""
     import re as _re
 
     classes = sorted(analysis.classes.values(), key=lambda c: c.name)

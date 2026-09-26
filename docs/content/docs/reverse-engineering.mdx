@@ -43,8 +43,7 @@ forge analysis classdump --ipa App.ipa --search '^App' --output dump.h
 ```
 
 `--class`/`--search` restrict output to matching classes only (protocols
-and categories are omitted in that case, matching `forge hooks extract`'s
-`--class`/`--search`). A class/superclass defined in another image (system
+and categories are omitted in that case). A class/superclass defined in another image (system
 frameworks, or a framework you didn't point the tool at) is reported as
 `«external»` — the same honest-reporting convention `forge hooks` uses,
 rather than guessing.

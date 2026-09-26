@@ -71,8 +71,8 @@ renames that would break a hardcoded chain.
 Before you write a hook target, confirm it exists:
 
 ```bash
-forge hooks extract --ipa <ipa> --class <Class>
-forge hooks extract --ipa <ipa> --search <regex>
+forge analysis classdump --ipa <ipa> --class <Class>
+forge analysis classdump --ipa <ipa> --search <regex>
 ```
 
 For a selector that seems missing, cross-check with `forge analysis
