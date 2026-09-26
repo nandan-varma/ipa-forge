@@ -21,6 +21,8 @@ def lint_definition(definition: Path) -> None:
             source = (definition.parent / spec.source).resolve()
             if not source.exists():
                 raise PatchLoadError(f"{spec.id}: source '{source}' does not exist")
+            if isinstance(spec, ResourceReplaceSpec) and not source.is_file():
+                raise PatchLoadError(f"{spec.id}: source '{source}' is not a file")
     seen: set[tuple[str, str]] = set()
     for hook in loaded.hooks or []:
         key = (hook.class_name, hook.selector)

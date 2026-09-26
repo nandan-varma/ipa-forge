@@ -124,3 +124,17 @@ def test_classdump_invalid_regex_is_clean(objc_rich_macho_binary: Path, tmp_path
     result = runner.invoke(app, ["analysis", "classdump", "--ipa", str(ipa), "--methods-matching", "["])
     assert result.exit_code == 1
     assert "invalid regex" in result.stderr
+
+
+def test_classdump_empty_json_keeps_text_exit_status(objc_rich_macho_binary: Path, tmp_path: Path):
+    import json
+
+    ipa = _pack_ipa(objc_rich_macho_binary, tmp_path)
+    args = ["analysis", "classdump", "--ipa", str(ipa), "--search", "^Absent$"]
+    assert runner.invoke(app, args).exit_code == 1
+    result = runner.invoke(app, [*args, "--json"])
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["classes"] == {}
+    result = runner.invoke(app, [*args, "--json", "--names-only"])
+    assert result.exit_code == 1
+    assert json.loads(result.stdout) == []

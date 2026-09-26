@@ -102,3 +102,9 @@ def test_lint_distinct_hooks(tmp_path):
     path = definition(tmp_path, hooks=[{"class": "Foo", "selector": "bar:"}, {"class": "Foo", "selector": "baz:"}])
     result = runner.invoke(app, ["lint", str(path)])
     assert result.exit_code == 0, result.output
+
+
+def test_lint_resource_replace_requires_file(tmp_path):
+    (tmp_path / "directory").mkdir()
+    path = definition(tmp_path, [{"type": "resource_replace", "id": "copy", "path": "x", "source": "directory"}])
+    assert_failure(path, "is not a file")

@@ -19,6 +19,8 @@ def _inventory(archive: ZipFile) -> set[str]:
 
 def _archive_path(path: str, prefix: str) -> str:
     # Older manifests recorded temporary extraction paths. New ones are app-relative.
+    if not isinstance(path, str):
+        raise TypeError("manifest file paths must be strings")
     if path.startswith("Payload/"):
         return path
     if ".app/" in path:
@@ -31,7 +33,9 @@ def _archive_path(path: str, prefix: str) -> str:
 
 def verify_output(base: Path, output: Path, manifest_path: Path | None = None) -> None:
     manifest = json.loads(manifest_path.read_text()) if manifest_path else {}
-    if manifest and manifest.get("input_sha256") != sha256_of(base):
+    if not isinstance(manifest, dict):
+        raise TypeError("manifest must be a JSON object")
+    if manifest_path is not None and manifest.get("input_sha256") != sha256_of(base):
         raise ValueError("base IPA SHA-256 does not match manifest")
     if manifest.get("output_sha256") and manifest["output_sha256"] != sha256_of(output):
         raise ValueError("output IPA SHA-256 does not match manifest")
@@ -55,6 +59,8 @@ def verify_output(base: Path, output: Path, manifest_path: Path | None = None) -
             raise ValueError("manifest modified files are absent from Payload")
         binary_ops: dict[str, list[dict]] = {}
         for op in manifest.get("patches_applied", []):
+            if not isinstance(op, dict):
+                raise TypeError("manifest patch entries must be JSON objects")
             if "offsets" in op:
                 if op.get("status") != "applied" or not op.get("file"):
                     raise ValueError(f"{op.get('id')}: binary evidence requires an applied manifest with a file path")

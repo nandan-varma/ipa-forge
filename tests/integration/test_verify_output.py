@@ -108,3 +108,63 @@ def test_verify_output_without_manifest_identical(tmp_path):
     base = FIXTURES / "synthetic_app.ipa"
     result = runner.invoke(app, ["verify-output", "--base", str(base), "--output", str(base)])
     assert result.exit_code == 0, result.output
+
+
+def test_verify_output_invalid_manifest_shape_is_clean(tmp_path):
+    base = FIXTURES / "synthetic_app.ipa"
+    manifest = tmp_path / "invalid.json"
+    manifest.write_text("[]")
+    result = verify(base, manifest)
+    assert result.exit_code == 1
+    assert "manifest" in result.stderr
+    assert "Traceback" not in result.output
+
+
+def test_verify_output_bad_recorded_offset(tmp_path):
+    output, manifest = patched(tmp_path)
+    data = json.loads(manifest.read_text())
+    next(p for p in data["patches_applied"] if "offsets" in p)["offsets"] = ["0xffffffff"]
+    manifest.write_text(json.dumps(data))
+    result = verify(output, manifest)
+    assert result.exit_code == 1
+    assert "invalid binary edit range" in result.stderr
+
+
+def test_verify_output_directory_add_remove(tmp_path):
+    import yaml
+
+    patches = tmp_path / "patches.yaml"
+    staged = tmp_path / "staged"
+    staged.mkdir()
+    (staged / "new.txt").write_text("new resource")
+    patches.write_text(
+        yaml.safe_dump(
+            {
+                "target": {"bundle_id": "com.example.synthetic", "version": {"exact": "1.0.0"}},
+                "patches": [
+                    {"id": "add", "type": "resource_add", "path": "New", "source": "staged"},
+                    {"id": "remove", "type": "resource_remove", "path": "Frameworks"},
+                ],
+            }
+        )
+    )
+    output = tmp_path / "output.ipa"
+    manifest = tmp_path / "manifest.json"
+    result = runner.invoke(
+        app,
+        [
+            "patch",
+            "--ipa",
+            str(FIXTURES / "synthetic_app.ipa"),
+            "--patches",
+            str(patches),
+            "--output",
+            str(output),
+            "--no-sign",
+            "--manifest",
+            str(manifest),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    result = verify(output, manifest)
+    assert result.exit_code == 0, result.output

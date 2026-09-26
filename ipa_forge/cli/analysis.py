@@ -79,7 +79,7 @@ def analysis_classdump(
         bundle = load_bundle(app_path)
         analysis = analyze_bundle(bundle)
 
-    if class_name and class_name not in analysis.classes:
+    if class_name and class_name not in analysis.classes and not json_output:
         typer.secho(f"class '{class_name}' not found", fg=typer.colors.YELLOW)
         raise typer.Exit(code=1)
 
@@ -106,11 +106,14 @@ def analysis_classdump(
         typer.echo("no matching classes/protocols/categories found")
         raise typer.Exit(code=1)
 
+    empty = not analysis.classes if names_only else not (analysis.classes or analysis.protocols or analysis.categories)
     if output:
         output.write_text(text + "\n")
         typer.echo(f"wrote {output}")
     else:
         typer.echo(text)
+    if empty:
+        raise typer.Exit(code=1)
 
 
 @app.command("strings")
