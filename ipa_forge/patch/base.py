@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from ipa_forge.bundle.models import AppBundle
 
@@ -32,6 +32,10 @@ class PatchResult:
     macho_modified: bool = False
     category: FileCategory | None = None
     """How files_touched changed, for the manifest's added/modified/removed breakdown."""
+    details: dict[str, Any] = field(default_factory=dict)
+    """Operation-specific evidence merged into the manifest entry -- e.g. a
+    binary_replace's match offsets and before/after bytes. Empty for ops whose
+    id and message already say everything."""
 
 
 @runtime_checkable

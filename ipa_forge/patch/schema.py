@@ -35,6 +35,13 @@ class BinaryReplaceSpec(BaseModel):
     replacement: str
     expected_matches: int = 1
     arch: str | None = None
+    note: str = ""
+    """Why this patch exists. A byte window carries no meaning on its own, so
+    without this the rationale lives only in a reviewer's head -- and the next
+    version bump has nothing to port from. Copied into the manifest."""
+    symbol: str | None = None
+    """The function containing this window, when a disassembler named it.
+    Recorded in the manifest; never used for matching."""
 
 
 class ResourceReplaceSpec(BaseModel):

@@ -46,6 +46,24 @@ def parse_hex_pattern(pattern: str) -> tuple[bytes, bytes]:
     return bytes(data), bytes(mask)
 
 
+_MAX_REPORTED_OFFSETS = 10
+
+
+def format_offsets(offsets: list[int]) -> str:
+    """Render match offsets for an error message, capped.
+
+    An over-broad pattern can match tens of thousands of times (a bare `00`
+    matches ~64k times in a small binary); the full list made a single-line
+    error message megabytes long, and that message travels into PipelineError
+    and the manifest verbatim.
+    """
+    shown = ", ".join(hex(o) for o in offsets[:_MAX_REPORTED_OFFSETS])
+    remaining = len(offsets) - _MAX_REPORTED_OFFSETS
+    if remaining > 0:
+        return f"[{shown}, ... and {remaining} more]"
+    return f"[{shown}]"
+
+
 def find_matches(haystack: bytes, pattern: bytes, mask: bytes, start: int = 0, end: int | None = None) -> list[int]:
     """Return absolute offsets in `haystack` where `pattern` (respecting `mask`)
     matches, restricted to the [start, end) window."""
@@ -75,6 +93,12 @@ class BinaryReplaceOp:
     replacement: str
     expected_matches: int = 1
     arch: str | None = None
+    note: str = ""
+    """Why this patch exists, in the author's words -- carried into the manifest
+    so a build records its own rationale."""
+    symbol: str | None = None
+    """The function this window lives in, when known (e.g. a demangled name from
+    a disassembler). Recorded in the manifest; never used for matching."""
 
     def _resolve_target(self, ctx: PatchContext) -> Path:
         for target in ctx.bundle.executables:
@@ -82,33 +106,72 @@ class BinaryReplaceOp:
                 return target.path
         raise FileNotFoundError(f"executable '{self.executable}' not found in bundle inventory")
 
-    def _plan(self, ctx: PatchContext) -> tuple[Path, bytes, bytes, bytes, list[int]]:
+    def validate_patterns(self) -> bytes:
+        """Parse `pattern`/`replacement` and check they agree, returning the
+        replacement bytes.
+
+        Runs from `_plan`, so `dry_run` sees every malformed-input failure that
+        `apply` would: a bad hex token used to raise PatternError straight out
+        of `apply` (a traceback, after earlier operations had already mutated
+        the tree) and a length mismatch used to pass the gate and fail on apply.
+        Needs no bundle, so `forge lint` can call it without an IPA.
+        """
+        pattern, _ = parse_hex_pattern(self.pattern)
+        replacement, replacement_mask = parse_hex_pattern(self.replacement)
+        if 0 in replacement_mask:
+            raise PatternError(
+                "'??' wildcards are not allowed in a replacement -- a wildcard there would write 0x00 "
+                "rather than keep the original byte; spell out the byte you want"
+            )
+        if len(replacement) != len(pattern):
+            raise PatternError(f"replacement length ({len(replacement)}) must equal pattern length ({len(pattern)})")
+        return replacement
+
+    def _plan(self, ctx: PatchContext) -> tuple[Path, bytes, bytes, list[int]]:
+        replacement = self.validate_patterns()
         target_path = self._resolve_target(ctx)
         start, end = slice_byte_range(target_path, self.arch)
         data = target_path.read_bytes()
         pattern, mask = parse_hex_pattern(self.pattern)
         offsets = find_matches(data, pattern, mask, start=start, end=end)
-        return target_path, data, pattern, mask, offsets
+        return target_path, data, replacement, offsets
 
     def _check_match_count(self, offsets: list[int]) -> str | None:
         if len(offsets) != self.expected_matches:
-            return f"expected {self.expected_matches} match(es), found {len(offsets)} at offsets {offsets}"
+            return (
+                f"expected {self.expected_matches} match(es), found {len(offsets)} at offsets {format_offsets(offsets)}"
+            )
         return None
+
+    def _details(self, offsets: list[int], data: bytes, replacement: bytes) -> dict[str, object]:
+        """Byte-level record of what this op did, for the manifest: where it
+        matched and the exact before/after bytes. This is the evidence a
+        reviewer needs to confirm a binary patch without re-deriving it."""
+        details: dict[str, object] = {
+            "offsets": [hex(o) for o in offsets],
+            "before": data[offsets[0] : offsets[0] + len(replacement)].hex(" ") if offsets else "",
+            "after": replacement.hex(" "),
+        }
+        if self.note:
+            details["note"] = self.note
+        if self.symbol:
+            details["symbol"] = self.symbol
+        return details
 
     def dry_run(self, ctx: PatchContext) -> PatchResult:
         try:
-            _, _, _, _, offsets = self._plan(ctx)
+            _, data, replacement, offsets = self._plan(ctx)
         except (FileNotFoundError, PatternError, NotMachOError, AmbiguousArchError, ArchNotFoundError) as e:
             return PatchResult(op_id=self.op_id, status="failed", message=str(e))
 
         error = self._check_match_count(offsets)
         if error:
             return PatchResult(op_id=self.op_id, status="failed", message=error)
-        return PatchResult(op_id=self.op_id, status="dry_run_ok")
+        return PatchResult(op_id=self.op_id, status="dry_run_ok", details=self._details(offsets, data, replacement))
 
     def apply(self, ctx: PatchContext) -> PatchResult:
         try:
-            target_path, data, pattern, _, offsets = self._plan(ctx)
+            target_path, data, replacement, offsets = self._plan(ctx)
         except (FileNotFoundError, PatternError, NotMachOError, AmbiguousArchError, ArchNotFoundError) as e:
             return PatchResult(op_id=self.op_id, status="failed", message=str(e))
 
@@ -116,14 +179,7 @@ class BinaryReplaceOp:
         if error:
             return PatchResult(op_id=self.op_id, status="failed", message=error)
 
-        replacement, _ = parse_hex_pattern(self.replacement)
-        if len(replacement) != len(pattern):
-            return PatchResult(
-                op_id=self.op_id,
-                status="failed",
-                message=f"replacement length ({len(replacement)}) must equal pattern length ({len(pattern)})",
-            )
-
+        details = self._details(offsets, data, replacement)
         buf = bytearray(data)
         for offset in offsets:
             buf[offset : offset + len(replacement)] = replacement
@@ -132,8 +188,9 @@ class BinaryReplaceOp:
         return PatchResult(
             op_id=self.op_id,
             status="applied",
-            message=f"replaced {len(offsets)} match(es) at {offsets}",
+            message=f"replaced {len(offsets)} match(es) at {format_offsets(offsets)}",
             files_touched=[target_path],
             macho_modified=True,
             category="modified",
+            details=details,
         )

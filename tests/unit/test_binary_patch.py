@@ -11,6 +11,7 @@ from ipa_forge.patch.binary import (
     BinaryReplaceOp,
     PatternError,
     find_matches,
+    format_offsets,
     parse_hex_pattern,
 )
 
@@ -137,3 +138,103 @@ def test_binary_replace_rejects_mismatched_replacement_length(compiled_macho_bin
     result = op.apply(ctx)
     assert result.status == "failed"
     assert "length" in result.message
+
+
+# --- the dry-run gate must catch every failure `apply` can hit (A1) ---------
+# A malformed or wrong-length `replacement` used to slip past dry_run: the
+# length check lived only in apply(), and a bad hex token raised PatternError
+# straight out of apply() -- a traceback, raised after earlier operations in
+# the same run had already mutated the extracted tree.
+
+
+@pytest.mark.parametrize(
+    ("replacement", "expected_text"),
+    [
+        ("00 00", "length"),
+        ("zz zz zz zz zz zz zz zz", "invalid hex byte token"),
+        ("?? ?? 00 00 00 00 00 00", "wildcards are not allowed"),
+    ],
+)
+def test_binary_replace_dry_run_rejects_bad_replacement(
+    compiled_macho_binary: Path, tmp_path: Path, replacement: str, expected_text: str
+):
+    header_hex = " ".join(f"{b:02x}" for b in compiled_macho_binary.read_bytes()[:8])
+    ctx = PatchContext(bundle=_bundle_for(compiled_macho_binary, tmp_path), patch_source_dir=tmp_path)
+
+    op = BinaryReplaceOp(
+        op_id="bad-replacement",
+        executable=compiled_macho_binary.name,
+        pattern=header_hex,
+        replacement=replacement,
+    )
+    result = op.dry_run(ctx)
+    assert result.status == "failed"
+    assert expected_text in result.message
+    # apply() must report the same failure as a PatchResult, never raise
+    assert op.apply(ctx).status == "failed"
+
+
+def test_binary_replace_apply_leaves_file_untouched_on_bad_replacement(compiled_macho_binary: Path, tmp_path: Path):
+    before = compiled_macho_binary.read_bytes()
+    header_hex = " ".join(f"{b:02x}" for b in before[:8])
+    ctx = PatchContext(bundle=_bundle_for(compiled_macho_binary, tmp_path), patch_source_dir=tmp_path)
+
+    op = BinaryReplaceOp(op_id="bad-hex", executable=compiled_macho_binary.name, pattern=header_hex, replacement="zz")
+    assert op.apply(ctx).status == "failed"
+    assert compiled_macho_binary.read_bytes() == before
+
+
+def test_format_offsets_caps_the_list():
+    """A bare `00` pattern matches tens of thousands of times; the full offset
+    list made the error message (which lands in PipelineError and the manifest)
+    megabytes long."""
+    assert format_offsets([0x10, 0x20]) == "[0x10, 0x20]"
+    capped = format_offsets(list(range(500)))
+    assert capped.endswith("... and 490 more]")
+    assert len(capped) < 120
+
+
+def test_binary_replace_over_broad_pattern_message_stays_short(compiled_macho_binary: Path, tmp_path: Path):
+    ctx = PatchContext(bundle=_bundle_for(compiled_macho_binary, tmp_path), patch_source_dir=tmp_path)
+    op = BinaryReplaceOp(op_id="broad", executable=compiled_macho_binary.name, pattern="00", replacement="01")
+    result = op.dry_run(ctx)
+    assert result.status == "failed"
+    assert "and" in result.message and "more" in result.message
+    assert len(result.message) < 200
+
+
+# --- byte-level evidence in the manifest (C1) ------------------------------
+
+
+def test_binary_replace_records_offsets_bytes_and_note(compiled_macho_binary: Path, tmp_path: Path):
+    data = compiled_macho_binary.read_bytes()
+    header_hex = " ".join(f"{b:02x}" for b in data[:8])
+    replacement_hex = " ".join(f"{b ^ 0xFF:02x}" for b in data[:8])
+    ctx = PatchContext(bundle=_bundle_for(compiled_macho_binary, tmp_path), patch_source_dir=tmp_path)
+
+    op = BinaryReplaceOp(
+        op_id="evidence",
+        executable=compiled_macho_binary.name,
+        pattern=header_hex,
+        replacement=replacement_hex,
+        note="flip the header bytes",
+        symbol="SomeClass.someMethod()",
+    )
+    # the same evidence is available before anything mutates
+    assert op.dry_run(ctx).details == {
+        "offsets": ["0x0"],
+        "before": header_hex,
+        "after": replacement_hex,
+        "note": "flip the header bytes",
+        "symbol": "SomeClass.someMethod()",
+    }
+    assert op.apply(ctx).details["before"] == header_hex
+
+
+def test_binary_replace_details_omit_absent_note_and_symbol(compiled_macho_binary: Path, tmp_path: Path):
+    header_hex = " ".join(f"{b:02x}" for b in compiled_macho_binary.read_bytes()[:8])
+    ctx = PatchContext(bundle=_bundle_for(compiled_macho_binary, tmp_path), patch_source_dir=tmp_path)
+    op = BinaryReplaceOp(
+        op_id="no-note", executable=compiled_macho_binary.name, pattern=header_hex, replacement=header_hex
+    )
+    assert set(op.dry_run(ctx).details) == {"offsets", "before", "after"}

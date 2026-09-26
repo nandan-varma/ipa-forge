@@ -62,6 +62,8 @@ def build_operations(definition: PatchDefinition) -> list[PatchOperation]:
                     replacement=spec.replacement,
                     expected_matches=spec.expected_matches,
                     arch=spec.arch,
+                    note=spec.note,
+                    symbol=spec.symbol,
                 )
             )
         elif isinstance(spec, ResourceReplaceSpec):
