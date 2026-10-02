@@ -1,6 +1,6 @@
 ---
 title: "Reverse Engineering"
-description: "forge analysis: class-dump, strings, symbols, security posture, and version diffing for any decrypted IPA."
+description: "forge analysis: class-dump, strings, symbols, security posture, IL2CPP references, and version diffing for decrypted IPAs."
 ---
 
 General-purpose, read-only static analysis of any `.ipa` — not tied to a
@@ -15,9 +15,34 @@ Two things are deliberately **not** implemented, by design rather than
 oversight:
 - **FairPlay/App Store DRM decryption.** Every command here assumes an
   already-decrypted `.ipa`, exactly like the rest of ipa-forge.
-- **Instruction-level disassembly/decompilation.** Static metadata
-  (classes, strings, symbols) only — no capstone/Ghidra-style disassembly.
+- **General instruction-level disassembly/decompilation.** The IL2CPP
+  command recognizes a few ARM64 instruction forms to find references;
+  it does not reconstruct source or replace a disassembler.
 </Callout>
+
+## `forge analysis il2cpp`
+
+For Unity IL2CPP apps, builds a read-only index from `UnityFramework` (or
+the main executable) and `global-metadata.dat`. Find compiled method names,
+methods loading a string literal, or direct callers of a method:
+
+```bash
+forge analysis il2cpp --ipa Game.ipa --methods 'Enchant'
+forge analysis il2cpp --app-dir Payload/Game.app --literal 'network|raid' --limit 30
+forge analysis il2cpp --app-dir Payload/Game.app --callers 'ShopScene\\.Open' --json
+```
+
+Choose exactly one of `--methods`, `--literal`, or `--callers`. Method results
+include their metadata references; `--json` emits the same data as structured
+records. `--limit` defaults to 100. The content-addressed index is cached in
+the ipa-forge cache; `FORGE_NO_CACHE=1` rebuilds it.
+
+This parser currently supports **metadata v31 (Unity 2022.3), arm64**. Other
+versions report a clear error; use Cpp2IL for them. Names reflect the app's
+metadata, so obfuscated games still show obfuscated identifiers. Reference
+tracking is approximate and can miss loads; inspect a candidate function in
+a disassembler before changing bytes. Direct callers cover `b` and `bl`
+branches to known function starts, not indirect calls.
 
 ## `forge analysis classdump`
 

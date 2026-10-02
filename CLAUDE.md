@@ -74,6 +74,9 @@ forge hooks audit --ipa <ipa> --dir dylib/ --patches <patches.yaml>
 # General-purpose IPA reverse engineering (forge analysis --help), see docs/content/docs/reverse-engineering.mdx
 forge analysis classdump --ipa <ipa> [--class NAME | --search REGEX]
 forge analysis diff --old <old.ipa> --new <new.ipa>
+forge analysis il2cpp --app-dir Payload/Game.app --methods 'NameRegex'
+forge analysis il2cpp --app-dir Payload/Game.app --literal 'StringRegex'
+forge analysis il2cpp --app-dir Payload/Game.app --callers 'NameRegex'
 
 # Regenerate the synthetic test fixture (only needed if changing its shape)
 scripts/rebuild_fixture.sh
@@ -125,6 +128,14 @@ classdump|strings|symbols|security|diff`, plus a read-only `/analysis`
 page in the GUI. FairPlay decryption and instruction-level disassembly are
 deliberately out of scope — see `ipa_forge/analysis/__init__.py`'s
 docstring.
+
+For Unity IL2CPP apps with metadata v31, `forge analysis il2cpp` indexes
+method addresses, metadata/string references, and direct callers from the
+arm64 binary and `global-metadata.dat`. Run it on an extracted app with
+`--app-dir` while iterating; it caches by binary and metadata content. Its
+ARM64 reference scan is approximate: confirm the relevant instructions in
+a disassembler before committing a binary patch. Other metadata versions
+need Cpp2IL or a separately validated parser update.
 
 **The core engine is app-agnostic**: it understands patch operation *types*
 (`binary_replace`, `resource_replace`, `dylib_inject`, ...) via the

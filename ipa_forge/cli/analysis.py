@@ -15,11 +15,13 @@ import re as _re
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 import typer
 
 from ipa_forge.analysis.classdump import render_analysis, select_analysis
 from ipa_forge.analysis.diff import diff_analyses, render_diff
+from ipa_forge.analysis.il2cpp import Il2CppError, index_for_app
 from ipa_forge.analysis.security import analyze_security, render_security_posture
 from ipa_forge.analysis.strings import strings_in_bundle
 from ipa_forge.analysis.symbols import analyze_symbols
@@ -30,7 +32,76 @@ from ipa_forge.machO.arch import AmbiguousArchError, ArchNotFoundError, NotMachO
 from ipa_forge.machO.detect import bundle_executable_paths
 from ipa_forge.machO.objc import analyze_bundle
 
-app = typer.Typer(help="General-purpose IPA reverse engineering: class-dump, strings, symbols, security, diff.")
+app = typer.Typer(help="General-purpose IPA reverse engineering: class-dump, strings, symbols, security, diff, IL2CPP.")
+
+
+@app.command("il2cpp")
+def analysis_il2cpp(
+    ipa: Path | None = typer.Option(None, "--ipa", exists=True, help="Input .ipa"),
+    app_dir: Path | None = typer.Option(None, "--app-dir", exists=True, help="Extracted Payload/<App>.app"),
+    methods: str | None = typer.Option(None, "--methods", help="Regex matching method names"),
+    literal: str | None = typer.Option(None, "--literal", help="Regex matching string literals"),
+    callers: str | None = typer.Option(None, "--callers", help="Regex matching methods whose callers to show"),
+    limit: int = typer.Option(100, "--limit", min=1, help="Maximum matches to print"),
+    json_output: bool = typer.Option(False, "--json", help="Print structured results"),
+) -> None:
+    """Find compiled Unity IL2CPP methods, string users, and direct callers."""
+    if sum(x is not None for x in (methods, literal, callers)) != 1:
+        typer.secho("error: select exactly one of --methods, --literal, or --callers", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    try:
+        with tempfile.TemporaryDirectory(prefix="ipa_forge_il2cpp_") as tmp:
+            app_path = extract_or_use(ipa, app_dir, Path(tmp))
+            bundle = load_bundle(app_path)
+            index = index_for_app(app_path, bundle.main_executable_name)
+        rows: list[dict[str, Any]]
+        if methods is not None:
+            rows = [
+                {
+                    "address": a,
+                    "method": name,
+                    "references": [asdict(r) for r in index.functions[a].refs] if a in index.functions else [],
+                }
+                for a, name in index.find_methods(methods)[:limit]
+            ]
+        elif literal is not None:
+            rows = [
+                {
+                    "literal": value,
+                    "users": [{"address": a, "method": index.name_of(a), "site": site} for a, site in users],
+                }
+                for value, users in list(index.literal_users(literal).items())[:limit]
+            ]
+        else:
+            targets = {a for a, _ in index.find_methods(callers or "")}
+            rows = [
+                {
+                    "address": a,
+                    "method": index.name_of(a),
+                    "target": c.target,
+                    "target_method": index.name_of(c.target),
+                    "site": c.site,
+                }
+                for a, c in index.callers(targets)[:limit]
+            ]
+    except (Il2CppError, ValueError, _re.error) as e:
+        typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
+    if json_output:
+        typer.echo(json.dumps(rows, indent=2))
+    else:
+        for row in rows:
+            if "literal" in row:
+                typer.echo(f"{row['literal']!r}")
+                for user in row["users"]:
+                    typer.echo(f"  {user['address']:#x} {user['method']} (load {user['site']:#x})")
+            elif "target" in row:
+                typer.echo(f"{row['address']:#x} {row['method']} -> {row['target_method']} ({row['site']:#x})")
+            else:
+                typer.echo(f"{row['address']:#x} {row['method']}")
+                for ref in row["references"]:
+                    typer.echo(f"  {ref['site']:#x} {ref['kind']}: {ref['value']}")
+    typer.echo(f"-- {len(rows)} result(s) (limit {limit})", err=True)
 
 
 def _select_binary(bundle: AppBundle, binary: str | None) -> Path:
