@@ -367,9 +367,10 @@ A class or selector that the class-table walk *missed* (a parser gap, not a
 rename) is now reported honestly: when the name exists as a string somewhere
 in the binary, `missing-class` / `missing-selector` become `unverified` with
 a "string present … the walk missed it" hint — the old manual
-`strings <binary> | grep` cross-check is automated. Swift-mangled (`_TtC…`)
-classes absent from the parsed table are reported `unverified`, never
-mislabeled as system classes.
+`strings <binary> | grep` cross-check is automated. Swift classes (`_TtC…`)
+are parsed (the walker masks the Swift flag bits in `class_t.data`); one
+absent from the table is reported `unverified` — usually a rename — never
+mislabeled as a system class.
 
 `forge patch --dry-run` also verifies the definition's `hooks:` block
 automatically and prints an attach summary; `required: true` hooks that

@@ -503,3 +503,60 @@ def test_cli_verify_json_missing_required_and_empty(objc_macho_binary: Path, tmp
     result = runner.invoke(app, args)
     assert result.exit_code == 0
     assert json.loads(result.stdout)["hooks"] == []
+
+
+def test_scan_resolver_uses_each_call_sites_own_class(tmp_path: Path) -> None:
+    # two hooks through the same resolver must each report the class passed
+    # at their own call site, not whichever resolver call appeared last
+    (tmp_path / "tweak.m").write_text(
+        "#import <Foundation/Foundation.h>\n"
+        "static Class clsOf(NSString *name) { return NSClassFromString(name); }\n"
+        "static void a(void) {\n"
+        '    demoHookInstance(clsOf(@"First"), @selector(one), ^void(id self) {});\n'
+        '    demoHookInstance(clsOf(@"Second"), @selector(two), ^void(id self) {});\n'
+        "}\n"
+    )
+    decls = scan_hook_sources(tmp_path)
+    assert [(d.class_name, d.selector) for d in decls] == [("First", "one"), ("Second", "two")]
+
+
+def test_scan_resolver_defined_in_another_file(tmp_path: Path) -> None:
+    # a shared resolver (declared in a header, defined in one .m) is used by
+    # hooks in other files
+    (tmp_path / "Hook.m").write_text(
+        "#import <Foundation/Foundation.h>\n"
+        "Class sharedClass(NSString *name) {\n"
+        "    Class cls = NSClassFromString(name);\n"
+        "    return cls;\n"
+        "}\n"
+    )
+    (tmp_path / "Feature.m").write_text(
+        "#import <Foundation/Foundation.h>\n"
+        "static void a(void) {\n"
+        '    demoHookInstance(sharedClass(@"Remote"), @selector(go), ^void(id self) {});\n'
+        "}\n"
+    )
+    decls = scan_hook_sources(tmp_path)
+    assert [(d.class_name, d.selector) for d in decls] == [("Remote", "go")]
+
+
+def test_scan_variable_assigned_from_resolver(tmp_path: Path) -> None:
+    (tmp_path / "tweak.m").write_text(
+        "#import <Foundation/Foundation.h>\n"
+        "static Class clsOf(NSString *name) { return NSClassFromString(name); }\n"
+        "static void a(void) {\n"
+        '    Class target = clsOf(@"ViaVar");\n'
+        "    demoHookInstance(target, @selector(run), ^void(id self) {});\n"
+        "}\n"
+    )
+    decls = scan_hook_sources(tmp_path)
+    assert [(d.class_name, d.selector) for d in decls] == [("ViaVar", "run")]
+
+
+def test_analyze_swift_class_is_in_class_table(swift_macho_binary: Path) -> None:
+    # Swift classes flag class_t.data's low bits (FAST_IS_SWIFT_STABLE); an
+    # unmasked pointer misses class_ro_t and the class vanishes from the table
+    a = analyze_macho(swift_macho_binary, use_cache=False)
+    assert "_TtC4Demo10SwiftThing" in a.classes
+    methods = a.classes["_TtC4Demo10SwiftThing"].inst
+    assert "ping" in methods and "pong:" in methods

@@ -319,3 +319,33 @@ def test_blocking_excludes_unverified_while_failing_includes_it():
     assert [r.class_name for r in blocking(results)] == ["Gone"]
     # failing() still surfaces the gap, because a report should show it
     assert [r.class_name for r in failing(results)] == ["Gap", "Gone"]
+
+
+LIFECYCLE = [
+    "viewWillAppear:",
+    "viewWillDisappear:",
+    "viewWillLayoutSubviews",
+    "viewDidLayoutSubviews",
+    "loadView",
+    "willMoveToSuperview:",
+    "willMoveToWindow:",
+]
+
+
+@pytest.mark.parametrize("sel", LIFECYCLE)
+def test_uikit_lifecycle_method_on_external_ancestry_is_ok_inherited(sel):
+    # Found on Spotify 9.1.88: Swift view controllers (external
+    # UIViewController ancestry) hooked for -viewWillAppear:, while the
+    # selector is only implemented on unrelated app classes, were
+    # misclassified "elsewhere" although UIKit supplies the method.
+    a = MachOAnalysis(
+        classes={
+            "AppVC": MachOClass(name="AppVC", super_name="«external»"),
+            "OtherVC": MachOClass(name="OtherVC", super_name="«external»", inst={sel: "v@:B"}),
+        },
+        classnames={"AppVC", "OtherVC"},
+        selectors={sel},
+        main_executable="AppVC",
+    )
+    r = verify_hooks(a, [HookDecl("AppVC", sel)])
+    assert r[0].status == "ok-inherited" and r[0].ok

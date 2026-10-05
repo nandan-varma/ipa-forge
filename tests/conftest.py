@@ -56,6 +56,25 @@ def objc_macho_binary(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def swift_macho_binary(tmp_path: Path) -> Path:
+    """A real thin Mach-O with a Swift NSObject subclass. Swift classes set
+    FAST_IS_SWIFT_* flag bits in class_t.data, so the analyzer must mask them
+    before following the pointer to class_ro_t (as the ObjC runtime does)."""
+    src = tmp_path / "main.swift"
+    src.write_text(
+        "import Foundation\n"
+        "final class SwiftThing: NSObject {\n"
+        "    @objc func ping() {}\n"
+        "    @objc func pong(_ value: Int) {}\n"
+        "}\n"
+        "print(SwiftThing())\n"
+    )
+    out = tmp_path / "swift_binary"
+    subprocess.run(["swiftc", "-module-name", "Demo", "-o", str(out), str(src)], check=True)
+    return out
+
+
+@pytest.fixture
 def objc_rich_macho_binary(tmp_path: Path) -> Path:
     """A real thin Mach-O exercising protocols, ivars, properties, and
     categories -- everything `objc.py`'s class-dump-oriented parsing covers

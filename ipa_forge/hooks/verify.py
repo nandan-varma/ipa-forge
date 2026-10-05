@@ -77,6 +77,17 @@ _SYSTEM_SELECTORS = {
     "viewDidAppear:",
     "viewDidLoad",
     "viewDidDisappear:",
+    # UIViewController/UIView lifecycle -- same inheritance story. Found on
+    # Spotify 9.1.88: Swift view controllers hooked for -viewWillAppear:
+    # were misclassified "elsewhere" (the selector only appeared on
+    # unrelated app classes).
+    "viewWillAppear:",
+    "viewWillDisappear:",
+    "viewWillLayoutSubviews",
+    "viewDidLayoutSubviews",
+    "loadView",
+    "willMoveToSuperview:",
+    "willMoveToWindow:",
     "setHidden:",
     "setFrame:",
     "setBackgroundColor:",
@@ -219,16 +230,19 @@ def verify_hooks(analysis: MachOAnalysis, hooks: list[HookDecl]) -> list[HookRes
                 )
             elif cls.startswith("_Tt"):
                 # Swift-mangled class absent from the parsed table. Not a
-                # system class — labelling it ok-system would hide drift. The
-                # hook may well attach (the walk misses Swift classes too), so
-                # report honestly instead.
+                # system class — labelling it ok-system would hide drift.
+                # Swift classes in __objc_classlist ARE parsed (class_t.data
+                # flag bits masked), so this is likely a rename/removal — but
+                # some Swift classes (generic ones) are never listed there,
+                # so it stays a non-fatal unverified rather than missing.
                 results.append(
                     HookResult(
                         cls,
                         sel,
                         hook.kind,
                         "unverified",
-                        "Swift class not in the parsed class table (mangled name; the walk missed it)",
+                        "Swift class not in the parsed class table "
+                        "(likely renamed/removed; generic Swift classes are never listed)",
                         hook.required,
                     )
                 )

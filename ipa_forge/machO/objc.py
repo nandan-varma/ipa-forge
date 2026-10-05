@@ -269,6 +269,15 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
     def class_ptr(raw: int) -> int | None:
         return resolve_ptr(raw)
 
+    def class_data(cls_p: int) -> int | None:
+        """class_t.data -> class_ro_t. The low bits are runtime flags --
+        Swift classes set FAST_IS_SWIFT_LEGACY/STABLE (bits 0-1) -- so mask
+        them off the way the ObjC runtime does (FAST_DATA_MASK); unmasked,
+        every Swift class's name is read from the wrong address and the
+        class drops out of the table."""
+        dp = resolve_ptr(rd64(cls_p + 32))
+        return dp & ~0x7 if dp else dp
+
     if "__objc_classlist" in sections:
         _a, sz, o = sections["__objc_classlist"]
         for i in range(sz // 8):
@@ -276,7 +285,7 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
             p = class_ptr(raw)
             if p is None:
                 continue
-            dp = resolve_ptr(rd64(p + 32))
+            dp = class_data(p)
             if not dp:
                 continue
             np = resolve_ptr(rd64(dp + 24))
@@ -299,7 +308,7 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
             p = class_ptr(raw)
             if p is None:
                 continue
-            dp = resolve_ptr(rd64(p + 32))
+            dp = class_data(p)
             if not dp:
                 continue
             np = resolve_ptr(rd64(dp + 24))
@@ -311,7 +320,7 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
             sp = resolve_ptr(rd64(p + 8))
             super_name: str | None = None
             if sp:
-                sdp = resolve_ptr(rd64(sp + 32))
+                sdp = class_data(sp)
                 if sdp:
                     snp = resolve_ptr(rd64(sdp + 24))
                     if snp:
@@ -467,7 +476,7 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
         p = resolve_ptr(raw)
         if not p:
             return "«external»"
-        dp = resolve_ptr(rd64(p + 32))
+        dp = class_data(p)
         if not dp:
             return "«external»"
         np = resolve_ptr(rd64(dp + 24))
@@ -482,7 +491,7 @@ def _analyze_thin(bin_path: Path, original: Path) -> MachOAnalysis:
         cls.properties = parse_properties(rd64(ro + 64))  # ro.baseProperties
         meta = meta_by_name.get(name)
         if meta:
-            mdp = resolve_ptr(rd64(meta + 32))
+            mdp = class_data(meta)
             if mdp:
                 cls.cls = parse_methods(rd64(mdp + 32))  # metaclass ro.baseMethods
 

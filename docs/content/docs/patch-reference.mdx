@@ -375,10 +375,12 @@ When a class or selector the walk missed is still present as a string in some
 binary image (the old manual `strings <binary> | grep` cross-check), the
 report says so — "class-name string present … the walk missed it (likely
 attaches)" / "selector declared as a method somewhere … (likely attaches)".
-The parser under-reports methods on protobuf-generated message classes and
-large Swift class tables this way; Swift-mangled (`_TtC…`) classes absent
-from the parsed table are always reported `unverified`, never mislabeled as
-system classes.
+The parser under-reports methods on protobuf-generated message classes this
+way. Swift classes (`_TtC…`) are parsed like any ObjC class — the walker masks
+the Swift flag bits in `class_t.data` as the ObjC runtime does — so a Swift
+class *absent* from the table usually means a rename; it is still reported
+`unverified` (never mislabeled as a system class) because generic Swift
+classes never appear in `__objc_classlist`.
 </Callout>
 
 Porting to a new app version becomes: bump `target.version`, run
