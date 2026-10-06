@@ -38,9 +38,10 @@ reported so that porting to a new version is guided, not blocked.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
+from ipa_forge.hooks.signature import check_block_signature
 from ipa_forge.machO.objc import MachOAnalysis, contains_string
 
 HookStatus = Literal[
@@ -133,6 +134,11 @@ class HookDecl:
     kind: Literal["instance", "class"] = "instance"
     added: bool = False
     required: bool = False
+    # The hook block's declared C signature, when the source scan saw an
+    # inline block literal (``^ret(id self, T1 a, ...)``). ``block_return`` is
+    # None when the literal omits it; ``block_params`` includes ``self``.
+    block_return: str | None = None
+    block_params: list[str] | None = None
 
 
 @dataclass
@@ -143,6 +149,12 @@ class HookResult:
     status: HookStatus
     detail: str = ""
     required: bool = False
+    # Type encoding of the method the hook binds to (own or inherited), when
+    # the walker decoded it. Shown by `forge hooks verify --types`.
+    encoding: str = ""
+    # ABI mismatches between the hook block's declared signature and
+    # ``encoding`` (see hooks/signature.py). Non-empty = memory corruption risk.
+    type_issues: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -400,7 +412,22 @@ def verify_hooks(analysis: MachOAnalysis, hooks: list[HookDecl]) -> list[HookRes
                         hook.required,
                     )
                 )
+    _attach_encodings(analysis, hooks, results)
     return results
+
+
+def _attach_encodings(analysis: MachOAnalysis, hooks: list[HookDecl], results: list[HookResult]) -> None:
+    """Fill each result's ``encoding`` from the method it binds to (own class
+    first, then ancestors) and check any declared block signature against it."""
+    for hook, r in zip(hooks, results, strict=True):
+        pool = "cls" if hook.kind == "class" else "inst"
+        for ancestor in _ancestry(analysis, hook.class_name):
+            enc = getattr(analysis.classes[ancestor], pool).get(hook.selector)
+            if enc:
+                r.encoding = enc
+                break
+        if r.encoding and hook.block_params is not None and not hook.added:
+            r.type_issues = check_block_signature(r.encoding, hook.block_return, hook.block_params)
 
 
 def failing(results: list[HookResult]) -> list[HookResult]:

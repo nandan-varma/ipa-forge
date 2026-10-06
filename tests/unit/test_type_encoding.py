@@ -4,7 +4,7 @@ signatures reconstructed from runtime type-encoding strings."""
 
 from __future__ import annotations
 
-from ipa_forge.analysis.type_encoding import decode_method_signature, decode_type
+from ipa_forge.analysis.type_encoding import decode_method_signature, decode_type, read_one_type
 
 
 def test_decode_simple_scalars() -> None:
@@ -57,3 +57,13 @@ def test_decode_missing_encoding_falls_back_untyped() -> None:
 def test_decode_multi_arg_method_signature() -> None:
     # -(void)setX:(int)x y:(int)y -- v32@0:8i16i24
     assert decode_method_signature("setX:y:", "v32@0:8i16i24") == "(void)setX:(int)arg1 y:(int)arg2"
+
+
+def test_block_argument_is_one_token():
+    # @? (optionally with a <signature>) is a single block argument; reading it
+    # as '@' then '?' shifted every later argument (found on Spotify 9.1.88's
+    # URLSession delegate methods)
+    assert read_one_type("@?40", 0) == ("@?", 2)
+    assert read_one_type("@?<v@?B>16", 0) == ("@?<v@?B>", 8)
+    sig = decode_method_signature("doIt:handler:", "v32@0:8q16@?24")
+    assert sig == "(void)doIt:(long long)arg1 handler:(id /* block */)arg2"

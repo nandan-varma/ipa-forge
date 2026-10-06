@@ -23,6 +23,7 @@ from pathlib import Path
 
 import typer
 
+from ipa_forge.analysis.type_encoding import decode_method_signature
 from ipa_forge.bundle.ipa import load_bundle
 from ipa_forge.cli.common import extract_or_use as _extract_or_use
 from ipa_forge.cli.common import resolve_app_path
@@ -46,6 +47,12 @@ def hooks_verify(
     ),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON"),
     required_only: bool = typer.Option(False, "--required-only", help="Only print hooks that fail to attach"),
+    show_types: bool = typer.Option(
+        False,
+        "--types",
+        help="Print each hook's real method signature (from its type encoding) -- write the hook "
+        "block with exactly these argument/return types",
+    ),
 ) -> None:
     """Verify every declared hook in the patch definition against the app binary.
     Exit code 0 = all required hooks attach; 1 = a required hook is missing."""
@@ -78,6 +85,10 @@ def hooks_verify(
             label = f"[{r.status:16}] {r.class_name} "
             label += f"{'+' if r.kind == 'class' else '-'}[{r.selector}]{flag}"
             typer.secho(label, fg=color)
+            if show_types:
+                sign = "+" if r.kind == "class" else "-"
+                sig = f"{sign} {decode_method_signature(r.selector, r.encoding)}" if r.encoding else "(not decoded)"
+                typer.echo(f"{'':19}{sig}   {r.encoding}")
         bad = [r for r in results if r.blocking and r.required]
         attach = sum(1 for r in results if r.ok)
         unknown = sum(1 for r in results if r.unknown)
@@ -132,7 +143,8 @@ def hooks_audit(
         typer.echo(
             json.dumps({"hooks": [asdict(r) for r in results], "undeclared": [asdict(d) for d in undeclared]}, indent=2)
         )
-        raise typer.Exit(code=1 if undeclared else 0)
+        type_bad = any(r.type_issues for r in results)
+        raise typer.Exit(code=1 if undeclared or type_bad else 0)
     statuses = Counter(r.status for r in results)
     typer.echo(f"{len(results)} hooks found in sources: " + ", ".join(f"{k}={v}" for k, v in sorted(statuses.items())))
     for r in results:
@@ -142,7 +154,25 @@ def hooks_audit(
                 fg=typer.colors.YELLOW,
             )
 
+    # Block signatures that disagree with the method's ABI compile fine and
+    # corrupt memory at runtime -- always fatal.
+    mistyped = [r for r in results if r.type_issues]
+    if mistyped:
+        typer.echo("")
+        typer.secho(
+            f"{len(mistyped)} hook block(s) declare types that don't match the method (memory corruption):",
+            fg=typer.colors.RED,
+        )
+        for r in mistyped:
+            sign = "+" if r.kind == "class" else "-"
+            typer.secho(f"  {r.class_name} {sign}[{r.selector}]  real: {sign} "
+                        f"{decode_method_signature(r.selector, r.encoding)}", fg=typer.colors.RED)  # fmt: skip
+            for issue in r.type_issues:
+                typer.secho(f"    - {issue}", fg=typer.colors.RED)
+
     if patches is None:
+        if mistyped:
+            raise typer.Exit(code=1)
         return
     definition = load_patch_definition(patches)
     declared = {(h.class_name, h.selector) for h in (definition.hooks or [])}
@@ -158,6 +188,8 @@ def hooks_audit(
             typer.secho(f"  {d.class_name} {'+' if d.kind == 'class' else '-'}[{d.selector}]", fg=typer.colors.RED)
         raise typer.Exit(code=1)
     typer.echo(f"\nAll {len(decls)} source hooks are declared in {patches.name}'s `hooks:` block.")
+    if mistyped:
+        raise typer.Exit(code=1)
 
 
 @app.command("find")

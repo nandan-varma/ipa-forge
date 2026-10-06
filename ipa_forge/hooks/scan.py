@@ -38,6 +38,57 @@ _VAR_RE = re.compile(r"(\w+)\s*=\s*(\w+)\(@?\"([^\"]+)\"\)")
 _RESOLVER_RE = re.compile(r"(?:\bstatic\s+)?Class\s+(\w+)\s*\([^)]*\)\s*\{[^{}]*NSClassFromString")
 
 
+def _split_top_level(params: str) -> list[str]:
+    """Split a parameter list on commas outside nested ()/<> (block-typed
+    params like ``void (^done)(BOOL, NSError *)`` contain commas)."""
+    out: list[str] = []
+    depth = 0
+    cur = ""
+    for ch in params:
+        if ch in "(<":
+            depth += 1
+        elif ch in ")>":
+            depth -= 1
+        if ch == "," and depth == 0:
+            out.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+    if cur.strip():
+        out.append(cur.strip())
+    return out
+
+
+def parse_block_literal(text: str, pos: int) -> tuple[str | None, list[str]] | None:
+    """Parse ``, ^ret(params) {`` starting at ``pos`` (just after a hook
+    call's selector argument). Returns (return type or None, params) or None
+    when the next argument is not an inline block literal."""
+    m = re.match(r"\s*,\s*\^\s*", text[pos:])
+    if not m:
+        return None
+    i = pos + m.end()
+    paren = text.find("(", i)
+    brace = text.find("{", i)
+    if paren == -1 or (brace != -1 and brace < paren):
+        return None  # ^{ ... } -- no parameter list
+    ret = text[i:paren].strip() or None
+    if ret is not None and not re.fullmatch(r"[A-Za-z_][\w\s\*<>]*", ret):
+        return None
+    depth = 0
+    j = paren
+    while j < len(text):
+        if text[j] == "(":
+            depth += 1
+        elif text[j] == ")":
+            depth -= 1
+            if depth == 0:
+                break
+        j += 1
+    else:
+        return None
+    return ret, _split_top_level(text[paren + 1 : j])
+
+
 def scan_hook_sources(dylib_src: Path) -> list[HookDecl]:
     """Scan ``*.m`` files under ``dylib_src`` and return hook declarations."""
     decls: list[HookDecl] = []
@@ -69,7 +120,17 @@ def scan_hook_sources(dylib_src: Path) -> list[HookDecl]:
             if not cls or not sel:
                 continue
             hook_kind = "class" if kind == "Class" else "instance"  # ConfigBool hooks the getter -> instance
-            decls.append(HookDecl(cls, sel, hook_kind, added=is_add))  # type: ignore[arg-type]
+            block = parse_block_literal(text, m.end())
+            decls.append(
+                HookDecl(
+                    cls,
+                    sel,
+                    hook_kind,  # type: ignore[arg-type]
+                    added=is_add,
+                    block_return=block[0] if block else None,
+                    block_params=block[1] if block else None,
+                )
+            )
 
     # de-duplicate, keep first-seen order
     seen: set[tuple[str, str]] = set()

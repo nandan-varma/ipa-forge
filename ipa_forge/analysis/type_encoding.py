@@ -52,6 +52,16 @@ def read_one_type(encoding: str, i: int) -> tuple[str, int]:
     c = encoding[i]
     if c == "@":
         i += 1
+        if i < len(encoding) and encoding[i] == "?":
+            # block (@?), optionally with a signature: @?<v@?B>
+            i += 1
+            if i < len(encoding) and encoding[i] == "<":
+                depth = 1
+                i += 1
+                while i < len(encoding) and depth:
+                    depth += {"<": 1, ">": -1}.get(encoding[i], 0)
+                    i += 1
+            return encoding[start:i], i
         if i < len(encoding) and encoding[i] == '"':
             end = encoding.find('"', i + 1)
             i = (end + 1) if end != -1 else len(encoding)
@@ -94,6 +104,8 @@ def decode_type(encoding: str) -> str:
     if c in _SIMPLE:
         return _SIMPLE[c]
     if c == "@":
+        if encoding.startswith("@?"):
+            return "id /* block */"
         if encoding.startswith('@"'):
             end = encoding.find('"', 2)
             cls = encoding[2:end] if end != -1 else ""

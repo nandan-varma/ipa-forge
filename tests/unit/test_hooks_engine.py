@@ -560,3 +560,39 @@ def test_analyze_swift_class_is_in_class_table(swift_macho_binary: Path) -> None
     assert "_TtC4Demo10SwiftThing" in a.classes
     methods = a.classes["_TtC4Demo10SwiftThing"].inst
     assert "ping" in methods and "pong:" in methods
+
+
+def test_cli_audit_fails_on_mistyped_hook_block(tmp_path: Path) -> None:
+    """End to end: a real binary whose method takes an NSInteger, hooked by a
+    block that types it as `id` (ARC would retain an integer) -> exit 1."""
+    import subprocess
+
+    src = tmp_path / "main.m"
+    src.write_text(
+        "#import <Foundation/Foundation.h>\n"
+        "@interface Sess : NSObject\n- (void)logoutWithReason:(NSInteger)r;\n- (BOOL)present:(id)p;\n@end\n"
+        "@implementation Sess\n- (void)logoutWithReason:(NSInteger)r {}\n- (BOOL)present:(id)p { return YES; }\n@end\n"
+        "int main(void) { [[Sess new] logoutWithReason:1]; return [[Sess new] present:nil]; }\n"
+    )
+    binary = tmp_path / "sess_binary"
+    subprocess.run(["clang", "-fobjc-arc", "-framework", "Foundation", "-o", str(binary), str(src)], check=True)
+    ipa = _pack_ipa(binary, tmp_path)
+    src_dir = tmp_path / "tweak_src"
+    src_dir.mkdir()
+    (src_dir / "tweak.m").write_text(
+        "static void a(void) {\n"
+        '    demoHookInstance(NSClassFromString(@"Sess"), @selector(logoutWithReason:), ^void(id self, id r) {});\n'
+        '    demoHookInstance(NSClassFromString(@"Sess"), @selector(present:), ^BOOL(id self, id p) { return NO; });\n'
+        "}\n"
+    )
+    cli = __import__("ipa_forge.cli.hooks", fromlist=["app"]).app
+    result = runner.invoke(cli, ["audit", "--ipa", str(ipa), "--dir", str(src_dir)])
+    assert result.exit_code == 1
+    assert "1 hook block(s) declare types that don't match" in result.stdout
+    assert "logoutWithReason:(long long)arg1" in result.stdout  # the real signature is shown
+    assert "object vs scalar" in result.stdout
+
+    hooks = _hooks_yaml(tmp_path, "Sess", "logoutWithReason:")
+    typed = runner.invoke(cli, ["verify", "--ipa", str(ipa), "--patches", str(hooks), "--types"])
+    assert typed.exit_code == 0
+    assert "- (void)logoutWithReason:(long long)arg1" in typed.stdout
