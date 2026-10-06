@@ -337,8 +337,9 @@ forge hooks manifest --dir dylib/ --inplace patch.yaml
 The scanner recognizes any `<prefix>HookInstance/HookClass/ConfigBool/AddInstanceMethod`
 call with an inline `NSClassFromString(@"X")` (or a file-scoped
 `cls = NSClassFromString(@"X")` assignment), plus class names passed through
-a local resolver helper — any function whose body calls `NSClassFromString`
-and that is invoked as `resolver("X")` at the hook call site. Helper/loop-
+a resolver helper — any function, in any scanned file, whose body calls
+`NSClassFromString`, invoked as `resolver("X")` at the hook call site or
+assigned as `cls = resolver("X")`. Each call site reports its own class. Helper/loop-
 based hooks whose class is *passed into another function* before reaching the
 hook call are not traced and must be declared manually in the definition's
 `hooks:` block instead.

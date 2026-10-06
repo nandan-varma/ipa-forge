@@ -387,9 +387,9 @@ Porting to a new app version becomes: bump `target.version`, run
 `--dry-run`, read the hook report, and fix exactly the hooks the report flags.
 `forge hooks manifest --dir <dylib-sources>` regenerates the `hooks:` block
 from the tweak sources (inline `NSClassFromString` calls, unambiguous
-variable assignments, class names passed through a local resolver helper — a
-function whose body calls `NSClassFromString` invoked as `resolver("X")` at
-the hook call site — and `<prefix>HookConfigBool` config-flag getters); pass
+variable assignments, class names passed through a resolver helper — a
+function in any scanned file whose body calls `NSClassFromString`, invoked as
+`resolver("X")` at the hook call site or assigned to a variable — and `<prefix>HookConfigBool` config-flag getters); pass
 `--inplace patch.yaml` to write the block straight into the patch definition.
 `forge hooks diff --old A.ipa --new B.ipa --patches patch.yaml` shows which
 hooks regressed between two versions.

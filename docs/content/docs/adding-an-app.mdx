@@ -140,7 +140,9 @@ forge hooks manifest --dir dylib/ --required hooks-required.txt
 
 This recognizes direct `NSClassFromString` calls and resolver-helper
 patterns (any function whose body calls `NSClassFromString`, invoked as
-`myClass("X")` at the hook call site). Hooks where the class name flows
+`myClass("X")` at the hook call site or assigned as `cls = myClass("X")`).
+The resolver may live in a different source file than the hook — a shared
+helper declared in a header is found across all scanned files. Hooks where the class name flows
 through a second function before reaching the hook call aren't traced —
 add those to the YAML by hand.
 
