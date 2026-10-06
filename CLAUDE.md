@@ -66,6 +66,9 @@ forge gui   # launches the local FastAPI GUI on 127.0.0.1:8765 (+ /analysis RE v
 
 # Hook verification (forge hooks --help): verify | audit | find | manifest | diff
 forge hooks verify --ipa <ipa> --patches <patches.yaml>
+# Real signature per hook (type encoding decoded): write each hook block with
+# exactly these types; `hooks audit` also fails on inline blocks that mismatch
+forge hooks verify --ipa <ipa> --patches <patches.yaml> --types
 # Cross-check tweak source against the declared hooks: block -- catches a hook
 # the source calls but the YAML forgot to declare (invisible to --dry-run
 # otherwise; this is how real gaps were found in two of the three patch sets)

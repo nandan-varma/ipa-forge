@@ -256,16 +256,26 @@ app binaries. Exit code `1` when a required hook has a blocking status;
     "--patches <path>": { type: "path", required: true, description: "Patch definition with a hooks: section" },
     "--app-dir <path>": { type: "path", description: "Already-extracted Payload/<App>.app, instead of --ipa" },
     "--required-only": { type: "flag", description: "Only print non-attaching or unverified hooks" },
+    "--types": { type: "flag", description: "Print each hook's real method signature, decoded from its type encoding" },
     "--json": { type: "flag", description: "Emit structured JSON instead of human-readable text" },
   }}
 />
 
 ```bash
 forge hooks verify --ipa App.ipa --patches patch.yaml --json
+forge hooks verify --ipa App.ipa --patches patch.yaml --types
+# [ok              ] SPTAuthSessionImplementation -[logoutWithReason:]
+#                    - (void)logoutWithReason:(long long)arg1   v24@0:8q16
 ```
 
+`--types` shows the signature of the method each hook actually binds to (its
+own class, or the ancestor it inherits from). Write the hook block with
+exactly those argument and return types — see `hooks audit` below for the
+automatic check.
+
 JSON contains a `hooks` array with class name, selector, kind, status, detail,
-and required/added flags. `--required-only` filters out attaching hooks in
+required/added flags, `encoding` (the bound method's raw type encoding, empty
+when it wasn't decoded) and `type_issues`. `--required-only` filters out attaching hooks in
 either format; the exit status still considers all required hooks.
 
 ### `forge hooks audit`
@@ -276,6 +286,17 @@ With `--patches`, also cross-checks the source scan against the definition's
 `hooks:` block and flags any hook the source calls that isn't declared there
 (invisible to `--dry-run` otherwise). Exits `1` if any are undeclared.
 `--json` returns `hooks` and `undeclared` arrays and preserves that exit status.
+
+It also checks every **inline hook block** (`…Hook…(cls, @selector(x:), ^ret(id self, T a) {…})`)
+against the hooked method's type encoding and exits `1` on an ABI mismatch:
+an object-typed parameter where the method passes an integer/BOOL (ARC
+would retain a non-pointer), a `void` block on a value-returning method (the
+caller reads garbage), integer width mismatches (`NSInteger` vs
+`unsigned char`), or more parameters than the method passes. Style
+differences (`id` vs `NSString *`) and omitted trailing parameters are fine
+and never flagged; structs, C pointers and unsized typedefs aren't judged.
+Blocks passed through variables or helper functions aren't seen — check
+those with `hooks verify --types`.
 
 <TypeTable
   type={{

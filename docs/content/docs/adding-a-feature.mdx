@@ -93,6 +93,29 @@ launch, and guard every resolved original function pointer.
 Wrap the init in the dylib's existing `@try`-isolation helper so a failure
 degrades instead of taking the app down.
 
+<Callout type="warn" title="Hooks that work on device, not just in the report">
+Every point below caused a real silent failure or crash that passed all
+static checks:
+
+- **Match the block's types to the method.** Run `forge hooks verify
+  --types` and copy each argument/return type exactly (`q` is `NSInteger`,
+  not `id`; a `B` return needs a `BOOL` block). `forge hooks audit` flags
+  inline blocks that don't match.
+- **Look Swift classes up with a fallback.** Swift classes register with the
+  ObjC runtime lazily, so `NSClassFromString(@"_TtC…")` can return `nil` at
+  hook time for a class that exists. Fall back to one cached
+  `objc_getClassList` scan.
+- **Install early enough.** Hooks installed from a main-queue block after
+  launch miss anything the app sets up inside
+  `application:didFinishLaunchingWithOptions:`. Swizzling
+  `-[UIApplication setDelegate:]` in the constructor and installing from
+  there runs before it, with the runtime fully up.
+- **Prove it on device.** A green `--dry-run` means the hooks can attach,
+  not that the feature works. Record what each feature actually did at
+  runtime (counters, last result) and show it in the mod's settings screen,
+  so one look on the device answers "did it run?".
+</Callout>
+
 </Step>
 <Step>
 

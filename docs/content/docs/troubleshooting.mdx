@@ -52,6 +52,27 @@ missing hook(s), re-run `--dry-run` to confirm they attach, and make
 (see [Patch Reference](/docs/patch-reference), "The `hooks` block" section).
 </Callout>
 
+## `hooks audit`: "hook block(s) declare types that don't match the method"
+
+<Callout type="error" title="Symptom">
+`forge hooks audit` exits `1` and lists a hook with lines like
+`argument 1: block declares \`id\`, method has \`q\` (object vs scalar)` or
+`return: block returns \`void\`, method returns \`B\` (void vs value)`.
+</Callout>
+
+**Cause:** the hook block's C signature disagrees with the method's real
+calling convention. It compiles, attaches, and then corrupts memory when
+called — an integer typed `id` is retained by ARC (crash), a `void` block on
+a `BOOL` method returns garbage, an `unsigned char` read as `NSInteger` has
+undefined upper bits. Existence checks (`verify`, `--dry-run`) can't see it.
+
+<Callout type="success" title="Fix">
+Retype the block to the signature printed under the hook (the same one
+`forge hooks verify --types` shows): `q` → `NSInteger`, `Q` → `NSUInteger`,
+`C` → `uint8_t`, `B` → `BOOL`, `@` → any object type, `@?` → a block. Cast
+the saved original IMP to the same types when calling it.
+</Callout>
+
 ## Patch definition problems
 
 Start with `forge lint patch.yaml`: it checks the definition and source paths
