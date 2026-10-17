@@ -43,3 +43,24 @@ def test_profile_may_authorize_more_than_app_claims():
     # app, so it must not appear -- only entitlements the app actually
     # requested (plus the always-profile-authoritative keys) survive.
     assert reconciled == {"get-task-allow": True, "application-identifier": "T.x"}
+
+
+def test_wildcard_profile_concretizes_application_identifier():
+    profile = {"application-identifier": "TEAM.*", "com.apple.developer.team-identifier": "TEAM"}
+    reconciled = reconcile_entitlements({}, profile, "com.example.app")
+    assert reconciled["application-identifier"] == "TEAM.com.example.app"
+    assert reconciled["com.apple.developer.team-identifier"] == "TEAM"
+
+
+def test_foreign_team_keychain_group_is_replaced_by_profile_group():
+    app = {"keychain-access-groups": ["OLDTEAM.com.example.shared"]}
+    profile = {"application-identifier": "TEAM.*", "keychain-access-groups": ["TEAM.*"]}
+    reconciled = reconcile_entitlements(app, profile, "com.example.app")
+    assert reconciled["keychain-access-groups"] == ["TEAM.com.example.app"]
+
+
+def test_authorized_keychain_group_is_kept():
+    app = {"keychain-access-groups": ["TEAM.com.example.shared"]}
+    profile = {"application-identifier": "TEAM.*", "keychain-access-groups": ["TEAM.*"]}
+    reconciled = reconcile_entitlements(app, profile, "com.example.app")
+    assert reconciled["keychain-access-groups"] == ["TEAM.com.example.shared"]

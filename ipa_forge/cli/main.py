@@ -113,6 +113,18 @@ def patch(
         "--no-sign",
         help="Apply patches and repackage without codesigning (for AltStore, which signs at install)",
     ),
+    bundle_id_suffix: str | None = typer.Option(
+        None,
+        "--bundle-id-suffix",
+        help="Re-identify the app as <bundle id>.<suffix> (nested bundles follow), as AltStore does with the "
+        "Team ID -- installs beside the App Store copy and matches what tweaks are tested against",
+    ),
+    debuggable: bool = typer.Option(
+        False,
+        "--debuggable",
+        help="Claim get-task-allow on the main app when the (development) profile allows it, so devicectl "
+        "can attach and stream the app's logs",
+    ),
     verbose: bool = typer.Option(False, "--verbose", help="Print the full manifest on success"),
     manifest_path: Path | None = typer.Option(None, "--manifest", help="Write the full manifest as JSON"),
 ) -> None:
@@ -127,7 +139,17 @@ def patch(
             )
             raise typer.Exit(code=1) from None
     try:
-        result = run_pipeline(ipa, patches, identity or "", profile or [], output, dry_run=dry_run, no_sign=no_sign)
+        result = run_pipeline(
+            ipa,
+            patches,
+            identity or "",
+            profile or [],
+            output,
+            dry_run=dry_run,
+            no_sign=no_sign,
+            bundle_id_suffix=bundle_id_suffix,
+            debuggable=debuggable,
+        )
     except PipelineError as e:
         typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from None

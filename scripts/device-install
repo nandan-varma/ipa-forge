@@ -1,0 +1,466 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Build, sign, install and smoke-test a patched app on a paired iPhone.
+
+    scripts/device-install spotify                 # app from devices.local.json
+    scripts/device-install --ipa base.ipa --patches x.yaml
+    scripts/device-install --signed out.ipa        # install an already-signed IPA
+
+No AltStore/AltServer and no Apple ID login: signs locally with this Mac's
+Apple Development identity and a development profile that lists the device,
+installs over the network with devicectl, then launches the app attached to
+its console for a few seconds and reports whether it stayed up. Logs and any
+new crash reports land in build/device/<app>-<time>/.
+
+The app is re-identified AltStore-style as <bundle id>.<TEAMID>, so it sits
+beside the App Store copy and matches what the tweaks are tested against.
+
+Exit codes: 0 installed and still running, 1 failure, 2 usage.
+Every failure prints one `error: <what> — <fix>` line.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import plistlib
+import re
+import subprocess
+import sys
+import tempfile
+import time
+import zipfile
+from datetime import UTC, datetime
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+LOCAL_CONFIG = REPO / "devices.local.json"
+FORGE = REPO / ".venv" / "bin" / "forge"
+PROFILE_DIRS = [
+    Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles",
+    Path.home() / "Library/MobileDevice/Provisioning Profiles",
+]
+
+
+class Fail(Exception):
+    def __init__(self, what: str, fix: str) -> None:
+        super().__init__(f"{what} — {fix}")
+
+
+def log(msg: str) -> None:
+    print(msg, flush=True)
+
+
+def run(cmd: list[str], *, timeout: float | None = None, check: bool = True) -> subprocess.CompletedProcess[str]:
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if check and p.returncode != 0:
+        raise subprocess.CalledProcessError(p.returncode, cmd, p.stdout, p.stderr)
+    return p
+
+
+def devicectl_json(*args: str, timeout: float = 120) -> dict:
+    with tempfile.NamedTemporaryFile(suffix=".json") as out:
+        p = run(["xcrun", "devicectl", *args, "--json-output", out.name], timeout=timeout, check=False)
+        try:
+            data = json.loads(Path(out.name).read_text() or "{}")
+        except json.JSONDecodeError:
+            data = {}
+    if p.returncode != 0:
+        raise DevicectlError(data, p.stdout + p.stderr)
+    return data.get("result", {})
+
+
+class DevicectlError(Exception):
+    def __init__(self, data: dict, text: str) -> None:
+        self.data, self.text = data, text
+        super().__init__(text)
+
+    def reasons(self) -> list[str]:
+        """The human lines from devicectl's nested NSError chain."""
+        lines = []
+        for line in self.text.splitlines():
+            line = line.strip()
+            if not line or line.startswith(("----", "Domain:", "Code:", "User Info:", "}", "{")):
+                continue
+            if re.match(r"^(NSLocalizedFailureReason|NSLocalizedDescription|LegacyErrorString) = ", line):
+                lines.append(line.split(" = ", 1)[1])
+            elif not re.match(r"^[A-Za-z]+ = ", line) and not line.startswith(("ERROR:", "•")):
+                lines.append(line)
+            elif line.startswith("ERROR:"):
+                lines.append(line[6:].strip())
+        seen: list[str] = []
+        for line in lines:
+            if line not in seen:
+                seen.append(line)
+        return seen[:6]
+
+
+# --- device -----------------------------------------------------------------
+
+
+def norm(s: str) -> str:
+    return s.replace("’", "'").lower()
+
+
+def resolve_device(want: str | None) -> tuple[str, str]:
+    devices = [
+        d
+        for d in devicectl_json("list", "devices").get("devices", [])
+        if d["connectionProperties"].get("transportType") != "sameMachine"
+    ]
+    if want:
+        devices = [
+            d
+            for d in devices
+            if norm(want) in (norm(d["deviceProperties"]["name"]), d["hardwareProperties"].get("udid", "").lower())
+        ]
+        if not devices:
+            raise Fail(f'no paired device named "{want}"', "check the name in Xcode > Devices and Simulators")
+    else:
+        devices = [d for d in devices if d["hardwareProperties"].get("deviceType") == "iPhone"]
+    # The tunnel idles to "disconnected" and devicectl reopens it on demand,
+    # so paired is enough; reachability is proven by the first real command.
+    connected = sorted(
+        (d for d in devices if d["connectionProperties"].get("pairingState") == "paired"),
+        key=lambda d: d["connectionProperties"].get("tunnelState") != "connected",
+    )
+    if not connected:
+        raise Fail(
+            "device is not reachable",
+            "unlock it and put it on the same Wi-Fi as this Mac (Xcode > Devices should show it connected)",
+        )
+    d = connected[0]
+    return d["hardwareProperties"]["udid"], d["deviceProperties"]["name"]
+
+
+def device_apps(udid: str) -> list[dict]:
+    return devicectl_json("device", "info", "apps", "--device", udid).get("apps", [])
+
+
+# --- signing material --------------------------------------------------------
+
+
+def identities() -> dict[str, str]:
+    out = run(["security", "find-identity", "-v", "-p", "codesigning"]).stdout
+    return dict(re.findall(r'\d+\) ([0-9A-F]{40}) "(Apple Development: [^"]+)"', out))
+
+
+def cert_sha1(der: bytes) -> str:
+    import hashlib
+
+    return hashlib.sha1(der).hexdigest().upper()
+
+
+def pick_profile(udid: str, bundle_id: str) -> tuple[Path, str, str]:
+    """A development profile that lists the device, covers the bundle id and
+    whose certificate's private key is in the Keychain. Exact app ids beat the
+    wildcard; later expiry wins ties."""
+    ids = identities()
+    if not ids:
+        raise Fail("no Apple Development identity in the Keychain", "run `helpers sign doctor`")
+    now = datetime.now(UTC)
+    best = None
+    for d in PROFILE_DIRS:
+        for path in d.glob("*.mobileprovision"):
+            try:
+                raw = run(["security", "cms", "-D", "-i", str(path)]).stdout.encode()
+                p = plistlib.loads(raw)
+            except (subprocess.CalledProcessError, plistlib.InvalidFileException):
+                continue
+            ents = p.get("Entitlements", {})
+            if not ents.get("get-task-allow") or udid not in p.get("ProvisionedDevices", []):
+                continue
+            if p["ExpirationDate"].replace(tzinfo=UTC) <= now:
+                continue
+            team = p["TeamIdentifier"][0]
+            app_id = ents.get("application-identifier", "").removeprefix(team + ".")
+            if not (
+                app_id == "*" or app_id == bundle_id or (app_id.endswith("*") and bundle_id.startswith(app_id[:-1]))
+            ):
+                continue
+            certs = [cert_sha1(c) for c in p.get("DeveloperCertificates", [])]
+            ident = next((c for c in certs if c in ids), None)
+            if not ident:
+                continue
+            rank = (app_id != "*", p["ExpirationDate"])
+            if best is None or rank > best[0]:
+                best = (rank, path, ident, team)
+    if best is None:
+        raise Fail(
+            f"no usable development profile for {bundle_id} on this device",
+            "create/download an iOS development profile (wildcard * is fine) that includes the device, "
+            "then `helpers sign import <file>.mobileprovision`",
+        )
+    return best[1], best[2], best[3]
+
+
+# --- ipa ---------------------------------------------------------------------
+
+
+def ipa_info(ipa: Path) -> dict:
+    with zipfile.ZipFile(ipa) as z:
+        name = next((n for n in z.namelist() if re.fullmatch(r"Payload/[^/]+\.app/Info\.plist", n)), None)
+        if not name:
+            raise Fail(f"{ipa} is not an IPA", "pass a .ipa with Payload/<App>.app")
+        return plistlib.loads(z.read(name))
+
+
+# --- install / launch -------------------------------------------------------
+
+KNOWN_INSTALL_ERRORS = [
+    (
+        r"MismatchedApplicationIdentifierEntitlement|does not match installed application",
+        "an app with this bundle id but another team is installed — keep the default AltStore-style suffix, "
+        "or delete the installed copy",
+    ),
+    (
+        r"0xe8008015|valid provisioning profile",
+        "the profile doesn't cover this app/device/entitlements — check `forge patch` signed with the picked profile",
+    ),
+    (
+        r"0xe8008016|entitlements.*not.*valid|not permitted",
+        "an entitlement isn't allowed by the profile — inspect `codesign -d --entitlements -`",
+    ),
+    (
+        r"0xe800801c|No code signature",
+        "something in the bundle is unsigned — a nested dylib/framework was missed by signing",
+    ),
+    (r"locked|passcode", "unlock the phone and retry"),
+    (r"Developer Mode", "enable Settings > Privacy & Security > Developer Mode on the phone"),
+    (r"untrusted|not trusted", "trust the developer on the phone: Settings > General > VPN & Device Management"),
+]
+
+
+def explain(reasons: list[str]) -> str:
+    text = " ".join(reasons)
+    for pattern, fix in KNOWN_INSTALL_ERRORS:
+        if re.search(pattern, text, re.I):
+            return fix
+    return "see the devicectl reason above"
+
+
+def install(udid: str, ipa: Path, bundle_id: str) -> None:
+    try:
+        devicectl_json("device", "install", "app", "--device", udid, str(ipa), timeout=900)
+    except DevicectlError as e:
+        reasons = e.reasons()
+    else:
+        return
+    # Upgrading over a build that still had extensions, with one that removed
+    # them, fails in installd (MIInstallerErrorDomain 35, "Info.plist missing
+    # at ...appex"). Only our own-team copy is replaced, so reinstall clean.
+    if re.search(r"Info\.plist missing at .*\.appex|MIInstallerErrorDomain error 35", " ".join(reasons)):
+        log("  installd can't upgrade over the old extensions; uninstalling the previous build and retrying")
+        devicectl_json("device", "uninstall", "app", "--device", udid, bundle_id, timeout=300)
+        try:
+            devicectl_json("device", "install", "app", "--device", udid, str(ipa), timeout=900)
+        except DevicectlError as e:
+            reasons = e.reasons()
+        else:
+            return
+    for r in reasons:
+        log(f"  devicectl: {r}")
+    raise Fail("install failed", explain(reasons))
+
+
+def crash_logs(udid: str) -> list[dict]:
+    try:
+        return devicectl_json("device", "info", "files", "--device", udid, "--domain-type", "systemCrashLogs").get(
+            "files", []
+        )
+    except DevicectlError:
+        return []
+
+
+def smoke_test(udid: str, bundle_id: str, executable: str, seconds: int, outdir: Path) -> bool:
+    """Launch attached to the console (os_log mirrored to stderr) for `seconds`;
+    True when the app is still running at the end."""
+    before = {f.get("relativePath") for f in crash_logs(udid)}
+    console = outdir / "console.log"
+    cmd = [
+        "xcrun",
+        "devicectl",
+        "device",
+        "process",
+        "launch",
+        "--device",
+        udid,
+        "--terminate-existing",
+        "--console",
+        "--environment-variables",
+        json.dumps({"OS_ACTIVITY_DT_MODE": "1"}),
+        bundle_id,
+    ]
+    with console.open("w") as fh:
+        proc = subprocess.Popen(cmd, stdout=fh, stderr=subprocess.STDOUT, text=True)
+        try:
+            proc.wait(timeout=seconds)
+            alive = False
+        except subprocess.TimeoutExpired:
+            alive = True
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+    text = console.read_text(errors="replace")
+    if not alive and re.search(r"Unable to launch|Failed to launch|denied|locked", text, re.I):
+        tail = " / ".join(text.strip().splitlines()[-3:])
+        raise Fail(
+            f"launch failed: {tail}",
+            "unlock the phone; if it says untrusted/denied, trust the developer "
+            "in Settings > General > VPN & Device Management",
+        )
+    if not alive:
+        time.sleep(3)  # crash reports are written a moment after the process dies
+        new = [
+            f
+            for f in crash_logs(udid)
+            if f.get("relativePath") not in before and executable.lower() in f.get("relativePath", "").lower()
+        ]
+        for f in new:
+            dest = outdir / Path(f["relativePath"]).name
+            run(
+                [
+                    "xcrun",
+                    "devicectl",
+                    "device",
+                    "copy",
+                    "from",
+                    "--device",
+                    udid,
+                    "--domain-type",
+                    "systemCrashLogs",
+                    "--source",
+                    f["relativePath"],
+                    "--destination",
+                    str(dest),
+                ],
+                check=False,
+            )
+            log(f"  crash report: {dest}")
+    return alive
+
+
+# --- main --------------------------------------------------------------------
+
+
+def load_app(name: str) -> tuple[Path, Path]:
+    cfg = json.loads(LOCAL_CONFIG.read_text()) if LOCAL_CONFIG.exists() else {}
+    entry = cfg.get("apps", {}).get(name)
+    if not entry:
+        raise Fail(f'no app "{name}" in {LOCAL_CONFIG.name}', f'add {{"apps": {{"{name}": {{"ipa": "<base.ipa>"}}}}}}')
+    ipa = Path(os.path.expanduser(entry["ipa"]))
+    patches = REPO / entry.get("patches", f"patches/{name}/{name}.yaml")
+    if not ipa.is_file():
+        raise Fail(f"base IPA missing: {ipa}", f"fix apps.{name}.ipa in {LOCAL_CONFIG.name}")
+    return ipa, patches
+
+
+def build_dylibs(patches: Path) -> None:
+    script = patches.parent / "dylib" / "build.sh"
+    if script.is_file():
+        log(f"building {script.relative_to(REPO)}")
+        p = run([str(script)], check=False, timeout=900)
+        if p.returncode != 0:
+            log((p.stdout + p.stderr)[-2000:])
+            raise Fail("dylib build failed", f"fix the compile errors above, then rerun ({script.name})")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("app", nargs="?", help="app name from devices.local.json (e.g. spotify)")
+    ap.add_argument("--ipa", type=Path, help="base (decrypted) IPA to patch")
+    ap.add_argument("--patches", type=Path, help="patch definition YAML")
+    ap.add_argument("--signed", type=Path, help="install this already-signed IPA as-is")
+    ap.add_argument("--device", default=os.environ.get("FORGE_DEVICE"), help="device name or UDID")
+    ap.add_argument("--keep-bundle-id", action="store_true", help="don't append .<TEAMID> to the bundle id")
+    ap.add_argument("--no-build-dylib", action="store_true", help="skip patches/<app>/dylib/build.sh")
+    ap.add_argument("--no-launch", action="store_true", help="install only, skip the launch smoke test")
+    ap.add_argument("--seconds", type=int, default=15, help="smoke-test duration (default 15)")
+    args = ap.parse_args()
+
+    if sum(x is not None for x in (args.app, args.signed, args.ipa)) != 1 or bool(args.ipa) != bool(args.patches):
+        ap.print_usage(sys.stderr)
+        return 2
+
+    udid, dev_name = resolve_device(args.device)
+    log(f"device: {dev_name} ({udid})")
+
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    if args.signed:
+        out_ipa = args.signed.resolve()
+        label = out_ipa.stem
+    else:
+        base, patches = load_app(args.app) if args.app else (args.ipa.resolve(), args.patches.resolve())
+        label = args.app or patches.stem
+        info = ipa_info(base)
+        profile, ident, team = pick_profile(udid, info["CFBundleIdentifier"] + ("" if args.keep_bundle_id else ".x"))
+        log(f"signing: {ident[:10]}… team {team}, profile {profile.name}")
+        if not args.no_build_dylib:
+            build_dylibs(patches)
+        out_dir = REPO / "build" / "device"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_ipa = out_dir / f"{label}_{info.get('CFBundleShortVersionString', '')}_dev.ipa"
+        cmd = [
+            str(FORGE),
+            "patch",
+            "--ipa",
+            str(base),
+            "--patches",
+            str(patches),
+            "--identity",
+            ident,
+            "--profile",
+            str(profile),
+            "--output",
+            str(out_ipa),
+            "--debuggable",
+        ]
+        if not args.keep_bundle_id:
+            cmd += ["--bundle-id-suffix", team]
+        log("patching + signing (forge patch)…")
+        p = run(cmd, check=False, timeout=1800)
+        if p.returncode != 0:
+            log((p.stdout + p.stderr)[-3000:])
+            raise Fail("forge patch failed", "see the forge error above (troubleshooting.mdx maps message → fix)")
+        log(f"  {out_ipa.relative_to(REPO)}")
+
+    info = ipa_info(out_ipa)
+    bundle_id, version, exe = (
+        info["CFBundleIdentifier"],
+        info.get("CFBundleShortVersionString", "?"),
+        info["CFBundleExecutable"],
+    )
+
+    before = {a["bundleIdentifier"]: a["url"] for a in device_apps(udid)}.get(bundle_id)
+    log(f"installing {bundle_id} {version}…")
+    install(udid, out_ipa, bundle_id)
+    after = {a["bundleIdentifier"]: a for a in device_apps(udid)}.get(bundle_id)
+    if not after or after["url"] == before:
+        raise Fail(f"{bundle_id} not on the device after install", "rerun with the phone unlocked")
+    log(f"installed: {after['name']} {after.get('version')} ({bundle_id})")
+
+    if args.no_launch:
+        return 0
+    logdir = REPO / "build" / "device" / f"{label}-{stamp}"
+    logdir.mkdir(parents=True, exist_ok=True)
+    log(f"launching for {args.seconds}s (console → {logdir.relative_to(REPO)}/console.log)…")
+    if smoke_test(udid, bundle_id, exe, args.seconds, logdir):
+        log(f"ok: {after['name']} launched and is still running after {args.seconds}s")
+        return 0
+    raise Fail(f"{after['name']} exited within {args.seconds}s of launch", f"read {logdir.relative_to(REPO)}/")
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Fail as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.TimeoutExpired as e:
+        print(f"error: timed out: {' '.join(map(str, e.cmd))[:120]} — unlock the phone and retry", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)

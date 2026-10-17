@@ -111,3 +111,39 @@ def test_single_wildcard_profile_covers_extension_without_warning(tmp_path: Path
 
     assert not [w for w in caught if "does not authorize" in str(w.message)]
     assert len(provider.signed) == 2
+
+
+class _RecordingProvider(_StubProvider):
+    def __init__(self) -> None:
+        super().__init__()
+        self.entitlements: dict[Path, dict[str, Any]] = {}
+
+    def sign(self, target: Path, entitlements: dict[str, Any], identity: str) -> SignResult:
+        self.entitlements[target] = entitlements
+        return super().sign(target, entitlements, identity)
+
+
+def _dev_pool(tmp_path: Path) -> ProfilePool:
+    profile = _profile("*")
+    profile.entitlements["get-task-allow"] = True
+    profile_path = tmp_path / "p.mobileprovision"
+    profile_path.write_bytes(b"dummy")
+    return ProfilePool(entries=[(profile, profile_path)])
+
+
+def test_debuggable_claims_get_task_allow_on_main_app_only(tmp_path: Path):
+    bundle = _bundle_with_appex(tmp_path)
+    provider = _RecordingProvider()
+    sign_bundle(bundle, provider, "ident", _dev_pool(tmp_path), debuggable=True)
+
+    assert provider.entitlements[bundle.root]["get-task-allow"] is True
+    appex = bundle.root / "PlugIns" / "Ext.appex"
+    assert "get-task-allow" not in provider.entitlements[appex]
+
+
+def test_get_task_allow_not_claimed_unless_debuggable(tmp_path: Path):
+    bundle = _bundle_with_appex(tmp_path)
+    provider = _RecordingProvider()
+    sign_bundle(bundle, provider, "ident", _dev_pool(tmp_path))
+
+    assert "get-task-allow" not in provider.entitlements[bundle.root]

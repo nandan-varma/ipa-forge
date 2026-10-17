@@ -195,6 +195,8 @@ reports a verification failure; exit `0` reports success.
     "--output <path>": { type: "path", required: true, description: "Output .ipa path" },
     "--dry-run": { type: "flag", description: "Validate patches without mutating or signing anything" },
     "--no-sign": { type: "flag", description: "Apply patches and repackage without codesigning, for AltStore-style installers that sign at install time. Mutually exclusive with real signing; --identity/--profile are ignored" },
+    "--bundle-id-suffix <str>": { type: "string", description: "Re-identify the app as <bundle id>.<suffix> with nested bundles following, as AltStore does with the Team ID; definitions still match the original id. See Device Install" },
+    "--debuggable": { type: "flag", description: "Claim get-task-allow on the main app when the development profile allows it, so devicectl can attach and stream logs" },
     "--verbose": { type: "flag", description: "Print the full manifest on success" },
     "--manifest <path>": { type: "path", description: "Write the manifest as JSON for a dry-run or real run" },
   }}

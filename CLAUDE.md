@@ -25,6 +25,7 @@ read everything:
 | The **CLI/GUI** reference | [`docs/content/docs/usage.mdx`](docs/content/docs/usage.mdx) |
 | **Reverse-engineer** any IPA (`forge analysis`: class-dump, strings, symbols, security, diff) | [`docs/content/docs/reverse-engineering.mdx`](docs/content/docs/reverse-engineering.mdx) |
 | An **error message** | [`docs/content/docs/troubleshooting.mdx`](docs/content/docs/troubleshooting.mdx) — message → cause → fix |
+| **Installing on the user's iPhone** (default: build → sign → install → smoke-test) | [`docs/content/docs/device-install.mdx`](docs/content/docs/device-install.mdx) |
 | Testing on a **real device** via AltStore | [`docs/content/docs/altstore-device-testing.mdx`](docs/content/docs/altstore-device-testing.mdx) |
 | **Engine internals** before touching `pipeline.py`/`signing/` | [`docs/content/docs/architecture.mdx`](docs/content/docs/architecture.mdx) — component map, the 17-stage pipeline, two real bugs found empirically |
 | **Extending** the engine (new operation type, new provider) | [`docs/content/docs/extensibility.mdx`](docs/content/docs/extensibility.mdx) |
@@ -80,6 +81,13 @@ forge analysis diff --old <old.ipa> --new <new.ipa>
 forge analysis il2cpp --app-dir Payload/Game.app --methods 'NameRegex'
 forge analysis il2cpp --app-dir Payload/Game.app --literal 'StringRegex'
 forge analysis il2cpp --app-dir Payload/Game.app --callers 'NameRegex'
+
+# Install on the user's iPhone, hands-free (no AltStore/Apple ID login):
+# builds the dylib, signs with the local dev identity + a dev profile listing
+# the device, re-ids as <bundle id>.<TEAMID> (AltStore-style), installs over
+# Wi-Fi, launches attached to the console for 15s. Apps/base IPAs live in the
+# gitignored devices.local.json; logs + crash reports in build/device/.
+scripts/device-install spotify [--device "Nandan's iPhone"] [--seconds 30] [--no-launch]
 
 # Regenerate the synthetic test fixture (only needed if changing its shape)
 scripts/rebuild_fixture.sh

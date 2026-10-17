@@ -12,6 +12,7 @@ from pathlib import Path
 
 from ipa_forge.bundle.ipa import extract_ipa, load_bundle, repack_ipa
 from ipa_forge.bundle.models import AppBundle
+from ipa_forge.bundle.rename import rename_bundle_ids
 from ipa_forge.hooks.verify import HookDecl, verify_hooks
 from ipa_forge.hooks.verify import blocking as hook_blocking
 from ipa_forge.machO.objc import analyze_bundle
@@ -95,6 +96,8 @@ def run_pipeline(
     dry_run: bool = False,
     no_sign: bool = False,
     allow_version_mismatch: bool = False,
+    bundle_id_suffix: str | None = None,
+    debuggable: bool = False,
 ) -> PipelineResult:
     """profile_paths accepts one or more .mobileprovision files. A single
     profile signs every target, exactly as before per-extension profiles
@@ -182,7 +185,15 @@ def run_pipeline(
                 "patch application failed: " + "; ".join(f"{r.op_id}: {r.message}" for r in failed_apply)
             )
 
-        # Stage 9: re-validate bundle consistency post-mutation
+        # Stage 8b: optional AltStore-style re-identification (<id>.<suffix>),
+        # after patching so definitions still match the original bundle id.
+        if bundle_id_suffix:
+            rename_bundle_ids(app_path, bundle.bundle_id, f"{bundle.bundle_id}.{bundle_id_suffix}")
+
+        # Stage 9: re-inventory and re-validate post-mutation -- resource ops
+        # can remove nested bundles (PlugIns/, Watch/) or add dylibs, and
+        # signing must walk what is actually on disk, not the stage-2 snapshot.
+        bundle = load_bundle(app_path)
         validate_bundle(bundle)
 
         # Stage 10: emit manifest, before signing
@@ -216,7 +227,7 @@ def run_pipeline(
             # target -- each profile-bearing target selects its own profile by
             # its own bundle id) and stage 14 (recursive bottom-up codesign):
             identity = resolve_identity(provider, identity_query)
-            sign_bundle(bundle, provider, identity, profiles)
+            sign_bundle(bundle, provider, identity, profiles, debuggable=debuggable)
 
             # Stage 15: verify every signed bundle/dylib, then a final deep+strict pass on the app bundle
             sign_paths = {sign_target_path(t) for t in bundle.executables}

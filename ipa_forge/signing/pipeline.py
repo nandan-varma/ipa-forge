@@ -50,6 +50,8 @@ def sign_bundle(
     provider: SigningProvider,
     identity: str,
     profiles: ProfilePool,
+    *,
+    debuggable: bool = False,
 ) -> list[SignResult]:
     """Sign every executable bottom-up. `bundle.executables` is already ordered
     deepest-nested-first by the inventory walker, so a naive linear pass over
@@ -91,7 +93,14 @@ def sign_bundle(
             profile = main_profile
 
         original_entitlements = provider.dump_entitlements(target.path)
-        reconciled = reconcile_entitlements(original_entitlements, profile.entitlements)
+        reconciled = reconcile_entitlements(
+            original_entitlements, profile.entitlements, target.bundle_id or bundle.bundle_id
+        )
+        # A development profile authorizes get-task-allow; claiming it on the
+        # main app lets devicectl attach (`process launch --console`) to read
+        # the app's logs. Never added unless asked for.
+        if debuggable and target.kind == "main" and profile.entitlements.get("get-task-allow") is True:
+            reconciled["get-task-allow"] = True
         result = provider.sign(sign_target_path(target), reconciled, identity)
         results.append(result)
         if target.kind == "main":

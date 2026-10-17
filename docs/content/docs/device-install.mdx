@@ -1,0 +1,83 @@
+---
+title: "Device Install"
+description: "Build, sign, install and smoke-test a patched app on a paired iPhone with one command — the default install path."
+---
+
+`scripts/device-install` is the default way to get a patched app onto a
+phone. It needs no AltStore, no AltServer and no Apple ID sign-in: it signs
+on this Mac with a paid team's development certificate and installs over
+Wi-Fi with Xcode's `devicectl`.
+
+```bash
+scripts/device-install spotify                     # app from devices.local.json
+scripts/device-install youtube --seconds 30        # longer smoke test
+scripts/device-install --ipa base.ipa --patches x.yaml
+scripts/device-install --signed out.ipa            # install an already-signed IPA
+```
+
+## What it does
+
+1. **Device**: picks the paired iPhone (or `--device NAME|UDID`,
+   `FORGE_DEVICE`). An idle Wi-Fi tunnel is fine; devicectl reopens it.
+2. **Signing material**: the Keychain's Apple Development identity and the
+   best development profile that lists the device and covers the app id
+   (exact app id beats `*`; the profile's certificate key must be local).
+3. **Build**: runs `patches/<app>/dylib/build.sh`, then `forge patch` with
+   `--bundle-id-suffix <TEAMID> --debuggable`.
+4. **Install**: `devicectl device install app`, then confirms the app moved
+   to a new container. Upgrading over a build that still had extensions
+   (installd error 35, "Info.plist missing at …appex") is retried after an
+   uninstall of that own-team copy.
+5. **Smoke test**: launches attached to the console with
+   `OS_ACTIVITY_DT_MODE=1` (os_log mirrored to stderr) for `--seconds`
+   (default 15). Exits `0` only if the app is still running; on an early exit
+   it copies the new crash report.
+
+Output lands in `build/device/`: the signed IPA and
+`<app>-<time>/console.log` plus any crash report — read those before asking
+anyone what happened on the phone. Every failure ends in one
+`error: <what> — <fix>` line.
+
+## Why the bundle id changes
+
+`--bundle-id-suffix` re-identifies the app exactly as AltStore does at
+install: `com.spotify.client` → `com.spotify.client.<TEAMID>`, with nested
+bundles moved under the new prefix. Tweaks are written against that shape,
+and it never collides with the App Store copy (a different team's app with
+the same id can't be upgraded: `MismatchedApplicationIdentifierEntitlement`).
+Don't invent other ids — a custom `com.you.appmod` id broke Spotify.
+
+`--debuggable` claims `get-task-allow` on the main app when the development
+profile authorizes it, which is what lets `devicectl --console` attach.
+
+## One-time setup
+
+- Xcode installed; the phone paired (Xcode → Devices and Simulators) with
+  **Developer Mode** on, on the same network as the Mac.
+- An Apple Development certificate and an iOS development profile
+  (wildcard `*` is fine) that includes the device — `helpers sign profiles`.
+- `devices.local.json` (gitignored) in the repo root, mapping app names to
+  base IPAs on this machine:
+
+```json
+{
+  "apps": {
+    "spotify": {"ipa": "~/Downloads/com.spotify.client_9.1.88_und3fined.ipa"},
+    "youtube": {"ipa": "~/Downloads/com.google.ios.youtube_21.38.2_und3fined.ipa",
+                "patches": "patches/youtube/youtube.yaml"}
+  }
+}
+```
+
+`patches` defaults to `patches/<app>/<app>.yaml`.
+
+The phone must be unlocked for the launch step; `--no-launch` installs only.
+
+## AltStore
+
+AltStore remains supported for installs on devices without a development
+profile: `forge patch --no-sign` produces its input
+([Device Testing](/docs/altstore-device-testing)).
+`scripts/altstore-install.sh <ipa>` automates that path by serving the IPA
+and opening `altstore://install?url=…` via devicectl. It is untested: since
+October 2026 Apple rejects AltServer's Apple ID sign-in (error `-80045`).
