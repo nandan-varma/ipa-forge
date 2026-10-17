@@ -7,6 +7,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `forge demo` for an offline synthetic lint/dry-run/unsigned-patch/verify
+  smoke test with bundled assets and automatic cleanup.
 - `forge doctor` for archive-tool and workflow prerequisite checks, with
   optional definition linting, GUI discovery checks, and JSON output.
 - `forge schema` and a published JSON Schema for patch-definition editors

@@ -45,7 +45,9 @@ pipx install ipa-forge     # recommended: isolated, globally available `forge` c
 # or: pip install ipa-forge   (inside your own virtualenv)
 ```
 
-This installs the `forge` CLI — `forge --version` to confirm. Full install
+This installs the `forge` CLI — `forge --version` to confirm. In the source
+checkout after 0.2.0, `forge doctor` checks prerequisites and `forge demo`
+runs an offline synthetic patch-and-verify exercise without credentials. Full install
 options (uv, editable/source installs for development) and requirements are
 at [Installation](https://ipa-forge.nandan.fyi/docs/installation).
 

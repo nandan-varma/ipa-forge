@@ -99,6 +99,22 @@ disk, use `forge patch --patches /path/to/definition.yaml` instead.
 
 ## Verify it works
 
+New in the source checkout after 0.2.0, the bundled demo runs offline:
+
+```bash
+forge demo
+# or, for automation:
+forge demo --json
+```
+
+It lints the synthetic definition, dry-runs it, applies two unsigned
+operations, and verifies the output against the recorded manifest. Everything
+runs in a temporary directory and is removed afterward. It requires `zip`
+and `unzip`; no Apple tools, signing credentials, downloads, or device are
+needed. This tests the patch engine, not installation on a real iPhone.
+
+### Released 0.2.0 quickstart
+
 This example is tested against release **0.2.0** and uses fixtures pinned to
 that release. No app of your own needed yet — the repository ships a synthetic test
 fixture you can patch immediately after installing:

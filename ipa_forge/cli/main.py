@@ -15,6 +15,7 @@ from ipa_forge.bundle.ipa import load_bundle
 from ipa_forge.cli import analysis as _analysis  # `forge analysis` subcommands
 from ipa_forge.cli import hooks as _hooks  # `forge hooks` subcommands
 from ipa_forge.cli.common import validated_extract
+from ipa_forge.cli.demo import demo
 from ipa_forge.cli.doctor import doctor
 from ipa_forge.hooks.verify import BLOCKING_STATUSES, OK_STATUSES
 from ipa_forge.machO import cache as objc_cache
@@ -27,6 +28,7 @@ from ipa_forge.verify_output import verify_output
 
 app = typer.Typer()
 app.command()(doctor)
+app.command()(demo)
 
 
 def _package_version() -> str:

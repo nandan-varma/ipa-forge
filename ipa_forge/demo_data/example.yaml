@@ -1,0 +1,20 @@
+# Example patch definition, exercised against fixtures/synthetic_app.ipa
+# by tests/integration/test_pipeline.py and `forge patch` in the README quickstart.
+target:
+  bundle_id: "com.example.synthetic"
+  version:
+    exact: "1.0.0"
+
+patches:
+  - id: "zero-marker-bytes"
+    type: binary_replace
+    executable: "TestApp"
+    arch: "arm64"
+    pattern: "ca fe f0 0d de ad be ef 13 37 c0 de ab cd ef 01"
+    replacement: "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+    expected_matches: 1
+
+  - id: "swap-asset"
+    type: resource_replace
+    path: "asset.txt"
+    source: "assets/patched_asset.txt"
