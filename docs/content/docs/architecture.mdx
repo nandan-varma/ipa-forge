@@ -231,13 +231,12 @@ pair, so this is left unimplemented rather than guessed at. See
 
 ## Linux support boundary
 
-Extraction, repacking, plist inspection, patch resolution, resource
-patching, binary pattern analysis/modification, and dry-run all work without
-macOS (`bundle/`, `patch/`, `machO/arch.py`, `machO/injector.py` have no
-macOS dependency). Everything in `signing/` requires `codesign`/`security`
-and therefore macOS -- this boundary is enforced by which module a caller
-imports, not by a runtime OS check, matching the project's constraint that
-Apple's signing internals are never reimplemented anywhere, on any platform.
+Extraction, repacking, plist inspection, resource/binary patching, and
+LIEF-backed symbols/security analysis can run on Linux with the required
+archive tools. Objective-C analysis (`machO/objc.py`) invokes `lipo` and
+`otool`, including hook verification during dry-run and unsigned patching.
+Signing invokes `codesign`/`security`. Those Apple-tool paths require macOS.
+See the [command-level requirements](/docs/installation#platform-and-tool-requirements).
 
 ## Related
 

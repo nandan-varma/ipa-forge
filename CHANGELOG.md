@@ -11,7 +11,7 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Unity IL2CPP method indexing and metadata-reference analysis.
 - Hook block signature checking against Objective-C method type encodings,
-  with `hooks find --types` for inspecting expected types.
+  with `hooks verify --types` for inspecting expected types.
 - Optional bundle identifier renaming for installation beside the original app.
 - One-command device installation tooling for local signing, installation,
   and smoke testing.
