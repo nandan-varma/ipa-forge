@@ -25,6 +25,14 @@ facts. It does not claim exhaustive proof of every behavior or search ranking.
 | Correct platform claims | Installation said all analysis works on any OS; objc.py invokes lipo and otool, including hook verification during dry-run/no-sign | Replaced blanket claims with command-level requirements. Added a Linux portable-workflow CI smoke stage; it has not run remotely yet. Windows remains unverified. |
 | Rich previews and search metadata | Root/per-page metadata, canonical URLs, robots, sitemap, SoftwareSourceCode JSON-LD, and opengraph-image.tsx already existed | **Correction:** these were already implemented. No redundant image or speculative structured data added. The production smoke check caught and fixed the /docs canonical trailing-slash mismatch. |
 
+A further end-to-end check found that relative output paths in documented
+commands failed: `zip` interpreted `results/patched.ipa` relative to the
+temporary extraction directory. A regression test failed before the fix;
+outputs are now resolved before changing cwd. Native zip/unzip diagnostics
+are captured and included in operational errors rather than leaking into
+JSON stdout. Regression tests cover plain and nested relative destinations
+and native-command failure output.
+
 Additional correction: release preparation had incorrectly written
 `hooks find --types` in the changelog. The implemented flag is
 `hooks verify --types`; the changelog is corrected.
@@ -46,13 +54,14 @@ is promised.
 
 ## Validation
 
-- Python: 339 passed on local macOS/Python 3.12; coverage 85.47% (80% required).
+- Python: 342 passed on local macOS/Python 3.12; coverage 85.50% (80% required).
 - Ruff lint and formatting: passed. Mypy: passed across 64 source files.
 - Distribution: sdist, wheel built from that sdist, and twine metadata checks passed.
 - Installed the wheel into a clean environment and ran it from `/tmp`, outside
   the repository. Demo passed with two operations; doctor passed; exported
   schema exactly matched the published artifact. No signing credentials or
-  downloads were needed by the demo itself.
+  downloads were needed by the demo itself. A second fresh-wheel check also
+  passed with relative IPA, definition, asset, and nested output paths.
 - Docs: production build passed; link checker reported zero errors; production
   smoke checked homepage metadata, all 13 HTML/Markdown pairs, agent exports,
   schema, robots, sitemap, and missing-Markdown 404 handling.

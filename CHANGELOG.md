@@ -19,6 +19,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Relative output paths are resolved before archive repacking changes its
+  working directory. Native archive failures retain diagnostics without
+  contaminating JSON stdout.
 - Platform requirements now distinguish LIEF-backed analysis from Objective-C
   metadata analysis, which invokes Apple's `lipo`/`otool` even in dry-runs.
 - GUI patch-set prerequisites are visible in the installation quickstart.

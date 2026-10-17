@@ -134,3 +134,56 @@ def test_export_json(tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["entry"] == json.loads(output.read_text())["apps"][0]
+
+
+@pytest.mark.parametrize("destination", ["patched.ipa", "results/patched.ipa"])
+def test_unsigned_patch_relative_output_stays_in_callers_directory(monkeypatch, tmp_path, destination):
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        [
+            "patch",
+            "--ipa",
+            str(IPA),
+            "--patches",
+            str(PATCHES),
+            "--output",
+            destination,
+            "--no-sign",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / destination).is_file()
+    assert json.loads(result.stdout)["ok"]
+
+
+def test_native_archive_failure_keeps_json_stdout_clean(monkeypatch, tmp_path):
+    import subprocess
+
+    real_run = subprocess.run
+
+    def failed_zip(args, **kwargs):
+        if args[0] == "zip":
+            assert kwargs["capture_output"]
+            raise subprocess.CalledProcessError(15, args, output="native stdout diagnostic", stderr="")
+        return real_run(args, **kwargs)
+
+    monkeypatch.setattr("ipa_forge.bundle.ipa.subprocess.run", failed_zip)
+    result = runner.invoke(
+        app,
+        [
+            "patch",
+            "--ipa",
+            str(IPA),
+            "--patches",
+            str(PATCHES),
+            "--output",
+            str(tmp_path / "out.ipa"),
+            "--no-sign",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "native stdout diagnostic" in json.loads(result.stderr)["error"]["message"]
