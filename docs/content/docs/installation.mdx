@@ -66,6 +66,24 @@ uses; availability of a Python wheel alone does not establish OS support.
 Windows is not currently covered by CI. Archive extraction/repacking uses
 Unix `unzip`/`zip` semantics, including symlink preservation.
 
+### Check your setup
+
+New in the source checkout after 0.2.0:
+
+```bash
+forge doctor
+forge doctor --definition /path/to/patches.yaml
+forge doctor --gui
+forge doctor --objc --signing --json
+```
+
+By default this checks `unzip` and `zip`. `--definition` also lints the YAML
+and checks Apple analysis tools if it declares hooks. `--gui` checks the
+configured patch-set root. `--objc` and `--signing` request the corresponding
+Apple tools. Exit `1` means a requested check failed; every failure includes
+a suggested fix. This checks tool presence, not signing credentials or
+on-device behavior.
+
 ### Before using the GUI
 
 The GUI discovers **your own** patch definitions; the package ships no
