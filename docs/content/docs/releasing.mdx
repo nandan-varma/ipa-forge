@@ -24,7 +24,7 @@ API tokens) once this is set up.
 
 ### PyPI
 
-On the [`ipa-forge` project page](https://pypi.org/manage/project/ipa-forge/publishing/) →
+On the [`ipa-forge` project page](https://pypi.org/manage/project/ipa-forge/settings/publishing/) →
 Publishing → add a trusted publisher:
 - Owner: `nandan-varma`, Repository: `ipa-forge`
 - Workflow name: `release.yml`
@@ -45,7 +45,12 @@ version).
 </Steps>
 
 Both steps only need to happen once; every future tagged release reuses
-them automatically.
+them automatically. Confirm that the project publishing page lists the
+GitHub publisher before cutting a release. An `invalid-publisher` error
+means PyPI could not match the workflow to a configured publisher; compare
+the owner, repository, workflow filename, and environment with the values
+above. After correcting the publisher, re-run the failed jobs in GitHub
+Actions to resume publishing the already-built artifacts.
 
 ## Cutting a release
 
