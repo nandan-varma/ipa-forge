@@ -57,7 +57,7 @@ export async function generateMetadata(props: {
   const page = source.getPage(params.slug);
   if (!page) notFound();
 
-  const url = `/docs/${page.slugs.join("/")}`;
+  const url = page.url;
 
   return {
     title: page.data.title,
