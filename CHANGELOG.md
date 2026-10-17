@@ -5,8 +5,16 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-17
+
 ### Added
 
+- Unity IL2CPP method indexing and metadata-reference analysis.
+- Hook block signature checking against Objective-C method type encodings,
+  with `hooks find --types` for inspecting expected types.
+- Optional bundle identifier renaming for installation beside the original app.
+- One-command device installation tooling for local signing, installation,
+  and smoke testing.
 - `forge lint` for IPA-free schema, unique-ID, binary-pattern, source, and
   duplicate-hook checks; duplicate operation IDs also fail pipeline loading.
 - `forge patch --manifest PATH` for dry-run and applied JSON records, including
@@ -20,6 +28,7 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Swift class metadata parsing and tracing of shared hook resolvers.
 - Dry-run now rejects malformed hex, replacement wildcards, and unequal byte
   lengths before mutation. Match-count messages cap their offset lists.
 - Exact byte patterns use native byte searches; bundle hook analysis includes
