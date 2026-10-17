@@ -58,6 +58,9 @@ try {
     const html = await read(canonical, "text/html");
     assert.ok(html.includes(`rel="canonical" href="https://ipa-forge.nandan.fyi${canonical}"`), `${canonical}: canonical`);
   }
+  const schema = JSON.parse(await read("/schema/patch-definition.json", "application/json"));
+  assert.equal(schema.title, "PatchDefinition");
+  assert.ok(schema.properties.patches.items.discriminator.mapping.binary_replace);
   const full = await read("/llms-full.txt", "text/plain");
   assert.ok(full.includes("Source: https://ipa-forge.nandan.fyi/docs"));
   const missing = await fetch(`${base}/docs/this-page-does-not-exist.md`);

@@ -14,6 +14,28 @@ Working examples live in [`fixtures/patches/`](https://github.com/nandan-varma/i
 - `example_dylib_inject.yaml` — `dylib_inject`
 - `example_plist_edit.yaml` — `plist_edit`
 
+## Editor and agent schema
+
+The [patch-definition JSON Schema](/schema/patch-definition.json) is generated
+from the same Pydantic models the loader uses. It follows `main`; generate
+one matching your installed package with:
+
+```bash
+forge schema > patch-definition.schema.json
+```
+
+With the YAML language server (for example, the Red Hat YAML extension),
+add this first line to a definition for autocomplete and shape validation:
+
+```yaml
+# yaml-language-server: $schema=https://ipa-forge.nandan.fyi/schema/patch-definition.json
+```
+
+Schema validation covers fields and operation types. It does not replace
+`forge lint`: unique IDs, binary-pattern semantics, duplicate hooks, source
+files, and conditional plist-value rules require runtime validation. Run
+`forge lint definition.yaml`, then dry-run against the target IPA.
+
 ## File structure
 
 ```yaml

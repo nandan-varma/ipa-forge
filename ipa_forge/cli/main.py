@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
+import json
 import tempfile
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _installed_version
@@ -18,6 +19,7 @@ from ipa_forge.hooks.verify import BLOCKING_STATUSES, OK_STATUSES
 from ipa_forge.machO import cache as objc_cache
 from ipa_forge.patch.lint import lint_definition
 from ipa_forge.patch.loader import PatchLoadError
+from ipa_forge.patch.schema import PatchDefinition
 from ipa_forge.pipeline import PipelineError, run_pipeline
 from ipa_forge.validators.bundle_validator import validate_bundle
 from ipa_forge.verify_output import verify_output
@@ -52,6 +54,15 @@ def _validated_extract(ipa: Path, dest: Path) -> Path:
     except ValueError as e:
         typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from None
+
+
+@app.command("schema")
+def schema_command() -> None:
+    """Print the patch-definition JSON Schema for editor and agent tooling."""
+    schema = PatchDefinition.model_json_schema()
+    schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+    schema["$id"] = "https://ipa-forge.nandan.fyi/schema/patch-definition.json"
+    typer.echo(json.dumps(schema, indent=2) + "\n", nl=False)
 
 
 @app.command()

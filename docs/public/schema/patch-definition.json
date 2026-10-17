@@ -1,0 +1,419 @@
+{
+  "$defs": {
+    "BinaryReplaceSpec": {
+      "properties": {
+        "type": {
+          "const": "binary_replace",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "executable": {
+          "title": "Executable",
+          "type": "string"
+        },
+        "pattern": {
+          "title": "Pattern",
+          "type": "string"
+        },
+        "replacement": {
+          "title": "Replacement",
+          "type": "string"
+        },
+        "expected_matches": {
+          "default": 1,
+          "title": "Expected Matches",
+          "type": "integer"
+        },
+        "arch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Arch"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        },
+        "symbol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symbol"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "executable",
+        "pattern",
+        "replacement"
+      ],
+      "title": "BinaryReplaceSpec",
+      "type": "object"
+    },
+    "DylibInjectSpec": {
+      "properties": {
+        "type": {
+          "const": "dylib_inject",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "executable": {
+          "title": "Executable",
+          "type": "string"
+        },
+        "install_name": {
+          "title": "Install Name",
+          "type": "string"
+        },
+        "arch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Arch"
+        },
+        "load_command": {
+          "default": "LC_LOAD_DYLIB",
+          "enum": [
+            "LC_LOAD_DYLIB",
+            "LC_LOAD_WEAK_DYLIB"
+          ],
+          "title": "Load Command",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "executable",
+        "install_name"
+      ],
+      "title": "DylibInjectSpec",
+      "type": "object"
+    },
+    "HookSpec": {
+      "description": "Declare a runtime hook the patch set relies on, so `forge` can verify\nit against the actual binary and catch silent no-ops on version drift.",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string"
+        },
+        "selector": {
+          "title": "Selector",
+          "type": "string"
+        },
+        "kind": {
+          "default": "instance",
+          "enum": [
+            "instance",
+            "class"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "added": {
+          "default": false,
+          "title": "Added",
+          "type": "boolean"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "class",
+        "selector"
+      ],
+      "title": "HookSpec",
+      "type": "object"
+    },
+    "PlistEditSpec": {
+      "properties": {
+        "type": {
+          "const": "plist_edit",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "set",
+            "remove"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "value": {
+          "default": null,
+          "title": "Value"
+        },
+        "path": {
+          "default": "Info.plist",
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "action",
+        "key"
+      ],
+      "title": "PlistEditSpec",
+      "type": "object"
+    },
+    "ResourceAddSpec": {
+      "properties": {
+        "type": {
+          "const": "resource_add",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "path",
+        "source"
+      ],
+      "title": "ResourceAddSpec",
+      "type": "object"
+    },
+    "ResourceRemoveSpec": {
+      "properties": {
+        "type": {
+          "const": "resource_remove",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "path"
+      ],
+      "title": "ResourceRemoveSpec",
+      "type": "object"
+    },
+    "ResourceReplaceSpec": {
+      "properties": {
+        "type": {
+          "const": "resource_replace",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "path",
+        "source"
+      ],
+      "title": "ResourceReplaceSpec",
+      "type": "object"
+    },
+    "TargetSpec": {
+      "properties": {
+        "bundle_id": {
+          "title": "Bundle Id",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VersionExact"
+            },
+            {
+              "$ref": "#/$defs/VersionRange"
+            }
+          ],
+          "title": "Version"
+        }
+      },
+      "required": [
+        "bundle_id",
+        "version"
+      ],
+      "title": "TargetSpec",
+      "type": "object"
+    },
+    "VersionExact": {
+      "properties": {
+        "exact": {
+          "title": "Exact",
+          "type": "string"
+        }
+      },
+      "required": [
+        "exact"
+      ],
+      "title": "VersionExact",
+      "type": "object"
+    },
+    "VersionRange": {
+      "properties": {
+        "min": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        }
+      },
+      "title": "VersionRange",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "target": {
+      "$ref": "#/$defs/TargetSpec"
+    },
+    "patches": {
+      "description": "At least one operation -- an empty definition is always a mistake.",
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "binary_replace": "#/$defs/BinaryReplaceSpec",
+            "dylib_inject": "#/$defs/DylibInjectSpec",
+            "plist_edit": "#/$defs/PlistEditSpec",
+            "resource_add": "#/$defs/ResourceAddSpec",
+            "resource_remove": "#/$defs/ResourceRemoveSpec",
+            "resource_replace": "#/$defs/ResourceReplaceSpec"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/BinaryReplaceSpec"
+          },
+          {
+            "$ref": "#/$defs/ResourceReplaceSpec"
+          },
+          {
+            "$ref": "#/$defs/ResourceAddSpec"
+          },
+          {
+            "$ref": "#/$defs/ResourceRemoveSpec"
+          },
+          {
+            "$ref": "#/$defs/DylibInjectSpec"
+          },
+          {
+            "$ref": "#/$defs/PlistEditSpec"
+          }
+        ]
+      },
+      "minItems": 1,
+      "title": "Patches",
+      "type": "array"
+    },
+    "hooks": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/HookSpec"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Hooks"
+    }
+  },
+  "required": [
+    "target",
+    "patches"
+  ],
+  "title": "PatchDefinition",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ipa-forge.nandan.fyi/schema/patch-definition.json"
+}
