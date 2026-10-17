@@ -57,6 +57,9 @@ pytest tests/ -m "not macos"
 pytest tests/unit/test_binary_patch.py::test_binary_replace_apply_mutates_file -v
 
 # CLI (installed as `forge` via pyproject.toml's [project.scripts])
+forge doctor [--objc] [--signing] [--gui] [--definition patches.yaml] [--json]
+forge demo [--json]   # offline synthetic lint/dry-run/unsigned-patch/verify
+forge schema          # editor JSON Schema matching the installed package
 forge inspect path/to/App.ipa
 forge validate path/to/App.ipa
 forge lint patches.yaml
@@ -213,3 +216,18 @@ throwaway Mach-O binaries on the fly (`compiled_macho_binary`,
 Development identity is in the local Keychain — tests requiring real
 signing are marked `@pytest.mark.macos` and skip gracefully if no suitable
 local identity/profile exists.
+
+
+### Packaged demo and documentation checks
+
+`ipa_forge/demo_data/` contains copies of the synthetic IPA, example YAML,
+and replacement asset for offline installed-package demos. When rebuilding
+or changing the canonical `fixtures/` files, update the three packaged copies;
+`tests/unit/test_demo.py` checks that they match.
+
+For docs changes, run these from `docs/`: `npm ci`, `npm run build`,
+`npm run lint:links`, and `npm run test:smoke`. The smoke check starts and
+stops its own production server. `forge schema` must exactly match
+`docs/public/schema/patch-definition.json`; regenerate it after schema edits.
+Core command JSON envelopes and compatibility limits are documented in
+`docs/content/docs/usage.mdx` under Automation output.
