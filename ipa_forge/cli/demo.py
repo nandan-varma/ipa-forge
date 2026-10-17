@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import subprocess
 import tempfile
 from importlib.resources import files
@@ -11,6 +10,7 @@ from pathlib import Path
 
 import typer
 
+from ipa_forge.cli.output import emit_json, fail
 from ipa_forge.patch.lint import lint_definition
 from ipa_forge.patch.loader import PatchLoadError
 from ipa_forge.pipeline import PipelineError, run_pipeline
@@ -47,21 +47,10 @@ def demo(
         message = " ".join(str(e).splitlines())
         if isinstance(e, FileNotFoundError) and e.filename in {"zip", "unzip"}:
             message += "; run forge doctor to check archive tools"
+        fail(message, json_output=json_output, code="demo_failed")
+    if json_output:
+        emit_json(operations=count, checks=["lint", "dry_run", "unsigned_patch", "verify_output"])
+    else:
         typer.echo(
-            json.dumps({"error": {"code": "demo_failed", "message": message}}) if json_output else f"error: {message}",
-            err=True,
+            f"Demo OK -- {count} operations linted, dry-run, applied unsigned, and verified. Temporary files removed."
         )
-        raise typer.Exit(code=1) from None
-    typer.echo(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "ok": True,
-                "operations": count,
-                "checks": ["lint", "dry_run", "unsigned_patch", "verify_output"],
-            },
-            indent=2,
-        )
-        if json_output
-        else f"Demo OK -- {count} operations linted, dry-run, applied unsigned, and verified. Temporary files removed."
-    )

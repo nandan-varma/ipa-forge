@@ -7,6 +7,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Versioned `--json` results and structured operational errors for core
+  inspect/validate/lint/patch/verify-output/export-source/cache commands.
+  Existing hook and analysis JSON formats remain unchanged.
 - `forge demo` for an offline synthetic lint/dry-run/unsigned-patch/verify
   smoke test with bundled assets and automatic cleanup.
 - `forge doctor` for archive-tool and workflow prerequisite checks, with
