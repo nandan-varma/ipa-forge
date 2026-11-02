@@ -15,7 +15,6 @@
     "@fuma-translate/react": "^1.0.2",
     "@fumadocs/base-ui": "^16.15.1",
     "class-variance-authority": "^0.7.1",
-    "cnfast": "^0.1.0",
     "fumadocs-core": "^16.15.1",
     "fumadocs-mdx": "^15.3.1",
     "fumadocs-ui": "^16.15.1",
@@ -27,12 +26,13 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",
     "@types/mdx": "^2.0.13",
-    "@types/node": "^22",
+    "@types/node": "^26.6.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cnfast": "^0.2.0",
     "next-validate-link": "^1.6.7",
     "tailwindcss": "^4.1.13",
     "tsx": "^4.23.12",
-    "typescript": "^5.7.0"
+    "typescript": "^7.0.2"
   }
 }
