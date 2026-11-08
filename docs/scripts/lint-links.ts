@@ -1,3 +1,4 @@
+import { readdir, stat } from "node:fs/promises";
 import { type FileObject, printErrors, scanURLs, validateFiles } from "next-validate-link";
 import { register } from "fumadocs-mdx/node";
 
@@ -33,6 +34,14 @@ async function checkLinks() {
       })),
     },
   });
+
+  // Static public assets are URLs too; derive them from real files rather
+  // than suppressing validation of schema/download links.
+  for (const file of await readdir("public", { recursive: true })) {
+    if ((await stat(`public/${file}`)).isFile()) {
+      scanned.urls.set(`/${file.replaceAll("\\", "/")}`, {});
+    }
+  }
 
   printErrors(
     await validateFiles(await getFiles(), {

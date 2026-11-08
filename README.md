@@ -45,24 +45,33 @@ pipx install ipa-forge     # recommended: isolated, globally available `forge` c
 # or: pip install ipa-forge   (inside your own virtualenv)
 ```
 
-This installs the `forge` CLI — `forge --version` to confirm. Full install
+This installs the `forge` CLI — `forge --version` to confirm. In the source
+checkout after 0.2.0, `forge doctor` checks prerequisites and `forge demo`
+runs an offline synthetic patch-and-verify exercise without credentials. Full install
 options (uv, editable/source installs for development) and requirements are
 at [Installation](https://ipa-forge.nandan.fyi/docs/installation).
 
 ## Requirements
 
 - Python 3.11+
-- macOS with Xcode Command Line Tools (`xcode-select -p` should print a
-  path) -- **only for signing**: real (non-dry-run) `forge patch` shells out
-  to Apple's `codesign`/`security` tools, never reimplementing them.
-  `forge inspect`/`validate`/`patch --dry-run`/`analysis` all work on Linux;
-  see [`extensibility`](https://ipa-forge.nandan.fyi/docs/extensibility).
+- `unzip` for IPA extraction; `zip` for producing output archives.
+- macOS with Xcode Command Line Tools for signing and Objective-C metadata
+  analysis (`hooks`, `analysis classdump`, and `analysis diff`).
+  `inspect`, `validate`, `lint`, `analysis strings/symbols/security/il2cpp`,
+  and patches without a `hooks:` section can run on Linux with the required
+  archive tools. See [Installation](https://ipa-forge.nandan.fyi/docs/installation).
 - For real signing: a codesigning identity in your Keychain
   (`security find-identity -v -p codesigning`) and a matching
   `.mobileprovision`, obtained the normal way through Xcode or AltServer's
   own account pairing.
 
 ## Quick start (novice — the GUI)
+
+The GUI requires your own patch set before it can patch an IPA. Arrange it
+as `/path/to/patches/<app>/<app>.yaml`, with assets relative to that YAML,
+and set `IPA_FORGE_PATCHES_DIR=/path/to/patches` when launching `forge gui`.
+The PyPI package includes no third-party patch sets. See
+[patch-set setup](https://ipa-forge.nandan.fyi/docs/usage#the-web-gui).
 
 1. **Launch the GUI**: `forge gui` → open <http://127.0.0.1:8765>
 2. **Drop your .ipa** into the box. The GUI detects the app and the matching
@@ -105,10 +114,10 @@ Try it against the repo's synthetic test fixture — no real app required, and
 no need to clone the repo, just download the files:
 
 ```bash
-curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/synthetic_app.ipa
-curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/patches/example.yaml
+curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/v0.2.0/fixtures/synthetic_app.ipa
+curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/v0.2.0/fixtures/patches/example.yaml
 mkdir -p assets && curl -Lo assets/patched_asset.txt \
-  https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/patches/assets/patched_asset.txt
+  https://raw.githubusercontent.com/nandan-varma/ipa-forge/v0.2.0/fixtures/patches/assets/patched_asset.txt
 
 forge patch --ipa synthetic_app.ipa --patches example.yaml \
   --identity "Apple Development" --profile <your .mobileprovision> \

@@ -5,13 +5,37 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Versioned `--json` results and structured operational errors for core
+  inspect/validate/lint/patch/verify-output/export-source/cache commands.
+  Existing hook and analysis JSON formats remain unchanged.
+- `forge demo` for an offline synthetic lint/dry-run/unsigned-patch/verify
+  smoke test with bundled assets and automatic cleanup.
+- `forge doctor` for archive-tool and workflow prerequisite checks, with
+  optional definition linting, GUI discovery checks, and JSON output.
+- `forge schema` and a published JSON Schema for patch-definition editors
+  and agents; CI checks that the published schema matches package models.
+
+### Fixed
+
+- Relative output paths are resolved before archive repacking changes its
+  working directory. Native archive failures retain diagnostics without
+  contaminating JSON stdout.
+- Platform requirements now distinguish LIEF-backed analysis from Objective-C
+  metadata analysis, which invokes Apple's `lipo`/`otool` even in dry-runs.
+- GUI patch-set prerequisites are visible in the installation quickstart.
+- Agent documentation links use absolute Markdown URLs; sitemap freshness
+  no longer uses synthetic timestamps. Documentation builds, links, and
+  production HTML/Markdown routes are checked in CI.
+
 ## [0.2.0] - 2026-10-17
 
 ### Added
 
 - Unity IL2CPP method indexing and metadata-reference analysis.
 - Hook block signature checking against Objective-C method type encodings,
-  with `hooks find --types` for inspecting expected types.
+  with `hooks verify --types` for inspecting expected types.
 - Optional bundle identifier renaming for installation beside the original app.
 - One-command device installation tooling for local signing, installation,
   and smoke testing.

@@ -20,6 +20,17 @@ jobs:
           cache: pip
       - name: Install
         run: pip install -e ".[dev]"
+      - name: Linux portable workflow smoke
+        run: |
+          forge demo --json
+          forge inspect fixtures/synthetic_app.ipa
+          forge validate fixtures/synthetic_app.ipa
+          forge analysis strings --ipa fixtures/synthetic_app.ipa --search Test
+          forge analysis symbols --ipa fixtures/synthetic_app.ipa
+          forge analysis security --ipa fixtures/synthetic_app.ipa
+          pytest tests/unit/test_il2cpp.py --no-cov -q
+      - name: Published schema matches package models
+        run: forge schema | diff - docs/public/schema/patch-definition.json
       - name: Ruff check
         run: ruff check .
       - name: Ruff format
@@ -49,3 +60,20 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Pytest
         run: pytest tests/
+
+  docs:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint:links
+      - run: npm run test:smoke

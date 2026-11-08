@@ -64,20 +64,20 @@ implementation would need to:
   (7-day expiry, active-app count, App-ID-per-week limits) — see
   [Architecture](/docs/architecture)'s AltStore flow diagram.
 
-## Linux-only analysis mode
+## Linux support boundary
 
-Everything except `ipa_forge/signing/` runs without macOS: extraction,
-repacking, plist inspection, patch resolution, resource patching, and binary
-pattern analysis/modification (`bundle/`, `patch/`, `machO/arch.py`,
-`machO/injector.py`). This means `forge inspect`, `forge validate`, and
-`forge patch --dry-run` (up through the dry-run gate) all work on Linux
-today without any code changes — only the signing stages (`load_profile_pool`
-onward) require `codesign`/`security` and therefore fail on non-macOS.
+Extraction, repacking, plist inspection, patch resolution, resource and
+binary operations, and LIEF-backed symbols/security analysis do not invoke
+Apple tools. IPA input requires `unzip`; output archives require `zip`.
 
-<Callout type="info">
-There is no runtime OS check gating this; it falls out naturally from which
-modules a given code path imports.
-</Callout>
+Objective-C metadata analysis in `machO/objc.py` invokes `lipo` and `otool`.
+That includes class dumps, class/hook diffs, hook verification/auditing, and
+**any patch definition with a nonempty `hooks:` section**, even in dry-run or
+unsigned mode. Those paths need macOS Xcode Command Line Tools. Signing
+additionally requires `codesign`/`security` and valid credentials.
+
+See [Installation](/docs/installation#platform-and-tool-requirements) for the
+command-level requirements. Windows is not currently verified in CI.
 
 ## Worked examples of the extension seams above
 

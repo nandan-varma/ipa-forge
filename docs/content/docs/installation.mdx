@@ -47,34 +47,83 @@ Either way, this installs the `forge` command:
 forge --version
 ```
 
-<Callout type="warn" title="Signing needs macOS">
-`forge inspect`, `forge validate`, `forge patch --dry-run`, and `forge
-analysis` work on any OS. Real signing (`forge patch` without `--dry-run`)
-shells out to Apple's `codesign`/`security` and requires macOS with Xcode
-Command Line Tools (`xcode-select -p` should print a path).
-</Callout>
+## Platform and tool requirements
 
-## Requirements
+Python 3.11+ is required. The table describes the tools each path actually
+uses; availability of a Python wheel alone does not establish OS support.
 
-<TypeTable
-  type={{
-    Python: { type: "3.11+", required: true, description: "Checked at install time by pip's requires-python constraint" },
-    macOS: { type: "for signing only", description: "Xcode Command Line Tools, for codesign/security. Not needed for inspect/validate/dry-run/analysis" },
-    "Codesigning identity": { type: "Keychain", description: "security find-identity -v -p codesigning — needed only for a real (non-dry-run) forge patch" },
-    "Provisioning profile": { type: ".mobileprovision", description: "From Xcode or AltServer's account pairing — needed only for a real (non-dry-run) forge patch" },
-  }}
-/>
+| Task | Required tools / platform |
+| --- | --- |
+| `forge lint` | Python dependencies only |
+| `forge inspect`, `forge validate` | `unzip`; macOS or Linux |
+| `forge analysis strings`, `symbols`, `security`, `il2cpp` | Python/LIEF; `unzip` when using `--ipa` |
+| `forge hooks verify/find/audit/diff`, `analysis classdump/diff` | macOS Xcode Command Line Tools (`lipo`, `otool`); `unzip` for IPA input |
+| `forge hooks manifest` | Source scanning only; no Apple tools |
+| `forge patch --dry-run` | `unzip`; also `lipo`/`otool` when the definition declares hooks |
+| `forge patch --no-sign` | Above, plus `zip`; no signing identity/profile needed |
+| Signed `forge patch` | macOS `codesign`/`security`, a Keychain signing identity, and a matching `.mobileprovision` |
+
+Windows is not currently covered by CI. Archive extraction/repacking uses
+Unix `unzip`/`zip` semantics, including symlink preservation.
+
+### Check your setup
+
+New in the source checkout after 0.2.0:
+
+```bash
+forge doctor
+forge doctor --definition /path/to/patches.yaml
+forge doctor --gui
+forge doctor --objc --signing --json
+```
+
+By default this checks `unzip` and `zip`. `--definition` also lints the YAML
+and checks Apple analysis tools if it declares hooks. `--gui` checks the
+configured patch-set root. `--objc` and `--signing` request the corresponding
+Apple tools. Exit `1` means a requested check failed; every failure includes
+a suggested fix. This checks tool presence, not signing credentials or
+on-device behavior.
+
+### Before using the GUI
+
+The GUI discovers **your own** patch definitions; the package ships no
+third-party patch sets. Put each definition at
+`/path/to/patches/<app>/<app>.yaml`, keep its assets alongside it, then run:
+
+```bash
+IPA_FORGE_PATCHES_DIR=/path/to/patches forge gui
+```
+
+See [GUI setup](/docs/usage#the-web-gui). For a single definition anywhere on
+disk, use `forge patch --patches /path/to/definition.yaml` instead.
 
 ## Verify it works
 
-No app of your own needed yet — the repository ships a synthetic test
+New in the source checkout after 0.2.0, the bundled demo runs offline:
+
+```bash
+forge demo
+# or, for automation:
+forge demo --json
+```
+
+It lints the synthetic definition, dry-runs it, applies two unsigned
+operations, and verifies the output against the recorded manifest. Everything
+runs in a temporary directory and is removed afterward. It requires `zip`
+and `unzip`; no Apple tools, signing credentials, downloads, or device are
+needed. This tests the patch engine, not installation on a real iPhone.
+
+### Released 0.2.0 quickstart
+
+This example is tested against release **0.2.0** and uses fixtures pinned to
+that release. No app of your own needed yet — the repository ships a synthetic test
 fixture you can patch immediately after installing:
 
 ```bash
-curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/synthetic_app.ipa
-curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/patches/example.yaml
+curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/v0.2.0/fixtures/synthetic_app.ipa
+curl -LO https://raw.githubusercontent.com/nandan-varma/ipa-forge/v0.2.0/fixtures/patches/example.yaml
 mkdir -p assets && curl -Lo assets/patched_asset.txt \
-  https://raw.githubusercontent.com/nandan-varma/ipa-forge/main/fixtures/patches/assets/patched_asset.txt
+  https://raw.githubusercontent.com/nandan-varma/ipa-forge/v0.2.0/fixtures/patches/assets/patched_asset.txt
 
 forge inspect synthetic_app.ipa
 forge patch --ipa synthetic_app.ipa --patches example.yaml \

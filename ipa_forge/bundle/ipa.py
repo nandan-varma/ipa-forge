@@ -17,6 +17,15 @@ from ipa_forge.bundle.models import AppBundle
 from ipa_forge.bundle.plist import read_plist
 
 
+def _run_archive_command(args: list[str], *, cwd: Path | None = None) -> None:
+    """Keep native diagnostics out of command stdout, including JSON output."""
+    try:
+        subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        detail = (e.stderr or e.stdout or "no diagnostic output").strip()
+        raise OSError(f"{args[0]} failed (exit {e.returncode}): {detail}") from e
+
+
 def extract_ipa(ipa_path: Path, dest_dir: Path) -> Path:
     """Extract ipa_path into dest_dir. Returns the path to Payload/<App>.app.
 
@@ -25,10 +34,7 @@ def extract_ipa(ipa_path: Path, dest_dir: Path) -> Path:
     here we only require the extraction to yield exactly one Payload/*.app.
     """
     dest_dir.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ["unzip", "-qq", "-o", str(ipa_path), "-d", str(dest_dir)],
-        check=True,
-    )
+    _run_archive_command(["unzip", "-qq", "-o", str(ipa_path), "-d", str(dest_dir)])
     payload_dir = dest_dir / "Payload"
     apps = [p for p in payload_dir.iterdir() if p.is_dir() and p.name.endswith(".app")]
     if len(apps) != 1:
@@ -41,14 +47,13 @@ def repack_ipa(extraction_root: Path, output_path: Path) -> Path:
     payload_dir = extraction_root / "Payload"
     if not payload_dir.is_dir():
         raise FileNotFoundError(f"No Payload/ directory under {extraction_root}")
+    # zip runs inside extraction_root; resolve the destination in the caller's
+    # working directory before changing cwd.
+    output_path = output_path.resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.exists():
         output_path.unlink()
-    subprocess.run(
-        ["zip", "-qq", "-r", "-y", str(output_path), "Payload"],
-        cwd=extraction_root,
-        check=True,
-    )
+    _run_archive_command(["zip", "-qq", "-r", "-y", str(output_path), "Payload"], cwd=extraction_root)
     return output_path
 
 

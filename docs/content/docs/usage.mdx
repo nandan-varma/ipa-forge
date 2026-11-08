@@ -8,6 +8,41 @@ ipa-forge — via the `forge` CLI and the local web GUI. Not installed yet?
 See [Installation](/docs/installation) first (`pipx install ipa-forge` is the
 recommended path).
 
+## Automation output
+
+New in the source checkout after 0.2.0, these core commands accept `--json`:
+`inspect`, `validate`, `lint`, `patch`, `verify-output`, `export-source`, and
+`cache`. `doctor` and `demo` also support JSON. `forge schema` always prints
+the JSON Schema itself.
+
+```bash
+forge inspect App.ipa --json
+forge lint patches.yaml --json
+forge patch --ipa App.ipa --patches patches.yaml --output patched.ipa \
+  --no-sign --manifest manifest.json --json
+forge verify-output --base App.ipa --output patched.ipa \
+  --manifest manifest.json --json
+```
+
+Core success results are a single JSON object on stdout, with
+`schema_version: 1` and `ok: true`. `patch` includes `dry_run`, `output`
+(`null` for dry-runs), and the complete `manifest`. `--verbose` does not add
+text to JSON output. `export-source` returns the exported app as `entry`
+and the output filename as `output`.
+
+Expected operational failures exit `1` and print a JSON object to stderr:
+`{"schema_version":1,"ok":false,"error":{"code":"…","message":"…"}}`.
+Warnings and diagnostics also go to stderr; do not assume every stderr line
+is JSON. Argument-parser errors (missing options, nonexistent paths checked
+by Typer, unknown flags) exit `2` and retain Typer's normal error format.
+
+`doctor --json` returns its checks on stdout even when checks fail, with
+`ok: false` and exit `1`. It is a report, not an operational exception.
+`hooks verify/find/audit` and `analysis classdump/il2cpp` already have JSON
+modes; their existing formats are unchanged and do not use the core envelope.
+Other analysis/hook commands still use text output. Check command `--help`
+for supported flags rather than assuming a global JSON mode.
+
 ## End-to-end workflow
 
 <Steps>

@@ -30,7 +30,7 @@ const jsonLd = {
   "@type": "SoftwareSourceCode",
   name: "ipa-forge",
   description:
-    "A data-driven iOS IPA patcher built for AI agents: pip install it, point an agent at the docs, and it can patch, verify, and re-sign an IPA for AltStore Classic sideloading.",
+    "A data-driven iOS IPA patcher built for AI agents: apply your patch definitions, verify changes, and re-sign an IPA for AltStore Classic sideloading.",
   codeRepository: "https://github.com/nandan-varma/ipa-forge",
   programmingLanguage: "Python",
   license: "https://www.gnu.org/licenses/gpl-3.0.html",
@@ -51,8 +51,9 @@ export default function HomePage() {
       />
       <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">ipa-forge</h1>
       <p className="mt-3 max-w-xl text-base text-fd-muted-foreground sm:text-lg">
-        The iOS IPA patcher built for AI agents. Install with pip, point an
-        agent at the docs, and it patches, verifies, and signs — unattended.
+        Patch and inspect iOS IPAs with a CLI built for people and AI agents.
+        Supply a decrypted IPA and your patch definitions; signing and
+        Objective-C hook analysis require macOS tools.
       </p>
       <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
         <Link
@@ -103,8 +104,8 @@ forge patch --ipa <ipa> --patches <patches.yaml> \\
   --identity <id> --profile <profile> --output <out.ipa>`}</code>
           </pre>
           <p className="mt-3 text-xs text-fd-muted-foreground">
-            Prefer a GUI? <code>forge gui</code> drops an IPA in, no YAML
-            required. See{" "}
+            Prefer a GUI? Point <code>IPA_FORGE_PATCHES_DIR</code> at your
+            patch sets before running <code>forge gui</code>. See{" "}
             <Link href="/docs/installation" className="underline">
               Installation
             </Link>{" "}

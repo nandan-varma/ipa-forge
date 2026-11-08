@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
+import json
+import subprocess
 import tempfile
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _installed_version
@@ -14,15 +16,21 @@ from ipa_forge.bundle.ipa import load_bundle
 from ipa_forge.cli import analysis as _analysis  # `forge analysis` subcommands
 from ipa_forge.cli import hooks as _hooks  # `forge hooks` subcommands
 from ipa_forge.cli.common import validated_extract
+from ipa_forge.cli.demo import demo
+from ipa_forge.cli.doctor import doctor
+from ipa_forge.cli.output import emit_json, fail
 from ipa_forge.hooks.verify import BLOCKING_STATUSES, OK_STATUSES
 from ipa_forge.machO import cache as objc_cache
 from ipa_forge.patch.lint import lint_definition
 from ipa_forge.patch.loader import PatchLoadError
+from ipa_forge.patch.schema import PatchDefinition
 from ipa_forge.pipeline import PipelineError, run_pipeline
-from ipa_forge.validators.bundle_validator import validate_bundle
+from ipa_forge.validators.bundle_validator import BundleValidationError, validate_bundle
 from ipa_forge.verify_output import verify_output
 
 app = typer.Typer()
+app.command()(doctor)
+app.command()(demo)
 
 
 def _package_version() -> str:
@@ -45,21 +53,45 @@ def main(
     """Generic, data-driven iOS IPA patcher with AltStore Classic re-signing support."""
 
 
-def _validated_extract(ipa: Path, dest: Path) -> Path:
+def _validated_extract(ipa: Path, dest: Path, *, json_output: bool = False) -> Path:
     """Alias of cli.common.validated_extract with a clean CLI error."""
     try:
         return validated_extract(ipa, dest)
-    except ValueError as e:
-        typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from None
+    except (ValueError, OSError, subprocess.CalledProcessError) as e:
+        fail(str(e), json_output=json_output, code="invalid_ipa")
+
+
+@app.command("schema")
+def schema_command() -> None:
+    """Print the patch-definition JSON Schema for editor and agent tooling."""
+    schema = PatchDefinition.model_json_schema()
+    schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+    schema["$id"] = "https://ipa-forge.nandan.fyi/schema/patch-definition.json"
+    typer.echo(json.dumps(schema, indent=2) + "\n", nl=False)
 
 
 @app.command()
-def inspect(ipa: Path = typer.Argument(..., exists=True, help="Path to the .ipa to inspect")) -> None:
+def inspect(
+    ipa: Path = typer.Argument(..., exists=True, help="Path to the .ipa to inspect"),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured bundle metadata"),
+) -> None:
     """Print bundle id, version, and the bottom-up executable inventory for an IPA."""
     with tempfile.TemporaryDirectory(prefix="ipa_forge_inspect_") as tmp:
-        app_path = _validated_extract(ipa, Path(tmp))
-        bundle = load_bundle(app_path)
+        app_path = _validated_extract(ipa, Path(tmp), json_output=json_output)
+        try:
+            bundle = load_bundle(app_path)
+            validate_bundle(bundle)
+        except (ValueError, OSError, KeyError, BundleValidationError) as e:
+            fail(str(e), json_output=json_output, code="invalid_ipa")
+        if json_output:
+            emit_json(
+                bundle_id=bundle.bundle_id,
+                version=bundle.version,
+                build=bundle.build,
+                main_executable=bundle.main_executable_name,
+                executables=[{"kind": t.kind, "path": t.bundle_relative} for t in bundle.executables],
+            )
+            return
         typer.echo(f"Bundle ID:  {bundle.bundle_id}")
         typer.echo(f"Version:    {bundle.version} (build {bundle.build})")
         typer.echo(f"Main exec:  {bundle.main_executable_name}")
@@ -69,24 +101,37 @@ def inspect(ipa: Path = typer.Argument(..., exists=True, help="Path to the .ipa 
 
 
 @app.command()
-def validate(ipa: Path = typer.Argument(..., exists=True, help="Path to the .ipa to validate")) -> None:
+def validate(
+    ipa: Path = typer.Argument(..., exists=True, help="Path to the .ipa to validate"),
+    json_output: bool = typer.Option(False, "--json", help="Emit a structured validation result"),
+) -> None:
     """Validate IPA structure and Info.plist without patching or signing anything."""
     with tempfile.TemporaryDirectory(prefix="ipa_forge_validate_") as tmp:
-        app_path = _validated_extract(ipa, Path(tmp))
-        bundle = load_bundle(app_path)
-        validate_bundle(bundle)
-    typer.echo("OK")
+        app_path = _validated_extract(ipa, Path(tmp), json_output=json_output)
+        try:
+            validate_bundle(load_bundle(app_path))
+        except (ValueError, OSError, KeyError, BundleValidationError) as e:
+            fail(str(e), json_output=json_output, code="invalid_ipa")
+    if json_output:
+        emit_json()
+    else:
+        typer.echo("OK")
 
 
 @app.command()
-def lint(definition: Path = typer.Argument(..., help="Patch definition YAML/JSON file")) -> None:
+def lint(
+    definition: Path = typer.Argument(..., help="Patch definition YAML/JSON file"),
+    json_output: bool = typer.Option(False, "--json", help="Emit a structured lint result"),
+) -> None:
     """Check a patch definition and its source files without an IPA."""
     try:
         lint_definition(definition)
     except PatchLoadError as e:
-        typer.secho(f"error: {' '.join(str(e).splitlines())}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from None
-    typer.echo("OK")
+        fail(str(e), json_output=json_output, code="invalid_definition")
+    if json_output:
+        emit_json()
+    else:
+        typer.echo("OK")
 
 
 @app.command()
@@ -125,19 +170,24 @@ def patch(
         help="Claim get-task-allow on the main app when the (development) profile allows it, so devicectl "
         "can attach and stream the app's logs",
     ),
+    json_output: bool = typer.Option(False, "--json", help="Emit only a structured result and manifest on stdout"),
     verbose: bool = typer.Option(False, "--verbose", help="Print the full manifest on success"),
     manifest_path: Path | None = typer.Option(None, "--manifest", help="Write the full manifest as JSON"),
 ) -> None:
     """Extract, patch, re-sign, and repackage an IPA for AltStore Classic sideloading."""
     if not dry_run and not no_sign:
         if not identity:
-            typer.secho("error: --identity is required unless --dry-run is set", fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=1) from None
-        if not profile:
-            typer.secho(
-                "error: at least one --profile is required unless --dry-run is set", fg=typer.colors.RED, err=True
+            fail(
+                "--identity is required unless --dry-run or --no-sign is set",
+                json_output=json_output,
+                code="invalid_arguments",
             )
-            raise typer.Exit(code=1) from None
+        if not profile:
+            fail(
+                "at least one --profile is required unless --dry-run or --no-sign is set",
+                json_output=json_output,
+                code="invalid_arguments",
+            )
     try:
         result = run_pipeline(
             ipa,
@@ -150,16 +200,22 @@ def patch(
             bundle_id_suffix=bundle_id_suffix,
             debuggable=debuggable,
         )
-    except PipelineError as e:
-        typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from None
+    except (PipelineError, OSError, ValueError, KeyError, BundleValidationError, subprocess.CalledProcessError) as e:
+        fail(str(e), json_output=json_output, code="patch_failed")
 
     if manifest_path is not None:
         try:
             manifest_path.write_text(result.manifest.to_json() + "\n")
         except OSError as e:
-            typer.secho(f"error: cannot write manifest '{manifest_path}': {e}", fg=typer.colors.RED, err=True)
-            raise typer.Exit(code=1) from None
+            fail(f"cannot write manifest '{manifest_path}': {e}", json_output=json_output, code="manifest_write_failed")
+
+    if json_output:
+        emit_json(
+            dry_run=dry_run,
+            output=str(result.output_path) if result.output_path else None,
+            manifest=json.loads(result.manifest.to_json()),
+        )
+        return
 
     if dry_run:
         count = len(result.manifest.patches_applied)
@@ -201,14 +257,17 @@ def verify_output_command(
     base: Path = typer.Option(..., "--base", exists=True, help="Original IPA"),
     output: Path = typer.Option(..., "--output", exists=True, help="Patched IPA"),
     manifest: Path | None = typer.Option(None, "--manifest", exists=True, help="Applied patch manifest JSON"),
+    json_output: bool = typer.Option(False, "--json", help="Emit a structured verification result"),
 ) -> None:
     """Verify Payload changes and exact binary edits; without a manifest require identical Payloads."""
     try:
         verify_output(base, output, manifest)
     except (ValueError, OSError, BadZipFile, KeyError, TypeError) as e:
-        typer.secho(f"error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from None
-    typer.echo("OK -- Payload inventory and recorded edits verified")
+        fail(str(e), json_output=json_output, code="verification_failed")
+    if json_output:
+        emit_json()
+    else:
+        typer.echo("OK -- Payload inventory and recorded edits verified")
 
 
 @app.command("export-source")
@@ -216,16 +275,24 @@ def export_source(
     ipa: Path = typer.Option(..., "--ipa", exists=True, help="Patched, signed .ipa to describe"),
     download_url: str = typer.Option(..., "--download-url", help="URL this IPA will be hosted at"),
     output: Path = typer.Option(..., "--output", help="Output source.json path"),
+    json_output: bool = typer.Option(False, "--json", help="Emit a structured export result"),
 ) -> None:
     """Emit an AltStore Classic source.json entry for an already-patched IPA."""
-    entry = build_app_entry(ipa, download_url)
-    write_source_json(entry, output)
-    typer.echo(f"Wrote {output}")
+    try:
+        entry = build_app_entry(ipa, download_url)
+        write_source_json(entry, output)
+    except (ValueError, OSError, KeyError, BadZipFile) as e:
+        fail(str(e), json_output=json_output, code="export_failed")
+    if json_output:
+        emit_json(output=str(output), entry=entry)
+    else:
+        typer.echo(f"Wrote {output}")
 
 
 @app.command("cache")
 def cache_command(
     clear: bool = typer.Option(False, "--clear", help="Delete every cached Mach-O analysis"),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured cache information"),
 ) -> None:
     """Show or clear the Mach-O analysis cache.
 
@@ -235,11 +302,21 @@ def cache_command(
     entirely for one command.
     """
     directory = objc_cache.cache_dir() / "objc"
-    if clear:
-        typer.echo(f"Removed {objc_cache.clear()} cached analysis/analyses from {directory}")
+    try:
+        if clear:
+            removed = objc_cache.clear()
+            if json_output:
+                emit_json(directory=str(directory), removed=removed)
+            else:
+                typer.echo(f"Removed {removed} cached analysis/analyses from {directory}")
+            return
+        entries = sorted(directory.glob("*.pickle")) if directory.is_dir() else []
+        total = sum(e.stat().st_size for e in entries)
+    except OSError as e:
+        fail(str(e), json_output=json_output, code="cache_failed")
+    if json_output:
+        emit_json(directory=str(directory), entries=len(entries), bytes=total, disabled=objc_cache.disabled())
         return
-    entries = sorted(directory.glob("*.pickle")) if directory.is_dir() else []
-    total = sum(e.stat().st_size for e in entries)
     typer.echo(f"Cache:   {directory}")
     typer.echo(f"Entries: {len(entries)} ({total / 1e6:.1f} MB)")
     if objc_cache.disabled():
