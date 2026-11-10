@@ -38,8 +38,8 @@ patch set (YAML definition + optional hook dylib) lives under a
 [Adding a new app](https://ipa-forge.nandan.fyi/docs/adding-an-app) for the
 shape one follows and how the engine discovers it.
 
-Known issue: the Spotify 9.1.88 startup "Something went wrong" error is an open, paused
-investigation; see [patches/spotify/dev/CONNECTION-ERROR.md](patches/spotify/dev/CONNECTION-ERROR.md).
+The Spotify startup "Something went wrong" error on a signed-out install is fixed in the
+9.1.94 patch set; see [patches/spotify/dev/CONNECTION-ERROR.md](patches/spotify/dev/CONNECTION-ERROR.md).
 
 ## Install
 
