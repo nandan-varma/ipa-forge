@@ -26,17 +26,41 @@ scripts/device-install --signed out.ipa            # install an already-signed I
    `--bundle-id-suffix <TEAMID> --debuggable`.
 4. **Install**: `devicectl device install app`, then confirms the app moved
    to a new container. Upgrading over a build that still had extensions
-   (installd error 35, "Info.plist missing at …appex") is retried after an
-   uninstall of that own-team copy.
+   ("Info.plist missing at …appex") stops without removing the installed app.
+   `--recover-install` opts into stopping the app, backing up Documents and
+   Library, replacing the copy, restoring the backup and verifying file hashes.
+   A failed backup prevents uninstall; a failed restore retains the backup.
+   Keep the app closed until verification finishes. External app-group
+   containers and Keychain are outside this backup.
 5. **Smoke test**: launches attached to the console with
    `OS_ACTIVITY_DT_MODE=1` (os_log mirrored to stderr) for `--seconds`
    (default 15). Exits `0` only if the app is still running; on an early exit
-   it copies the new crash report.
+   it copies the new crash report. Ending console capture leaves the app
+   running, and the check confirms the installed app executable is still running.
 
 Output lands in `build/device/`: the signed IPA and
 `<app>-<time>/console.log` plus any crash report — read those before asking
 anyone what happened on the phone. Every failure ends in one
 `error: <what> — <fix>` line.
+
+## Development logging and repeatable sessions
+
+SpotifyMod production builds enforce errors-only logging. Build the dylib with
+`SPOTIFYMOD_ERRORS_ONLY=0` for development; Advanced → Development logging
+then enables verbose diagnostics immediately. `--development-logs` sets a launch override
+for a captured session; omitting it forces errors only. Bodies, credentials
+and URL query parameters are not logged.
+
+```bash
+scripts/device-install spotify --recover-install --development-logs --seconds 60
+# Capture again without rebuilding or reinstalling:
+scripts/device-install --signed build/device/spotify_9.1.94_dev.ipa \
+  --launch-only --development-logs --seconds 180
+```
+
+Backups in `build/device/<app>-<time>-backup/` contain private app data. Do not
+commit or share them. Restoration checks every original file; transfer skips
+are retried with fresh copies and verified again.
 
 ## Why the bundle id changes
 

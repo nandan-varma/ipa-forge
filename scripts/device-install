@@ -22,10 +22,12 @@ Every failure prints one `error: <what> — <fix>` line.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import plistlib
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -240,27 +242,146 @@ def explain(reasons: list[str]) -> str:
     return "see the devicectl reason above"
 
 
-def install(udid: str, ipa: Path, bundle_id: str) -> None:
+def data_manifest(directory: Path) -> dict[str, str]:
+    """Content hashes only; never print app data or preference values."""
+    manifest = {}
+    for path in sorted(directory.rglob("*")):
+        relative = str(path.relative_to(directory))
+        if path.is_symlink():
+            manifest[relative] = "symlink:" + os.readlink(path)
+        elif path.is_file():
+            with path.open("rb") as stream:
+                manifest[relative] = hashlib.file_digest(stream, "sha256").hexdigest()
+    return manifest
+
+
+def stop_app(udid: str, bundle_id: str) -> None:
+    app = next((app for app in device_apps(udid) if app["bundleIdentifier"] == bundle_id), None)
+    if app is None:
+        raise Fail("app container unavailable", "retain the backup and reinstall the signed app before restoring")
+    prefix = app["url"].rstrip("/") + "/"
+    processes = devicectl_json("device", "info", "processes", "--device", udid).get("runningProcesses", [])
+    for process in processes:
+        if process.get("executable", "").startswith(prefix):
+            devicectl_json(
+                "device", "process", "terminate", "--device", udid, "--pid", str(process["processIdentifier"]), "--kill"
+            )
+
+
+def transfer_app_data(udid: str, bundle_id: str, direction: str, source: str, destination: str) -> dict:
+    """Retry only interrupted container transfers, never uninstall/replacement."""
+    args = (
+        "device",
+        "copy",
+        direction,
+        "--device",
+        udid,
+        "--domain-type",
+        "appDataContainer",
+        "--domain-identifier",
+        bundle_id,
+        "--source",
+        source,
+        "--destination",
+        destination,
+    )
+    for attempt in range(3):
+        try:
+            return devicectl_json(*args, timeout=900)
+        except DevicectlError as error:
+            transient = re.search(r"peer closed|connection reset|channel|Transport error", error.text, re.I)
+            if attempt == 2 or not transient:
+                raise
+            log(f"  interrupted app-data transfer; retry {attempt + 1}/2")
+            time.sleep(1)
+    raise AssertionError("unreachable")
+
+
+def backup_app_data(udid: str, bundle_id: str, backup: Path) -> dict[str, str]:
+    backup.mkdir(parents=True, mode=0o700, exist_ok=False)
+    stop_app(udid, bundle_id)
+    for name in ("Documents", "Library"):
+        (backup / name).mkdir(mode=0o700)
+        transfer_app_data(udid, bundle_id, "from", name, str(backup / name))
+        if not (backup / name).is_dir():
+            raise Fail("app backup incomplete", f"original app retained; inspect {backup}")
+    manifest = data_manifest(backup)
+    (backup / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    return manifest
+
+
+def restore_app_data(udid: str, bundle_id: str, backup: Path, manifest: dict[str, str]) -> None:
+    stop_app(udid, bundle_id)
+    for name in ("Documents", "Library"):
+        transfer_app_data(udid, bundle_id, "to", str(backup / name), name)
+    # Verify on-device bytes, not just a successful transfer exit code.
+    stop_app(udid, bundle_id)
+    verification = backup / f"verification-{time.time_ns()}"
+    verification.mkdir(mode=0o700)
+    for name in ("Documents", "Library"):
+        (verification / name).mkdir(mode=0o700)
+        transfer_app_data(udid, bundle_id, "from", name, str(verification / name))
+    actual = data_manifest(verification)
+    mismatches = [path for path, digest in manifest.items() if actual.get(path) != digest]
+    if mismatches:
+        # CoreDevice may skip changed database files when their sizes and
+        # mtimes match. Send fresh copies of mismatches, never weaken hashes.
+        stop_app(udid, bundle_id)
+        fresh = verification / "fresh-transfer"
+        for relative in mismatches:
+            source = backup / relative
+            if source.is_symlink() or not source.is_file():
+                raise Fail("restored app data verification failed", f"original backup retained at {backup}")
+            staged = fresh / relative
+            staged.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+            shutil.copy2(source, staged)
+            os.utime(staged, None)
+            transfer_app_data(udid, bundle_id, "to", str(staged), relative)
+            received = verification / relative
+            # CoreDevice preserves read-only modes on received cache files.
+            # Remove only our verification copy before reading it back again.
+            if received.exists() or received.is_symlink():
+                received.unlink()
+            transfer_app_data(udid, bundle_id, "from", relative, str(received))
+        actual = data_manifest(verification)
+        if any(actual.get(path) != digest for path, digest in manifest.items()):
+            raise Fail("restored app data verification failed", f"do not launch; original backup retained at {backup}")
+    log(f"  restored and verified {len(manifest)} app-data files (backup: {backup})")
+
+
+def install(udid: str, ipa: Path, bundle_id: str, *, recovery: Path | None = None) -> None:
     try:
         devicectl_json("device", "install", "app", "--device", udid, str(ipa), timeout=900)
-    except DevicectlError as e:
-        reasons = e.reasons()
+    except DevicectlError as error:
+        reasons = error.reasons()
     else:
         return
-    # Upgrading over a build that still had extensions, with one that removed
-    # them, fails in installd (MIInstallerErrorDomain 35, "Info.plist missing
-    # at ...appex"). Only our own-team copy is replaced, so reinstall clean.
-    if re.search(r"Info\.plist missing at .*\.appex|MIInstallerErrorDomain error 35", " ".join(reasons)):
-        log("  installd can't upgrade over the old extensions; uninstalling the previous build and retrying")
-        devicectl_json("device", "uninstall", "app", "--device", udid, bundle_id, timeout=300)
+    extension_error = re.search(r"Info\.plist missing at .*\.appex", " ".join(reasons))
+    if extension_error and recovery is not None:
+        log("  extension registration blocks upgrade; backing up app data before replacement")
         try:
+            manifest = backup_app_data(udid, bundle_id, recovery)
+        except Exception as error:
+            raise Fail(
+                "backup failed; original app was not removed", f"{error}; backup retained at {recovery}"
+            ) from error
+        try:
+            devicectl_json("device", "uninstall", "app", "--device", udid, bundle_id, timeout=300)
             devicectl_json("device", "install", "app", "--device", udid, str(ipa), timeout=900)
-        except DevicectlError as e:
-            reasons = e.reasons()
-        else:
-            return
-    for r in reasons:
-        log(f"  devicectl: {r}")
+            restore_app_data(udid, bundle_id, recovery, manifest)
+        except Exception as error:
+            raise Fail(
+                "replacement or restore failed", f"{error}; app data retained at {recovery}; restore before launching"
+            ) from error
+        return
+    for reason in reasons:
+        log(f"  devicectl: {reason}")
+    if extension_error:
+        raise Fail(
+            "upgrade blocked; installed app and data retained",
+            "rerun with --recover-install to back up, replace and verify Documents/Library; "
+            "external app groups and Keychain are not included",
+        )
     raise Fail("install failed", explain(reasons))
 
 
@@ -273,7 +394,9 @@ def crash_logs(udid: str) -> list[dict]:
         return []
 
 
-def smoke_test(udid: str, bundle_id: str, executable: str, seconds: int, outdir: Path) -> bool:
+def smoke_test(
+    udid: str, bundle_id: str, executable: str, seconds: int, outdir: Path, *, development_logs: bool = False
+) -> bool:
     """Launch attached to the console (os_log mirrored to stderr) for `seconds`;
     True when the app is still running at the end."""
     before = {f.get("relativePath") for f in crash_logs(udid)}
@@ -289,7 +412,7 @@ def smoke_test(udid: str, bundle_id: str, executable: str, seconds: int, outdir:
         "--terminate-existing",
         "--console",
         "--environment-variables",
-        json.dumps({"OS_ACTIVITY_DT_MODE": "1"}),
+        json.dumps({"OS_ACTIVITY_DT_MODE": "1", "SPOTIFYMOD_DEBUG_LOGGING": "1" if development_logs else "0"}),
         bundle_id,
     ]
     with console.open("w") as fh:
@@ -298,14 +421,18 @@ def smoke_test(udid: str, bundle_id: str, executable: str, seconds: int, outdir:
             proc.wait(timeout=seconds)
             alive = False
         except subprocess.TimeoutExpired:
-            alive = True
-            proc.terminate()
-            try:
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+            # devicectl forwards catchable signals (including SIGTERM) to
+            # the app. Stop only the console client, leaving Spotify open.
+            proc.kill()
+            proc.wait(timeout=10)
+            # Console-mode JSON is written only when devicectl exits cleanly.
+            # Check the actual installed executable instead of an unflushed file.
+            app = next((app for app in device_apps(udid) if app["bundleIdentifier"] == bundle_id), None)
+            target = app["url"].rstrip("/") + "/" + executable if app else None
+            processes = devicectl_json("device", "info", "processes", "--device", udid).get("runningProcesses", [])
+            alive = target is not None and any(p.get("executable") == target for p in processes)
     text = console.read_text(errors="replace")
-    if not alive and re.search(r"Unable to launch|Failed to launch|denied|locked", text, re.I):
+    if not alive and re.search(r"Unable to launch|Failed to launch", text, re.I):
         tail = " / ".join(text.strip().splitlines()[-3:])
         raise Fail(
             f"launch failed: {tail}",
@@ -377,6 +504,21 @@ def main() -> int:
     ap.add_argument("--device", default=os.environ.get("FORGE_DEVICE"), help="device name or UDID")
     ap.add_argument("--keep-bundle-id", action="store_true", help="don't append .<TEAMID> to the bundle id")
     ap.add_argument("--no-build-dylib", action="store_true", help="skip patches/<app>/dylib/build.sh")
+    ap.add_argument(
+        "--recover-install",
+        action="store_true",
+        help="recover extension upgrade failures with verified Documents/Library backup and restore",
+    )
+    ap.add_argument(
+        "--development-logs",
+        action="store_true",
+        help="enable SpotifyMod verbose logs for this smoke-test session (default errors only)",
+    )
+    ap.add_argument(
+        "--launch-only",
+        action="store_true",
+        help="with --signed: capture a new session without rebuilding or reinstalling",
+    )
     ap.add_argument("--no-launch", action="store_true", help="install only, skip the launch smoke test")
     ap.add_argument("--seconds", type=int, default=15, help="smoke-test duration (default 15)")
     args = ap.parse_args()
@@ -384,6 +526,11 @@ def main() -> int:
     if sum(x is not None for x in (args.app, args.signed, args.ipa)) != 1 or bool(args.ipa) != bool(args.patches):
         ap.print_usage(sys.stderr)
         return 2
+
+    if args.launch_only and (args.signed is None or args.no_launch):
+        ap.error("--launch-only requires --signed and cannot be combined with --no-launch")
+    if args.seconds <= 0:
+        ap.error("--seconds must be positive")
 
     udid, dev_name = resolve_device(args.device)
     log(f"device: {dev_name} ({udid})")
@@ -434,20 +581,27 @@ def main() -> int:
         info["CFBundleExecutable"],
     )
 
-    before = {a["bundleIdentifier"]: a["url"] for a in device_apps(udid)}.get(bundle_id)
-    log(f"installing {bundle_id} {version}…")
-    install(udid, out_ipa, bundle_id)
-    after = {a["bundleIdentifier"]: a for a in device_apps(udid)}.get(bundle_id)
-    if not after or after["url"] == before:
-        raise Fail(f"{bundle_id} not on the device after install", "rerun with the phone unlocked")
-    log(f"installed: {after['name']} {after.get('version')} ({bundle_id})")
+    installed = {app["bundleIdentifier"]: app for app in device_apps(udid)}
+    if args.launch_only:
+        after = installed.get(bundle_id)
+        if after is None:
+            raise Fail(f"{bundle_id} is not installed", "install it before using --launch-only")
+    else:
+        before = installed.get(bundle_id, {}).get("url")
+        log(f"installing {bundle_id} {version}…")
+        recovery = REPO / "build" / "device" / f"{label}-{stamp}-backup" if args.recover_install else None
+        install(udid, out_ipa, bundle_id, recovery=recovery)
+        after = {a["bundleIdentifier"]: a for a in device_apps(udid)}.get(bundle_id)
+        if not after or after["url"] == before:
+            raise Fail(f"{bundle_id} not on the device after install", "rerun with the phone unlocked")
+        log(f"installed: {after['name']} {after.get('version')} ({bundle_id})")
 
     if args.no_launch:
         return 0
     logdir = REPO / "build" / "device" / f"{label}-{stamp}"
     logdir.mkdir(parents=True, exist_ok=True)
     log(f"launching for {args.seconds}s (console → {logdir.relative_to(REPO)}/console.log)…")
-    if smoke_test(udid, bundle_id, exe, args.seconds, logdir):
+    if smoke_test(udid, bundle_id, exe, args.seconds, logdir, development_logs=args.development_logs):
         log(f"ok: {after['name']} launched and is still running after {args.seconds}s")
         return 0
     raise Fail(f"{after['name']} exited within {args.seconds}s of launch", f"read {logdir.relative_to(REPO)}/")
