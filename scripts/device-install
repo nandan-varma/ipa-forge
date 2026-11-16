@@ -510,6 +510,12 @@ def main() -> int:
         help="recover extension upgrade failures with verified Documents/Library backup and restore",
     )
     ap.add_argument(
+        "--release",
+        action="store_true",
+        help="production build: sign without the debuggable (get-task-allow) entitlement; "
+        "pair with --no-launch (a release build cannot be attached to by the smoke test)",
+    )
+    ap.add_argument(
         "--development-logs",
         action="store_true",
         help="enable SpotifyMod verbose logs for this smoke-test session (default errors only)",
@@ -563,8 +569,9 @@ def main() -> int:
             str(profile),
             "--output",
             str(out_ipa),
-            "--debuggable",
         ]
+        if not args.release:
+            cmd.append("--debuggable")
         if not args.keep_bundle_id:
             cmd += ["--bundle-id-suffix", team]
         log("patching + signing (forge patch)…")
